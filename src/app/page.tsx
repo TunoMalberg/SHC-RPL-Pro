@@ -12,13 +12,13 @@ import { ScenarioComparisonSection } from "@/components/sections/ScenarioCompari
 import { ExportPanel } from "@/components/sections/ExportPanel";
 
 const TABS = [
-  { id: "profile", label: "Client", icon: "👤" },
-  { id: "inputs", label: "Inputs", icon: "💶" },
+  { id: "profile", label: "Kunde", icon: "👤" },
+  { id: "inputs", label: "Eingaben", icon: "💶" },
   { id: "portfolio", label: "Portfolio", icon: "📊" },
   { id: "simulation", label: "Simulation", icon: "⚙️" },
-  { id: "results", label: "Results", icon: "📈" },
-  { id: "historical", label: "Historical", icon: "📉" },
-  { id: "scenarios", label: "Scenarios", icon: "🔀" },
+  { id: "results", label: "Ergebnisse", icon: "📈" },
+  { id: "historical", label: "Historie", icon: "📉" },
+  { id: "scenarios", label: "Szenarien", icon: "🔀" },
   { id: "export", label: "Export", icon: "📄" },
 ];
 
@@ -36,17 +36,17 @@ export default function RetirementPlannerApp() {
               </div>
               <div>
                 <h1 className="text-lg font-bold text-slate-900 leading-tight" data-design-id="app-title">
-                  Retirement Planner
+                  Ruhestandsplaner
                 </h1>
                 <p className="text-xs text-slate-400 leading-tight" data-design-id="app-tagline">
-                  Professional Retirement Analysis — DACH Market
+                  Professionelle Ruhestandsanalyse — DACH-Markt
                 </p>
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2 text-xs text-slate-400" data-design-id="app-meta">
               <span className="px-2 py-1 bg-slate-100 rounded-md font-medium">EUR</span>
               <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-md font-medium">
-                3-Bucket Model
+                3-Topf-Modell
               </span>
             </div>
           </div>
@@ -104,10 +104,10 @@ export default function RetirementPlannerApp() {
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-slate-400">
             <p data-design-id="footer-disclaimer">
-              For informational purposes only. Not investment advice. Consult a qualified financial advisor.
+              Nur zu Informationszwecken. Keine Anlageberatung. Konsultieren Sie einen qualifizierten Finanzberater.
             </p>
             <p data-design-id="footer-copyright">
-              © {new Date().getFullYear()} Retirement Planner Pro — Three-Bucket Monte Carlo Engine
+              © {new Date().getFullYear()} Ruhestandsplaner Pro — Drei-Topf Monte-Carlo-Engine
             </p>
           </div>
         </div>

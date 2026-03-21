@@ -30,7 +30,7 @@ export const defaultPortfolio: PortfolioConfig = {
   buckets: [
     {
       name: "cash",
-      label: "Cash / Liquidity",
+      label: "Bargeld / Liquidität",
       allocation: 15,
       expectedReturn: 2.0,
       volatility: 0.5,
@@ -40,7 +40,7 @@ export const defaultPortfolio: PortfolioConfig = {
     },
     {
       name: "bonds",
-      label: "Bonds / Fixed Income",
+      label: "Anleihen / Festverzinslich",
       allocation: 35,
       expectedReturn: 3.5,
       volatility: 5.0,
@@ -50,7 +50,7 @@ export const defaultPortfolio: PortfolioConfig = {
     },
     {
       name: "equities",
-      label: "Equities / Stocks",
+      label: "Aktien / Beteiligungen",
       allocation: 50,
       expectedReturn: 7.0,
       volatility: 16.0,

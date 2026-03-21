@@ -23,9 +23,9 @@ export function FinancialInputsSection() {
   return (
     <div className="space-y-6" data-design-id="financial-inputs-section">
       <div data-design-id="financial-inputs-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="financial-inputs-title">Financial Inputs</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="financial-inputs-title">Finanzielle Eingaben</h2>
         <p className="text-slate-500 mt-1" data-design-id="financial-inputs-subtitle">
-          Define your capital, savings plan, withdrawal needs, and inflation assumptions.
+          Definieren Sie Kapital, Sparplan, Entnahmebedarf und Inflationsannahmen.
         </p>
       </div>
 
@@ -34,12 +34,12 @@ export function FinancialInputsSection() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2" data-design-id="capital-title">
               <span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm font-bold">€</span>
-              Capital & Savings
+              Kapital & Sparen
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div data-design-id="initial-capital-field">
-              <Label htmlFor="initialCapital">Initial Capital (€)</Label>
+              <Label htmlFor="initialCapital">Anfangskapital (€)</Label>
               <Input
                 id="initialCapital"
                 type="number"
@@ -47,10 +47,10 @@ export function FinancialInputsSection() {
                 onChange={(e) => update("initialCapital", parseFloat(e.target.value) || 0)}
                 step={10000}
               />
-              <p className="text-xs text-slate-400 mt-1">Current investable assets</p>
+              <p className="text-xs text-slate-400 mt-1">Aktuell investierbares Vermögen</p>
             </div>
             <div data-design-id="monthly-savings-field">
-              <Label htmlFor="monthlySavings">Monthly Savings (€)</Label>
+              <Label htmlFor="monthlySavings">Monatliche Sparrate (€)</Label>
               <Input
                 id="monthlySavings"
                 type="number"
@@ -60,7 +60,7 @@ export function FinancialInputsSection() {
               />
             </div>
             <div data-design-id="annual-increase-field">
-              <Label htmlFor="annualIncrease">Annual Savings Increase (%)</Label>
+              <Label htmlFor="annualIncrease">Jährliche Sparsteigerung (%)</Label>
               <Input
                 id="annualIncrease"
                 type="number"
@@ -68,7 +68,7 @@ export function FinancialInputsSection() {
                 onChange={(e) => update("annualSavingsIncrease", parseFloat(e.target.value) || 0)}
                 step={0.5}
               />
-              <p className="text-xs text-slate-400 mt-1">Annual salary-linked increase to savings</p>
+              <p className="text-xs text-slate-400 mt-1">Jährliche gehaltsgebundene Sparsteigerung</p>
             </div>
           </CardContent>
         </Card>
@@ -76,13 +76,13 @@ export function FinancialInputsSection() {
         <Card data-design-id="withdrawal-pension-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2" data-design-id="withdrawal-title">
-              <span className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-bold">W</span>
-              Withdrawals & Pension
+              <span className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-bold">E</span>
+              Entnahmen & Pension
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div data-design-id="monthly-withdrawal-field">
-              <Label htmlFor="withdrawal">Desired Monthly Withdrawal (€)</Label>
+              <Label htmlFor="withdrawal">Gewünschte monatliche Entnahme (€)</Label>
               <Input
                 id="withdrawal"
                 type="number"
@@ -91,11 +91,11 @@ export function FinancialInputsSection() {
                 step={100}
               />
               <p className="text-xs text-slate-400 mt-1">
-                Annual: {fmtEur(annualWithdrawal)}
+                Jährlich: {fmtEur(annualWithdrawal)}
               </p>
             </div>
             <div data-design-id="pension-income-field">
-              <Label htmlFor="pension">Monthly Pension Income (€)</Label>
+              <Label htmlFor="pension">Monatliches Pensionseinkommen (€)</Label>
               <Input
                 id="pension"
                 type="number"
@@ -103,10 +103,10 @@ export function FinancialInputsSection() {
                 onChange={(e) => update("monthlyPension", parseFloat(e.target.value) || 0)}
                 step={100}
               />
-              <p className="text-xs text-slate-400 mt-1">State pension (Staatliche Pension)</p>
+              <p className="text-xs text-slate-400 mt-1">Staatliche Pension</p>
             </div>
             <div data-design-id="pension-start-age-field">
-              <Label htmlFor="pensionAge">Pension Start Age</Label>
+              <Label htmlFor="pensionAge">Pensionsbeginn (Alter)</Label>
               <Input
                 id="pensionAge"
                 type="number"
@@ -122,13 +122,13 @@ export function FinancialInputsSection() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2" data-design-id="inflation-title">
             <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">%</span>
-            Inflation & Value Basis
+            Inflation & Wertbasis
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div data-design-id="inflation-rate-field">
-              <Label htmlFor="inflation">Inflation Rate (% p.a.)</Label>
+              <Label htmlFor="inflation">Inflationsrate (% p.a.)</Label>
               <Input
                 id="inflation"
                 type="number"
@@ -137,7 +137,7 @@ export function FinancialInputsSection() {
                 step={0.1}
               />
               <p className="text-xs text-slate-400 mt-1">
-                ECB target: 2.0% | Austrian avg. (2000–2024): ~2.3%
+                EZB-Ziel: 2,0% | Österreich Ø (2000–2024): ~2,3%
               </p>
             </div>
             <div className="flex items-center gap-3 pt-6" data-design-id="real-values-toggle">
@@ -148,12 +148,12 @@ export function FinancialInputsSection() {
               />
               <div>
                 <Label htmlFor="realValues" className="cursor-pointer">
-                  Use Real (Inflation-Adjusted) Values
+                  Reale (inflationsbereinigte) Werte verwenden
                 </Label>
                 <p className="text-xs text-slate-400">
                   {inputs.useRealValues
-                    ? "Withdrawals increase with inflation"
-                    : "Withdrawals remain nominal (constant)"}
+                    ? "Entnahmen steigen mit der Inflation"
+                    : "Entnahmen bleiben nominal (konstant)"}
                 </p>
               </div>
             </div>
@@ -166,19 +166,19 @@ export function FinancialInputsSection() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div data-design-id="summary-initial-capital">
               <div className="text-xl font-bold text-emerald-600">{fmtEur(inputs.initialCapital)}</div>
-              <div className="text-xs text-slate-500">Initial Capital</div>
+              <div className="text-xs text-slate-500">Anfangskapital</div>
             </div>
             <div data-design-id="summary-total-contrib">
               <div className="text-xl font-bold text-blue-600">{fmtEur(totalContrib)}</div>
-              <div className="text-xs text-slate-500">Total Contributions</div>
+              <div className="text-xs text-slate-500">Gesamteinzahlungen</div>
             </div>
             <div data-design-id="summary-net-withdrawal">
               <div className="text-xl font-bold text-rose-600">{fmtEur(netWithdrawal)}</div>
-              <div className="text-xs text-slate-500">Net Annual Withdrawal</div>
+              <div className="text-xs text-slate-500">Netto-Jahresentnahme</div>
             </div>
             <div data-design-id="summary-pension">
               <div className="text-xl font-bold text-amber-600">{fmtEur(inputs.monthlyPension * 12)}</div>
-              <div className="text-xs text-slate-500">Annual Pension</div>
+              <div className="text-xs text-slate-500">Jährliche Pension</div>
             </div>
           </div>
         </CardContent>

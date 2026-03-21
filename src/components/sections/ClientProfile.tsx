@@ -17,9 +17,9 @@ export function ClientProfileSection() {
   return (
     <div className="space-y-6" data-design-id="client-profile-section">
       <div data-design-id="client-profile-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="client-profile-title">Client Profile</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="client-profile-title">Kundenprofil</h2>
         <p className="text-slate-500 mt-1" data-design-id="client-profile-subtitle">
-          Enter the client&apos;s personal information and planning horizon.
+          Geben Sie die persönlichen Daten und den Planungshorizont des Kunden ein.
         </p>
       </div>
 
@@ -28,12 +28,12 @@ export function ClientProfileSection() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2" data-design-id="personal-info-title">
               <span className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold">P</span>
-              Personal Information
+              Persönliche Daten
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div data-design-id="client-name-field">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">Vollständiger Name</Label>
               <Input
                 id="name"
                 value={client.name}
@@ -42,7 +42,7 @@ export function ClientProfileSection() {
               />
             </div>
             <div data-design-id="client-birth-year-field">
-              <Label htmlFor="birthYear">Birth Year</Label>
+              <Label htmlFor="birthYear">Geburtsjahr</Label>
               <Input
                 id="birthYear"
                 type="number"
@@ -58,7 +58,7 @@ export function ClientProfileSection() {
               />
             </div>
             <div data-design-id="client-current-age-field">
-              <Label htmlFor="currentAge">Current Age</Label>
+              <Label htmlFor="currentAge">Aktuelles Alter</Label>
               <Input
                 id="currentAge"
                 type="number"
@@ -67,7 +67,7 @@ export function ClientProfileSection() {
               />
             </div>
             <div data-design-id="client-currency-field">
-              <Label htmlFor="currency">Currency</Label>
+              <Label htmlFor="currency">Währung</Label>
               <Input
                 id="currency"
                 value={client.currency}
@@ -82,12 +82,12 @@ export function ClientProfileSection() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2" data-design-id="horizon-title">
               <span className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-bold">H</span>
-              Planning Horizon
+              Planungshorizont
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div data-design-id="client-retirement-age-field">
-              <Label htmlFor="retirementAge">Retirement Age</Label>
+              <Label htmlFor="retirementAge">Pensionsalter</Label>
               <Input
                 id="retirementAge"
                 type="number"
@@ -95,11 +95,11 @@ export function ClientProfileSection() {
                 onChange={(e) => update("retirementAge", parseInt(e.target.value) || 65)}
               />
               <p className="text-xs text-slate-400 mt-1">
-                Years to retirement: {Math.max(0, client.retirementAge - client.currentAge)}
+                Jahre bis zur Pension: {Math.max(0, client.retirementAge - client.currentAge)}
               </p>
             </div>
             <div data-design-id="client-life-expectancy-field">
-              <Label htmlFor="lifeExpectancy">Life Expectancy</Label>
+              <Label htmlFor="lifeExpectancy">Lebenserwartung</Label>
               <Input
                 id="lifeExpectancy"
                 type="number"
@@ -107,16 +107,16 @@ export function ClientProfileSection() {
                 onChange={(e) => update("lifeExpectancy", parseInt(e.target.value) || 90)}
               />
               <p className="text-xs text-slate-400 mt-1">
-                Withdrawal period: {Math.max(0, client.lifeExpectancy - client.retirementAge)} years
+                Entnahmezeitraum: {Math.max(0, client.lifeExpectancy - client.retirementAge)} Jahre
               </p>
             </div>
             <div data-design-id="client-notes-field">
-              <Label htmlFor="notes">Notes</Label>
+              <Label htmlFor="notes">Notizen</Label>
               <Textarea
                 id="notes"
                 value={client.notes}
                 onChange={(e) => update("notes", e.target.value)}
-                placeholder="Additional notes about the client..."
+                placeholder="Zusätzliche Notizen zum Kunden..."
                 rows={4}
               />
             </div>
@@ -129,23 +129,23 @@ export function ClientProfileSection() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div data-design-id="summary-current-age">
               <div className="text-2xl font-bold text-indigo-600">{client.currentAge}</div>
-              <div className="text-xs text-slate-500">Current Age</div>
+              <div className="text-xs text-slate-500">Aktuelles Alter</div>
             </div>
             <div data-design-id="summary-retirement-age">
               <div className="text-2xl font-bold text-amber-600">{client.retirementAge}</div>
-              <div className="text-xs text-slate-500">Retirement Age</div>
+              <div className="text-xs text-slate-500">Pensionsalter</div>
             </div>
             <div data-design-id="summary-accumulation">
               <div className="text-2xl font-bold text-emerald-600">
                 {Math.max(0, client.retirementAge - client.currentAge)}
               </div>
-              <div className="text-xs text-slate-500">Accumulation Years</div>
+              <div className="text-xs text-slate-500">Ansparjahre</div>
             </div>
             <div data-design-id="summary-withdrawal">
               <div className="text-2xl font-bold text-rose-600">
                 {Math.max(0, client.lifeExpectancy - client.retirementAge)}
               </div>
-              <div className="text-xs text-slate-500">Withdrawal Years</div>
+              <div className="text-xs text-slate-500">Entnahmejahre</div>
             </div>
           </div>
         </CardContent>

@@ -33,7 +33,7 @@ export function SimulationPanel() {
 
   const runSimulation = useCallback(async () => {
     setRunning(true);
-    setProgress("Running Monte Carlo simulation...");
+    setProgress("Monte-Carlo-Simulation wird ausgeführt...");
 
     await new Promise((r) => setTimeout(r, 50));
 
@@ -41,7 +41,7 @@ export function SimulationPanel() {
       const result = runMonteCarloSimulation(client, inputs, portfolio, settings);
 
       if (settings.mode === "sustainable_withdrawal") {
-        setProgress("Finding sustainable withdrawal rate...");
+        setProgress("Nachhaltige Entnahmerate wird ermittelt...");
         await new Promise((r) => setTimeout(r, 20));
         result.sustainableWithdrawal = findSustainableWithdrawal(
           client, inputs, portfolio, settings
@@ -49,7 +49,7 @@ export function SimulationPanel() {
       }
 
       if (settings.mode === "required_capital") {
-        setProgress("Finding required capital...");
+        setProgress("Erforderliches Kapital wird ermittelt...");
         await new Promise((r) => setTimeout(r, 20));
         result.requiredCapital = findRequiredCapital(
           client, inputs, portfolio, settings
@@ -57,14 +57,14 @@ export function SimulationPanel() {
       }
 
       if (settings.mode === "required_savings") {
-        setProgress("Finding required savings rate...");
+        setProgress("Erforderliche Sparrate wird ermittelt...");
         await new Promise((r) => setTimeout(r, 20));
         result.requiredSavings = findRequiredSavingsRate(
           client, inputs, portfolio, settings
         );
       }
 
-      setProgress("Generating withdrawal heatmap...");
+      setProgress("Entnahme-Heatmap wird erstellt...");
       await new Promise((r) => setTimeout(r, 20));
       result.withdrawalHeatmap = generateWithdrawalHeatmap(
         client, inputs, portfolio, settings
@@ -72,15 +72,15 @@ export function SimulationPanel() {
 
       dispatch({ type: "SET_RESULT", payload: result });
 
-      setProgress("Running historical backtest...");
+      setProgress("Historischer Backtest wird durchgeführt...");
       await new Promise((r) => setTimeout(r, 20));
       const historicalResult = runHistoricalBacktest(client, inputs, portfolio);
       dispatch({ type: "SET_HISTORICAL", payload: historicalResult });
 
-      setProgress("Complete!");
+      setProgress("Abgeschlossen!");
       dispatch({ type: "SET_TAB", payload: "results" });
     } catch (err) {
-      setProgress(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+      setProgress(`Fehler: ${err instanceof Error ? err.message : "Unbekannter Fehler"}`);
     } finally {
       setRunning(false);
     }
@@ -89,20 +89,20 @@ export function SimulationPanel() {
   return (
     <div className="space-y-6" data-design-id="simulation-panel-section">
       <div data-design-id="simulation-panel-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="simulation-panel-title">Simulation Settings</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="simulation-panel-title">Simulationseinstellungen</h2>
         <p className="text-slate-500 mt-1" data-design-id="simulation-panel-subtitle">
-          Configure and run the Monte Carlo simulation engine.
+          Konfigurieren und starten Sie die Monte-Carlo-Simulationsengine.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-design-id="sim-config-card">
           <CardHeader>
-            <CardTitle className="text-lg" data-design-id="sim-config-title">Simulation Configuration</CardTitle>
+            <CardTitle className="text-lg" data-design-id="sim-config-title">Simulationskonfiguration</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div data-design-id="sim-mode-field">
-              <Label>Simulation Mode</Label>
+              <Label>Simulationsmodus</Label>
               <Select
                 value={settings.mode}
                 onValueChange={(v) =>
@@ -117,38 +117,38 @@ export function SimulationPanel() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="fixed_withdrawal">
-                    Fixed Withdrawal → Success Probability
+                    Feste Entnahme → Erfolgswahrscheinlichkeit
                   </SelectItem>
                   <SelectItem value="sustainable_withdrawal">
-                    Find Sustainable Withdrawal Rate
+                    Nachhaltige Entnahmerate ermitteln
                   </SelectItem>
                   <SelectItem value="required_capital">
-                    Find Required Capital
+                    Erforderliches Kapital ermitteln
                   </SelectItem>
                   <SelectItem value="required_savings">
-                    Find Required Savings Rate
+                    Erforderliche Sparrate ermitteln
                   </SelectItem>
                   <SelectItem value="scenario_comparison">
-                    Scenario Comparison
+                    Szenariovergleich
                   </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-slate-400 mt-1">
                 {settings.mode === "fixed_withdrawal" &&
-                  "Compute success probability for your planned withdrawal."}
+                  "Berechne die Erfolgswahrscheinlichkeit für Ihre geplante Entnahme."}
                 {settings.mode === "sustainable_withdrawal" &&
-                  "Find the maximum withdrawal with ≥95% success."}
+                  "Ermittle die maximale Entnahme mit ≥95% Erfolg."}
                 {settings.mode === "required_capital" &&
-                  "Find the capital needed for your withdrawal with ≥95% success."}
+                  "Ermittle das benötigte Kapital für Ihre Entnahme mit ≥95% Erfolg."}
                 {settings.mode === "required_savings" &&
-                  "Find the monthly savings needed for your withdrawal with ≥95% success."}
+                  "Ermittle die monatliche Sparrate für Ihre Entnahme mit ≥95% Erfolg."}
                 {settings.mode === "scenario_comparison" &&
-                  "Compare multiple scenarios side by side."}
+                  "Vergleichen Sie mehrere Szenarien nebeneinander."}
               </p>
             </div>
 
             <div data-design-id="sim-count-field">
-              <Label>Number of Simulations: {settings.numSimulations.toLocaleString()}</Label>
+              <Label>Anzahl Simulationen: {settings.numSimulations.toLocaleString()}</Label>
               <Slider
                 value={[settings.numSimulations]}
                 onValueChange={([val]) =>
@@ -159,13 +159,13 @@ export function SimulationPanel() {
                 step={1000}
               />
               <div className="flex justify-between text-xs text-slate-400">
-                <span>1,000 (fast)</span>
-                <span>10,000 (accurate)</span>
+                <span>1.000 (schnell)</span>
+                <span>10.000 (genau)</span>
               </div>
             </div>
 
             <div data-design-id="sim-timestep-field">
-              <Label>Time Step</Label>
+              <Label>Zeitschritt</Label>
               <Select
                 value={String(settings.timeStepMonths)}
                 onValueChange={(v) =>
@@ -179,14 +179,14 @@ export function SimulationPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="12">Annual (faster)</SelectItem>
-                  <SelectItem value="1">Monthly (more precise)</SelectItem>
+                  <SelectItem value="12">Jährlich (schneller)</SelectItem>
+                  <SelectItem value="1">Monatlich (präziser)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div data-design-id="sim-seed-field">
-              <Label htmlFor="seed">Random Seed (optional)</Label>
+              <Label htmlFor="seed">Zufallsseed (optional)</Label>
               <Input
                 id="seed"
                 type="number"
@@ -201,7 +201,7 @@ export function SimulationPanel() {
                     },
                   })
                 }
-                placeholder="Leave empty for random"
+                placeholder="Leer lassen für zufällig"
               />
             </div>
           </CardContent>
@@ -209,40 +209,40 @@ export function SimulationPanel() {
 
         <Card data-design-id="sim-summary-card">
           <CardHeader>
-            <CardTitle className="text-lg" data-design-id="sim-summary-title">Plan Summary</CardTitle>
+            <CardTitle className="text-lg" data-design-id="sim-summary-title">Planübersicht</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-50 rounded-lg p-3" data-design-id="summary-acc-phase">
-                <div className="text-xs text-slate-500">Accumulation Phase</div>
+                <div className="text-xs text-slate-500">Ansparphase</div>
                 <div className="text-lg font-bold text-indigo-600">
-                  {client.retirementAge - client.currentAge} years
+                  {client.retirementAge - client.currentAge} Jahre
                 </div>
                 <div className="text-xs text-slate-400">
-                  Age {client.currentAge} → {client.retirementAge}
+                  Alter {client.currentAge} → {client.retirementAge}
                 </div>
               </div>
               <div className="bg-slate-50 rounded-lg p-3" data-design-id="summary-dec-phase">
-                <div className="text-xs text-slate-500">Decumulation Phase</div>
+                <div className="text-xs text-slate-500">Entnahmephase</div>
                 <div className="text-lg font-bold text-rose-600">
-                  {client.lifeExpectancy - client.retirementAge} years
+                  {client.lifeExpectancy - client.retirementAge} Jahre
                 </div>
                 <div className="text-xs text-slate-400">
-                  Age {client.retirementAge} → {client.lifeExpectancy}
+                  Alter {client.retirementAge} → {client.lifeExpectancy}
                 </div>
               </div>
               <div className="bg-slate-50 rounded-lg p-3" data-design-id="summary-start-capital">
-                <div className="text-xs text-slate-500">Starting Capital</div>
+                <div className="text-xs text-slate-500">Startkapital</div>
                 <div className="text-lg font-bold text-emerald-600">
                   {fmtEur(inputs.initialCapital)}
                 </div>
               </div>
               <div className="bg-slate-50 rounded-lg p-3" data-design-id="summary-monthly-need">
-                <div className="text-xs text-slate-500">Monthly Need</div>
+                <div className="text-xs text-slate-500">Monatlicher Bedarf</div>
                 <div className="text-lg font-bold text-amber-600">
                   {fmtEur(inputs.desiredMonthlyWithdrawal - inputs.monthlyPension)}
                 </div>
-                <div className="text-xs text-slate-400">After pension</div>
+                <div className="text-xs text-slate-400">Nach Pension</div>
               </div>
             </div>
 
@@ -258,7 +258,7 @@ export function SimulationPanel() {
                   {progress}
                 </span>
               ) : (
-                "▶  Run Simulation"
+                "▶  Simulation starten"
               )}
             </Button>
 

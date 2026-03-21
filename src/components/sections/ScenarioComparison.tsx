@@ -28,7 +28,7 @@ export function ScenarioComparisonSection() {
   const [scenarioName, setScenarioName] = useState("");
 
   const addScenario = () => {
-    const name = scenarioName.trim() || `Scenario ${scenarios.length + 1}`;
+    const name = scenarioName.trim() || `Szenario ${scenarios.length + 1}`;
     const scenario: Scenario = {
       id: Date.now().toString(),
       name,
@@ -63,9 +63,9 @@ export function ScenarioComparisonSection() {
   return (
     <div className="space-y-6" data-design-id="scenario-comparison-section">
       <div data-design-id="scenario-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="scenario-title">Scenario Comparison</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="scenario-title">Szenariovergleich</h2>
         <p className="text-slate-500 mt-1" data-design-id="scenario-subtitle">
-          Save and compare different planning assumptions side by side.
+          Speichern und vergleichen Sie verschiedene Planungsannahmen nebeneinander.
         </p>
       </div>
 
@@ -73,20 +73,20 @@ export function ScenarioComparisonSection() {
         <CardContent className="pt-6">
           <div className="flex gap-3 items-end">
             <div className="flex-1">
-              <Label htmlFor="scenarioName">Scenario Name</Label>
+              <Label htmlFor="scenarioName">Szenarioname</Label>
               <Input
                 id="scenarioName"
                 value={scenarioName}
                 onChange={(e) => setScenarioName(e.target.value)}
-                placeholder={`Scenario ${scenarios.length + 1}`}
+                placeholder={`Szenario ${scenarios.length + 1}`}
               />
             </div>
             <Button onClick={addScenario} className="bg-indigo-600 hover:bg-indigo-700" data-design-id="add-scenario-button">
-              + Save Current Settings as Scenario
+              + Aktuelle Einstellungen als Szenario speichern
             </Button>
           </div>
           <p className="text-xs text-slate-400 mt-2">
-            Adjust inputs/portfolio, then save as a new scenario to compare.
+            Passen Sie Eingaben/Portfolio an und speichern Sie als neues Szenario zum Vergleich.
           </p>
         </CardContent>
       </Card>
@@ -94,8 +94,8 @@ export function ScenarioComparisonSection() {
       {scenarios.length === 0 ? (
         <div className="text-center py-16 text-slate-400" data-design-id="no-scenarios">
           <p className="text-4xl mb-3">🔀</p>
-          <p className="text-lg font-medium">No scenarios saved yet</p>
-          <p className="text-sm">Modify your inputs and save different scenarios to compare.</p>
+          <p className="text-lg font-medium">Noch keine Szenarien gespeichert</p>
+          <p className="text-sm">Ändern Sie Ihre Eingaben und speichern Sie verschiedene Szenarien zum Vergleich.</p>
         </div>
       ) : (
         <>
@@ -124,28 +124,28 @@ export function ScenarioComparisonSection() {
                 </CardHeader>
                 <CardContent className="space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Capital</span>
+                    <span className="text-slate-500">Kapital</span>
                     <span className="font-medium">{fmtEur(s.inputs.initialCapital)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Savings/mo</span>
+                    <span className="text-slate-500">Sparen/Monat</span>
                     <span className="font-medium">{fmtEur(s.inputs.monthlySavings)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Withdrawal/mo</span>
+                    <span className="text-slate-500">Entnahme/Monat</span>
                     <span className="font-medium">{fmtEur(s.inputs.desiredMonthlyWithdrawal)}</span>
                   </div>
                   {s.result && (
                     <>
                       <div className="pt-2 border-t mt-2">
                         <div className="flex justify-between">
-                          <span className="text-slate-500">Success Rate</span>
+                          <span className="text-slate-500">Erfolgsquote</span>
                           <span className={`font-bold ${s.result.successRate >= 90 ? "text-emerald-600" : s.result.successRate >= 70 ? "text-amber-600" : "text-rose-600"}`}>
                             {fmtPct(s.result.successRate)}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-500">Median Final</span>
+                          <span className="text-slate-500">Median Endverm.</span>
                           <span className="font-medium">{fmtEur(s.result.medianFinalWealth)}</span>
                         </div>
                       </div>
@@ -159,7 +159,7 @@ export function ScenarioComparisonSection() {
           {comparisonData.length > 0 && (
             <Card data-design-id="scenario-comparison-chart-card">
               <CardHeader>
-                <CardTitle data-design-id="scenario-comparison-chart-title">Median Portfolio Path Comparison</CardTitle>
+                <CardTitle data-design-id="scenario-comparison-chart-title">Vergleich der medianen Portfoliopfade</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={400}>
@@ -168,7 +168,7 @@ export function ScenarioComparisonSection() {
                     <XAxis
                       dataKey="age"
                       tick={{ fontSize: 11 }}
-                      label={{ value: "Age", position: "insideBottom", offset: -5, fontSize: 12 }}
+                      label={{ value: "Alter", position: "insideBottom", offset: -5, fontSize: 12 }}
                     />
                     <YAxis
                       tick={{ fontSize: 11 }}
@@ -176,7 +176,7 @@ export function ScenarioComparisonSection() {
                     />
                     <Tooltip
                       formatter={(value: number) => fmtEur(value)}
-                      labelFormatter={(l) => `Age ${l}`}
+                      labelFormatter={(l) => `Alter ${l}`}
                       contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     />
                     <Legend />
@@ -198,19 +198,19 @@ export function ScenarioComparisonSection() {
 
           <Card data-design-id="scenario-summary-table-card">
             <CardHeader>
-              <CardTitle data-design-id="scenario-summary-table-title">Summary Comparison</CardTitle>
+              <CardTitle data-design-id="scenario-summary-table-title">Zusammenfassung Vergleich</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b-2 border-slate-200">
-                      <th className="text-left py-2 px-3 font-semibold text-slate-600">Scenario</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-600">Success</th>
+                      <th className="text-left py-2 px-3 font-semibold text-slate-600">Szenario</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-600">Erfolg</th>
                       <th className="text-right py-2 px-3 font-semibold text-slate-600">Median</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-600">10th Pctl</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-600">90th Pctl</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-600">Max DD</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-600">10. Perz.</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-600">90. Perz.</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-600">Max. DD</th>
                     </tr>
                   </thead>
                   <tbody>

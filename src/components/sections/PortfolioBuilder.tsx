@@ -92,9 +92,9 @@ export function PortfolioBuilderSection() {
   return (
     <div className="space-y-6" data-design-id="portfolio-builder-section">
       <div data-design-id="portfolio-builder-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="portfolio-builder-title">Portfolio Builder</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="portfolio-builder-title">Portfolio-Konfigurator</h2>
         <p className="text-slate-500 mt-1" data-design-id="portfolio-builder-subtitle">
-          Configure the three-bucket portfolio model with allocation, returns, and risk parameters.
+          Konfigurieren Sie das Drei-Topf-Portfoliomodell mit Allokation, Renditen und Risikoparametern.
         </p>
       </div>
 
@@ -130,12 +130,12 @@ export function PortfolioBuilderSection() {
           >
             <CardHeader className="pb-3">
               <CardTitle className={`text-base ${BUCKET_COLORS[index].accent}`} data-design-id={`bucket-title-${index}`}>
-                Bucket {index + 1}: {bucket.label}
+                Topf {index + 1}: {bucket.label}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div data-design-id={`bucket-allocation-${index}`}>
-                <Label className="text-xs">Allocation (%)</Label>
+                <Label className="text-xs">Allokation (%)</Label>
                 <Slider
                   value={[bucket.allocation]}
                   onValueChange={([val]) => updateAllocation(index, val)}
@@ -148,7 +148,7 @@ export function PortfolioBuilderSection() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div data-design-id={`bucket-return-${index}`}>
-                  <Label className="text-xs">Expected Return (%)</Label>
+                  <Label className="text-xs">Erwartete Rendite (%)</Label>
                   <Input
                     type="number"
                     value={bucket.expectedReturn}
@@ -158,7 +158,7 @@ export function PortfolioBuilderSection() {
                   />
                 </div>
                 <div data-design-id={`bucket-vol-${index}`}>
-                  <Label className="text-xs">Volatility (%)</Label>
+                  <Label className="text-xs">Volatilität (%)</Label>
                   <Input
                     type="number"
                     value={bucket.volatility}
@@ -168,7 +168,7 @@ export function PortfolioBuilderSection() {
                   />
                 </div>
                 <div data-design-id={`bucket-costs-${index}`}>
-                  <Label className="text-xs">Costs (%)</Label>
+                  <Label className="text-xs">Kosten (%)</Label>
                   <Input
                     type="number"
                     value={bucket.costs}
@@ -178,7 +178,7 @@ export function PortfolioBuilderSection() {
                   />
                 </div>
                 <div data-design-id={`bucket-tax-${index}`}>
-                  <Label className="text-xs">Tax Drag (%)</Label>
+                  <Label className="text-xs">Steuerbelastung (%)</Label>
                   <Input
                     type="number"
                     value={bucket.taxDrag}
@@ -189,7 +189,7 @@ export function PortfolioBuilderSection() {
                 </div>
               </div>
               <div className={`text-center py-2 rounded ${BUCKET_COLORS[index].border} bg-white/60`} data-design-id={`bucket-net-return-${index}`}>
-                <div className="text-xs text-slate-500">Net Return</div>
+                <div className="text-xs text-slate-500">Nettorendite</div>
                 <div className={`text-lg font-bold ${BUCKET_COLORS[index].accent}`}>
                   {fmtPct(bucket.netReturn)}
                 </div>
@@ -202,7 +202,7 @@ export function PortfolioBuilderSection() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-design-id="correlation-matrix-card">
           <CardHeader>
-            <CardTitle className="text-lg" data-design-id="correlation-title">Correlation Matrix</CardTitle>
+            <CardTitle className="text-lg" data-design-id="correlation-title">Korrelationsmatrix</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -210,13 +210,13 @@ export function PortfolioBuilderSection() {
                 <thead>
                   <tr>
                     <th className="text-left py-2 pr-3 text-slate-500 font-medium"></th>
-                    <th className="py-2 px-2 text-center text-teal-600 font-medium">Cash</th>
-                    <th className="py-2 px-2 text-center text-blue-600 font-medium">Bonds</th>
-                    <th className="py-2 px-2 text-center text-amber-600 font-medium">Equities</th>
+                    <th className="py-2 px-2 text-center text-teal-600 font-medium">Bargeld</th>
+                    <th className="py-2 px-2 text-center text-blue-600 font-medium">Anleihen</th>
+                    <th className="py-2 px-2 text-center text-amber-600 font-medium">Aktien</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {["Cash", "Bonds", "Equities"].map((label, i) => (
+                  {["Bargeld", "Anleihen", "Aktien"].map((label, i) => (
                     <tr key={label}>
                       <td className="py-2 pr-3 font-medium text-slate-700">{label}</td>
                       {[0, 1, 2].map((j) => (
@@ -254,11 +254,11 @@ export function PortfolioBuilderSection() {
 
         <Card data-design-id="rebalancing-card">
           <CardHeader>
-            <CardTitle className="text-lg" data-design-id="rebalancing-title">Rebalancing & Portfolio Metrics</CardTitle>
+            <CardTitle className="text-lg" data-design-id="rebalancing-title">Rebalancing & Portfolio-Kennzahlen</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div data-design-id="rebalancing-frequency-field">
-              <Label>Rebalancing Frequency</Label>
+              <Label>Rebalancing-Häufigkeit</Label>
               <Select
                 value={portfolio.rebalancingFrequency}
                 onValueChange={(v) =>
@@ -272,15 +272,15 @@ export function PortfolioBuilderSection() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="annually">Annually</SelectItem>
-                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="monthly">Monatlich</SelectItem>
+                  <SelectItem value="quarterly">Vierteljährlich</SelectItem>
+                  <SelectItem value="annually">Jährlich</SelectItem>
+                  <SelectItem value="none">Kein Rebalancing</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div data-design-id="rebalancing-threshold-field">
-              <Label>Rebalancing Threshold (%)</Label>
+              <Label>Rebalancing-Schwellenwert (%)</Label>
               <Slider
                 value={[portfolio.rebalancingThreshold]}
                 onValueChange={([val]) =>
@@ -291,18 +291,18 @@ export function PortfolioBuilderSection() {
                 step={1}
               />
               <div className="text-right text-sm text-slate-500">
-                Trigger when drift exceeds {portfolio.rebalancingThreshold}%
+                Auslösung bei Abweichung über {portfolio.rebalancingThreshold}%
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3 pt-3 border-t" data-design-id="portfolio-metrics">
               <div className="text-center" data-design-id="metric-return">
                 <div className="text-lg font-bold text-emerald-600">{fmtPct(portReturn)}</div>
-                <div className="text-xs text-slate-500">Expected Return</div>
+                <div className="text-xs text-slate-500">Erwartete Rendite</div>
               </div>
               <div className="text-center" data-design-id="metric-volatility">
                 <div className="text-lg font-bold text-rose-600">{fmtPct(portVol)}</div>
-                <div className="text-xs text-slate-500">Volatility</div>
+                <div className="text-xs text-slate-500">Volatilität</div>
               </div>
               <div className="text-center" data-design-id="metric-sharpe">
                 <div className="text-lg font-bold text-blue-600">{sharpe.toFixed(2)}</div>

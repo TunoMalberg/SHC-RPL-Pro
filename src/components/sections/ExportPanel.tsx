@@ -58,9 +58,9 @@ export function ExportPanel() {
   return (
     <div className="space-y-6" data-design-id="export-panel-section">
       <div data-design-id="export-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="export-title">Report Export</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="export-title">Bericht-Export</h2>
         <p className="text-slate-500 mt-1" data-design-id="export-subtitle">
-          Generate professional reports for clients and advisors.
+          Erstellen Sie professionelle Berichte für Kunden und Berater.
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export function ExportPanel() {
         <Card className="border-amber-200 bg-amber-50" data-design-id="export-warning">
           <CardContent className="pt-6 text-center">
             <p className="text-amber-700 font-medium">
-              Run a simulation first to enable exports.
+              Führen Sie zuerst eine Simulation durch, um Exporte zu aktivieren.
             </p>
           </CardContent>
         </Card>
@@ -79,20 +79,20 @@ export function ExportPanel() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-3" data-design-id="excel-export-title">
               <span className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">XLS</span>
-              Excel Report
+              Excel-Bericht
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-slate-600 space-y-1.5" data-design-id="excel-sheets-list">
-              <p className="font-medium text-slate-800">Included Sheets:</p>
+              <p className="font-medium text-slate-800">Enthaltene Tabellenblätter:</p>
               <ul className="list-none space-y-1">
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Inputs & Assumptions</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Portfolio Structure (3 Buckets)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Monte Carlo Summary</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Simulation Paths (Percentiles)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Withdrawal Analysis</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Historical Backtest Results</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Key Metrics Summary</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Eingaben & Annahmen</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Portfoliostruktur (3 Töpfe)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Monte-Carlo-Zusammenfassung</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Simulationspfade (Perzentile)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Entnahmeanalyse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Historische Backtest-Ergebnisse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Kennzahlen-Zusammenfassung</li>
               </ul>
             </div>
             <Button
@@ -101,7 +101,7 @@ export function ExportPanel() {
               className="w-full bg-emerald-600 hover:bg-emerald-700"
               data-design-id="excel-download-button"
             >
-              {exporting === "excel" ? "Generating..." : "📊 Download Excel Report"}
+              {exporting === "excel" ? "Wird erstellt..." : "📊 Excel-Bericht herunterladen"}
             </Button>
           </CardContent>
         </Card>
@@ -110,25 +110,25 @@ export function ExportPanel() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-3" data-design-id="pptx-export-title">
               <span className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">PPT</span>
-              PowerPoint Presentation
+              PowerPoint-Präsentation
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-slate-600 space-y-1.5" data-design-id="pptx-slides-list">
-              <p className="font-medium text-slate-800">Included Slides:</p>
+              <p className="font-medium text-slate-800">Enthaltene Folien:</p>
               <ul className="list-none space-y-1">
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Title Slide (Client & Date)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Financial Situation Summary</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Three-Bucket Portfolio Model</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Key Assumptions & Metrics</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Monte Carlo Results</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Success Probability Explanation</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Withdrawal Rate & 4% Rule</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Risk Analysis & SoR Risk</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Historical Backtest Results</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Educational Content (MPT, Risks)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Recommendations</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Appendix (Methodology)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Titelfolie (Kunde & Datum)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Finanzielle Übersicht</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Drei-Topf-Portfoliomodell</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Annahmen & Kennzahlen</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Monte-Carlo-Ergebnisse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Erfolgswahrscheinlichkeit erklärt</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Entnahmerate & 4%-Regel</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Risikoanalyse & SoR-Risiko</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Historische Backtest-Ergebnisse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Wissenswertes (MPT, Risiken)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Empfehlungen</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Anhang (Methodik)</li>
               </ul>
             </div>
             <Button
@@ -137,7 +137,7 @@ export function ExportPanel() {
               className="w-full bg-blue-600 hover:bg-blue-700"
               data-design-id="pptx-download-button"
             >
-              {exporting === "pptx" ? "Generating..." : "📝 Download PowerPoint Presentation"}
+              {exporting === "pptx" ? "Wird erstellt..." : "📝 PowerPoint-Präsentation herunterladen"}
             </Button>
           </CardContent>
         </Card>
@@ -145,13 +145,13 @@ export function ExportPanel() {
 
       <Card className="bg-slate-50" data-design-id="export-notes-card">
         <CardContent className="pt-6">
-          <h3 className="font-semibold text-slate-800 mb-2" data-design-id="export-notes-title">Export Notes</h3>
+          <h3 className="font-semibold text-slate-800 mb-2" data-design-id="export-notes-title">Hinweise zum Export</h3>
           <ul className="text-sm text-slate-600 space-y-1.5">
-            <li>• Excel reports include formatted data tables with clean structure for financial advisors</li>
-            <li>• PowerPoint presentations contain educational content about Monte Carlo, SoR risk, and the 4% rule</li>
-            <li>• All values use EUR formatting consistent with the DACH market</li>
-            <li>• Reports include both simulation results and historical backtest data</li>
-            <li>• The appendix explains the full methodology for regulatory and compliance needs</li>
+            <li>• Excel-Berichte enthalten formatierte Datentabellen mit klarer Struktur für Finanzberater</li>
+            <li>• PowerPoint-Präsentationen beinhalten Erklärungen zu Monte Carlo, SoR-Risiko und der 4%-Regel</li>
+            <li>• Alle Werte verwenden EUR-Formatierung entsprechend dem DACH-Markt</li>
+            <li>• Berichte enthalten sowohl Simulationsergebnisse als auch historische Backtest-Daten</li>
+            <li>• Der Anhang erläutert die vollständige Methodik für regulatorische und Compliance-Anforderungen</li>
           </ul>
         </CardContent>
       </Card>

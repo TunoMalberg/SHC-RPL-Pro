@@ -43,7 +43,7 @@ function addTitleSlide(pptx: Pptx, client: ClientProfile) {
   const slide = pptx.addSlide();
   slide.background = { fill: COLORS.primary };
 
-  slide.addText("RETIREMENT PLANNING", {
+  slide.addText("RUHESTANDSPLANUNG", {
     x: 0.8,
     y: 1.2,
     w: 8.4,
@@ -54,7 +54,7 @@ function addTitleSlide(pptx: Pptx, client: ClientProfile) {
     bold: true,
   });
 
-  slide.addText("Professional Analysis Report", {
+  slide.addText("Professioneller Analysebericht", {
     x: 0.8,
     y: 2.1,
     w: 8.4,
@@ -74,13 +74,13 @@ function addTitleSlide(pptx: Pptx, client: ClientProfile) {
 
   slide.addText(
     [
-      { text: "Prepared for: ", options: { color: "9CA3AF", fontSize: 14 } },
+      { text: "Erstellt für: ", options: { color: "9CA3AF", fontSize: 14 } },
       { text: client.name, options: { color: COLORS.white, fontSize: 14, bold: true } },
     ],
     { x: 0.8, y: 3.4, w: 8.4, h: 0.4, fontFace: "Calibri" }
   );
 
-  slide.addText(`Date: ${new Date().toLocaleDateString("de-AT")}`, {
+  slide.addText(`Datum: ${new Date().toLocaleDateString("de-AT")}`, {
     x: 0.8,
     y: 3.9,
     w: 8.4,
@@ -90,7 +90,7 @@ function addTitleSlide(pptx: Pptx, client: ClientProfile) {
     color: "9CA3AF",
   });
 
-  slide.addText("Three-Bucket Portfolio Strategy  |  Monte Carlo Simulation  |  Historical Backtest", {
+  slide.addText("Drei-Topf-Portfoliostrategie  |  Monte-Carlo-Simulation  |  Historischer Backtest", {
     x: 0.8,
     y: 4.8,
     w: 8.4,
@@ -162,25 +162,25 @@ function addFinancialSummary(
   inputs: FinancialInputs
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Financial Situation Overview");
+  addSlideHeader(slide, "Finanzielle Gesamtübersicht");
 
   const leftData = [
-    ["Current Age", `${client.currentAge} years`],
-    ["Retirement Age", `${client.retirementAge} years`],
-    ["Life Expectancy", `${client.lifeExpectancy} years`],
-    ["Years to Retirement", `${client.retirementAge - client.currentAge} years`],
-    ["Withdrawal Period", `${client.lifeExpectancy - client.retirementAge} years`],
+    ["Aktuelles Alter", `${client.currentAge} Jahre`],
+    ["Pensionsalter", `${client.retirementAge} Jahre`],
+    ["Lebenserwartung", `${client.lifeExpectancy} Jahre`],
+    ["Jahre bis zur Pension", `${client.retirementAge - client.currentAge} Jahre`],
+    ["Entnahmezeitraum", `${client.lifeExpectancy - client.retirementAge} Jahre`],
   ];
 
   const rightData = [
-    ["Initial Capital", fmtEur(inputs.initialCapital)],
-    ["Monthly Savings", fmtEur(inputs.monthlySavings)],
-    ["Desired Withdrawal", fmtEur(inputs.desiredMonthlyWithdrawal) + " /month"],
-    ["Pension Income", fmtEur(inputs.monthlyPension) + " /month"],
-    ["Inflation Rate", fmtPct(inputs.inflationRate)],
+    ["Anfangskapital", fmtEur(inputs.initialCapital)],
+    ["Monatliche Sparrate", fmtEur(inputs.monthlySavings)],
+    ["Gewünschte Entnahme", fmtEur(inputs.desiredMonthlyWithdrawal) + " /Monat"],
+    ["Pensionseinkommen", fmtEur(inputs.monthlyPension) + " /Monat"],
+    ["Inflationsrate", fmtPct(inputs.inflationRate)],
   ];
 
-  slide.addText("Personal Profile", {
+  slide.addText("Persönliches Profil", {
     x: 0.5,
     y: 1.2,
     w: 4,
@@ -205,7 +205,7 @@ function addFinancialSummary(
     rowH: 0.35,
   });
 
-  slide.addText("Financial Parameters", {
+  slide.addText("Finanzielle Parameter", {
     x: 5.2,
     y: 1.2,
     w: 4,
@@ -244,7 +244,7 @@ function addFinancialSummary(
   });
 
   slide.addText(
-    `Total planned contributions over ${yearsToRet} years: ${fmtEur(totalContrib)} (excl. returns)`,
+    `Geplante Gesamteinzahlungen über ${yearsToRet} Jahre: ${fmtEur(totalContrib)} (ohne Renditen)`,
     {
       x: 0.8,
       y: 4.15,
@@ -258,7 +258,7 @@ function addFinancialSummary(
   );
 
   slide.addText(
-    `Net monthly income need: ${fmtEur(inputs.desiredMonthlyWithdrawal - inputs.monthlyPension)} (withdrawal minus pension)`,
+    `Netto-Monatsbedarf: ${fmtEur(inputs.desiredMonthlyWithdrawal - inputs.monthlyPension)} (Entnahme minus Pension)`,
     {
       x: 0.8,
       y: 4.55,
@@ -273,14 +273,14 @@ function addFinancialSummary(
 
 function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Portfolio Structure — Three-Bucket Model");
+  addSlideHeader(slide, "Portfoliostruktur — Drei-Topf-Modell");
 
   const headerRow: any = [
-    { text: "Asset Class", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri" } },
-    { text: "Allocation", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
-    { text: "Expected Return", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
-    { text: "Volatility", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
-    { text: "Net Return", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
+    { text: "Anlageklasse", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri" } },
+    { text: "Allokation", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
+    { text: "Erw. Rendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
+    { text: "Volatilität", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
+    { text: "Nettorendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
   ];
 
   const dataRows: any[] = portfolio.buckets.map((b, i) => {
@@ -303,7 +303,7 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
     rowH: 0.4,
   });
 
-  slide.addText("The Three-Bucket Strategy", {
+  slide.addText("Die Drei-Topf-Strategie", {
     x: 0.5,
     y: 3.2,
     w: 9,
@@ -315,9 +315,9 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
   });
 
   const bucketDescriptions = [
-    { title: "Bucket 1: Cash / Liquidity", desc: "Short-term reserves (1-2 years of expenses). Provides stability and covers immediate needs. Low return but near-zero volatility.", color: COLORS.teal },
-    { title: "Bucket 2: Bonds / Fixed Income", desc: "Medium-term stability (3-7 years). Government and corporate bonds provide regular income and act as a buffer against equity volatility.", color: COLORS.blue },
-    { title: "Bucket 3: Equities / Stocks", desc: "Long-term growth engine. Diversified global equities (e.g., MSCI World) provide inflation-beating returns over decades.", color: COLORS.accent },
+    { title: "Topf 1: Bargeld / Liquidität", desc: "Kurzfristige Reserven (1–2 Jahre Ausgaben). Bietet Stabilität und deckt den unmittelbaren Bedarf. Niedrige Rendite, aber nahezu keine Volatilität.", color: COLORS.teal },
+    { title: "Topf 2: Anleihen / Festverzinslich", desc: "Mittelfristige Stabilität (3–7 Jahre). Staats- und Unternehmensanleihen bieten regelmäßiges Einkommen und dienen als Puffer gegen Aktienvolatilität.", color: COLORS.blue },
+    { title: "Topf 3: Aktien / Beteiligungen", desc: "Langfristiger Wachstumsmotor. Diversifizierte globale Aktien (z. B. MSCI World) bieten inflationsübertreffende Renditen über Jahrzehnte.", color: COLORS.accent },
   ];
 
   let yPos = 3.6;
@@ -362,13 +362,13 @@ function addAssumptionsSlide(
   result: SimulationResult
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Key Assumptions & Portfolio Metrics");
+  addSlideHeader(slide, "Annahmen & Portfolio-Kennzahlen");
 
   const metrics = [
-    { label: "Portfolio Return (p.a.)", value: fmtPct(result.portfolioReturn), color: COLORS.success },
-    { label: "Portfolio Volatility (p.a.)", value: fmtPct(result.portfolioVolatility), color: COLORS.danger },
+    { label: "Portfoliorendite (p.a.)", value: fmtPct(result.portfolioReturn), color: COLORS.success },
+    { label: "Portfoliovolatilität (p.a.)", value: fmtPct(result.portfolioVolatility), color: COLORS.danger },
     { label: "Sharpe Ratio", value: fmt(result.sharpeRatio, 2), color: COLORS.blue },
-    { label: "Inflation Assumption", value: fmtPct(inputs.inflationRate), color: COLORS.accent },
+    { label: "Inflationsannahme", value: fmtPct(inputs.inflationRate), color: COLORS.accent },
   ];
 
   let xPos = 0.4;
@@ -409,7 +409,7 @@ function addAssumptionsSlide(
     xPos += 2.4;
   }
 
-  slide.addText("Correlation Matrix", {
+  slide.addText("Korrelationsmatrix", {
     x: 0.5,
     y: 2.7,
     w: 4,
@@ -420,7 +420,7 @@ function addAssumptionsSlide(
     bold: true,
   });
 
-  const labels = ["Cash", "Bonds", "Equities"];
+  const labels = ["Bargeld", "Anleihen", "Aktien"];
   const corrHeader: any = [
     { text: "", options: { fill: { color: COLORS.primary }, color: COLORS.white, fontSize: 10, fontFace: "Calibri" } },
     ...labels.map((l) => ({
@@ -446,7 +446,7 @@ function addAssumptionsSlide(
     rowH: 0.35,
   });
 
-  slide.addText("Methodology Notes", {
+  slide.addText("Methodische Hinweise", {
     x: 5.8,
     y: 2.7,
     w: 3.8,
@@ -458,11 +458,11 @@ function addAssumptionsSlide(
   });
 
   const notes = [
-    "• Returns are modeled as correlated log-normal processes",
-    "• Cholesky decomposition ensures proper correlation structure",
-    "• Costs and tax drag are deducted to show net returns",
-    "• Inflation adjustments applied to withdrawals and pensions",
-    `• Rebalancing: ${portfolio.rebalancingFrequency} (${portfolio.rebalancingThreshold}% threshold)`,
+    "• Renditen werden als korrelierte log-normale Prozesse modelliert",
+    "• Cholesky-Zerlegung gewährleistet korrekte Korrelationsstruktur",
+    "• Kosten und Steuerbelastung werden für Nettorenditen abgezogen",
+    "• Inflationsanpassungen auf Entnahmen und Pensionen angewandt",
+    `• Rebalancing: ${portfolio.rebalancingFrequency} (${portfolio.rebalancingThreshold}% Schwellenwert)`,
   ];
 
   slide.addText(notes.join("\n"), {
@@ -484,7 +484,7 @@ function addMonteCarloResults(
   client: ClientProfile
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Monte Carlo Simulation Results");
+  addSlideHeader(slide, "Monte-Carlo-Simulationsergebnisse");
 
   const successColor = result.successRate >= 90
     ? COLORS.success
@@ -514,7 +514,7 @@ function addMonteCarloResults(
     align: "center",
   });
 
-  slide.addText("Success Probability", {
+  slide.addText("Erfolgswahrscheinlichkeit", {
     x: 0.5,
     y: 2.2,
     w: 3,
@@ -526,10 +526,10 @@ function addMonteCarloResults(
   });
 
   const rightMetrics = [
-    ["Median Final Wealth", fmtEur(result.medianFinalWealth)],
-    ["Best Case (90th pctl)", fmtEur(result.percentiles.p90)],
-    ["Worst Case (10th pctl)", fmtEur(result.percentiles.p10)],
-    ["Max Drawdown (median)", fmtPct(result.maxDrawdown)],
+    ["Median Endvermögen", fmtEur(result.medianFinalWealth)],
+    ["Bester Fall (90. Perz.)", fmtEur(result.percentiles.p90)],
+    ["Schlechtester Fall (10. Perz.)", fmtEur(result.percentiles.p10)],
+    ["Max. Drawdown (Median)", fmtPct(result.maxDrawdown)],
   ];
 
   let yPos = 1.3;
@@ -557,7 +557,7 @@ function addMonteCarloResults(
     yPos += 0.38;
   }
 
-  slide.addText("Final Wealth Distribution (Percentiles)", {
+  slide.addText("Endvermögensverteilung (Perzentile)", {
     x: 0.5,
     y: 3.2,
     w: 9,
@@ -569,7 +569,7 @@ function addMonteCarloResults(
   });
 
   const pctRows: any[] = [
-    ["5th", "10th", "25th", "50th (Median)", "75th", "90th", "95th"].map((p) => ({
+    ["5.", "10.", "25.", "50. (Median)", "75.", "90.", "95."].map((p) => ({
       text: p,
       options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: "Calibri", align: "center" as const },
     })),
@@ -597,7 +597,7 @@ function addMonteCarloResults(
   });
 
   slide.addText(
-    `Based on ${fmt(5000)} simulations with ${inputs.useRealValues ? "inflation-adjusted" : "nominal"} withdrawals of ${fmtEur(inputs.desiredMonthlyWithdrawal)}/month (minus ${fmtEur(inputs.monthlyPension)} pension).`,
+    `Basierend auf ${fmt(5000)} Simulationen mit ${inputs.useRealValues ? "inflationsbereinigten" : "nominalen"} Entnahmen von ${fmtEur(inputs.desiredMonthlyWithdrawal)}/Monat (abzgl. ${fmtEur(inputs.monthlyPension)} Pension).`,
     {
       x: 0.5,
       y: 4.65,
@@ -613,11 +613,11 @@ function addMonteCarloResults(
 
 function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Success Probability — What Does It Mean?");
+  addSlideHeader(slide, "Erfolgswahrscheinlichkeit — Was bedeutet sie?");
 
   slide.addText(
-    "The success probability indicates the percentage of simulated scenarios in which your portfolio sustains " +
-    "all planned withdrawals throughout your entire retirement period without running out of funds.",
+    "Die Erfolgswahrscheinlichkeit gibt den Prozentsatz der simulierten Szenarien an, in denen Ihr Portfolio " +
+    "alle geplanten Entnahmen während des gesamten Ruhestands aufrechterhalten kann, ohne dass die Mittel aufgebraucht werden.",
     {
       x: 0.5,
       y: 1.3,
@@ -631,10 +631,10 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
   );
 
   const interpretations = [
-    { range: "> 95%", meaning: "Very high confidence — conservative plan", color: COLORS.success },
-    { range: "85–95%", meaning: "Good confidence — reasonable plan with some flexibility", color: COLORS.teal },
-    { range: "70–85%", meaning: "Moderate confidence — consider reducing withdrawals or increasing savings", color: COLORS.accent },
-    { range: "< 70%", meaning: "Elevated risk — significant plan adjustments recommended", color: COLORS.danger },
+    { range: "> 95%", meaning: "Sehr hohe Sicherheit — konservativer Plan", color: COLORS.success },
+    { range: "85–95%", meaning: "Gute Sicherheit — vernünftiger Plan mit etwas Spielraum", color: COLORS.teal },
+    { range: "70–85%", meaning: "Mäßige Sicherheit — Entnahmereduktion oder Sparerhöhung erwägen", color: COLORS.accent },
+    { range: "< 70%", meaning: "Erhöhtes Risiko — wesentliche Plananpassungen empfohlen", color: COLORS.danger },
   ];
 
   let yPos = 2.2;
@@ -680,7 +680,7 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
     yPos += 0.5;
   }
 
-  slide.addText("Important Caveats", {
+  slide.addText("Wichtige Hinweise", {
     x: 0.5,
     y: yPos + 0.3,
     w: 9,
@@ -692,10 +692,10 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
   });
 
   slide.addText(
-    "• Monte Carlo simulations model future uncertainty but cannot predict exact outcomes.\n" +
-    "• Results depend heavily on input assumptions (returns, volatility, correlations).\n" +
-    "• Black swan events and structural market changes are not fully captured.\n" +
-    "• Regular plan reviews (annually) are essential to adjust for actual market conditions.",
+    "• Monte-Carlo-Simulationen modellieren zukünftige Unsicherheit, können aber keine exakten Ergebnisse vorhersagen.\n" +
+    "• Ergebnisse hängen stark von den Eingabeannahmen ab (Renditen, Volatilität, Korrelationen).\n" +
+    "• Black-Swan-Ereignisse und strukturelle Marktveränderungen werden nicht vollständig erfasst.\n" +
+    "• Regelmäßige Planüberprüfungen (jährlich) sind unerlässlich, um auf tatsächliche Marktbedingungen zu reagieren.",
     {
       x: 0.5,
       y: yPos + 0.7,
@@ -716,7 +716,7 @@ function addWithdrawalSlide(
   client: ClientProfile
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Sustainable Withdrawal Rate Analysis");
+  addSlideHeader(slide, "Analyse der nachhaltigen Entnahmerate");
 
   const accYears = client.retirementAge - client.currentAge;
   const retIdx = Math.min(accYears, result.medianPath.length - 1);
@@ -724,7 +724,7 @@ function addWithdrawalSlide(
   const annualWithdrawal = inputs.desiredMonthlyWithdrawal * 12;
   const withdrawalRate = capitalAtRet > 0 ? (annualWithdrawal / capitalAtRet) * 100 : 0;
 
-  slide.addText("Your Withdrawal Rate", {
+  slide.addText("Ihre Entnahmerate", {
     x: 0.5,
     y: 1.2,
     w: 4,
@@ -746,7 +746,7 @@ function addWithdrawalSlide(
     bold: true,
   });
 
-  slide.addText(`Initial withdrawal rate\n(${fmtEur(annualWithdrawal)} / ${fmtEur(capitalAtRet)} projected capital)`, {
+  slide.addText(`Anfängliche Entnahmerate\n(${fmtEur(annualWithdrawal)} / ${fmtEur(capitalAtRet)} prognostiziertes Kapital)`, {
     x: 2.5,
     y: 1.65,
     w: 3,
@@ -756,7 +756,7 @@ function addWithdrawalSlide(
     color: COLORS.muted,
   });
 
-  slide.addText("The 4% Rule (Trinity Study)", {
+  slide.addText("Die 4%-Regel (Trinity-Studie)", {
     x: 0.5,
     y: 2.8,
     w: 9,
@@ -768,15 +768,15 @@ function addWithdrawalSlide(
   });
 
   slide.addText(
-    "The famous '4% rule' originates from the 1998 Trinity Study by Cooley, Hubbard, and Walz. " +
-    "It suggests that retirees can withdraw 4% of their initial portfolio value annually (adjusted for inflation) " +
-    "with a high probability of the portfolio lasting at least 30 years.\n\n" +
-    "However, this rule has significant limitations:\n" +
-    "• Based on US historical data (1926–1995) — may not apply to European markets\n" +
-    "• Assumes a 50/50 stock/bond portfolio\n" +
-    "• Does not account for fees, taxes, or behavioral mistakes\n" +
-    "• 30-year horizon may be too short for early retirees\n" +
-    "• Current low-yield environment may require more conservative rates (3.0–3.5%)",
+    "Die berühmte ‚4%-Regel' stammt aus der Trinity-Studie von 1998 (Cooley, Hubbard und Walz). " +
+    "Sie besagt, dass Pensionisten jährlich 4% ihres anfänglichen Portfoliowerts entnehmen können (inflationsbereinigt) " +
+    "mit hoher Wahrscheinlichkeit, dass das Portfolio mindestens 30 Jahre hält.\n\n" +
+    "Diese Regel hat jedoch erhebliche Einschränkungen:\n" +
+    "• Basiert auf US-Daten (1926–1995) — möglicherweise nicht auf europäische Märkte anwendbar\n" +
+    "• Geht von einem 50/50-Aktien/Anleihen-Portfolio aus\n" +
+    "• Berücksichtigt keine Gebühren, Steuern oder Verhaltensfehler\n" +
+    "• 30-Jahres-Horizont kann für Frühpensionisten zu kurz sein\n" +
+    "• Das aktuelle Niedrigzinsumfeld erfordert möglicherweise konservativere Raten (3,0–3,5%)",
     {
       x: 0.5,
       y: 3.2,
@@ -792,12 +792,12 @@ function addWithdrawalSlide(
 
 function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Risk Analysis — Sequence of Returns Risk");
+  addSlideHeader(slide, "Risikoanalyse — Reihenfolge-der-Renditen-Risiko");
 
   slide.addText(
-    "Sequence of returns risk (SoRR) is the danger that the timing of poor investment returns " +
-    "can significantly impact the sustainability of retirement withdrawals. A bear market in the early " +
-    "years of retirement is far more damaging than one later, because withdrawals deplete a smaller portfolio base.",
+    "Das Reihenfolge-der-Renditen-Risiko (Sequence of Returns Risk, SoRR) beschreibt die Gefahr, dass der Zeitpunkt " +
+    "schlechter Anlagerenditen die Nachhaltigkeit von Ruhestandsentnahmen erheblich beeinträchtigen kann. Ein Bärenmarkt in den " +
+    "frühen Ruhestandsjahren ist weitaus schädlicher als ein späterer, weil Entnahmen eine kleinere Portfoliobasis aufzehren.",
     {
       x: 0.5,
       y: 1.2,
@@ -810,7 +810,7 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
     }
   );
 
-  slide.addText("Why It Matters", {
+  slide.addText("Warum es wichtig ist", {
     x: 0.5,
     y: 2.2,
     w: 9,
@@ -822,11 +822,11 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
   });
 
   const points = [
-    "Two retirees with identical average returns but different sequences can have vastly different outcomes.",
-    "The three-bucket strategy helps mitigate SoRR by maintaining cash reserves for 1–2 years of expenses.",
-    "This allows the equity bucket to recover from downturns without forced selling at depressed prices.",
-    `Your worst-case scenario (10th percentile) ends with ${fmtEur(result.percentiles.p10)}.`,
-    `Maximum portfolio drawdown (median across simulations): ${fmtPct(result.maxDrawdown)}.`,
+    "Zwei Pensionisten mit identischen Durchschnittsrenditen, aber unterschiedlicher Reihenfolge, können völlig verschiedene Ergebnisse erzielen.",
+    "Die Drei-Topf-Strategie hilft, das SoRR zu mindern, indem Bargeldreserven für 1–2 Jahre Ausgaben gehalten werden.",
+    "Dies ermöglicht dem Aktientopf, sich von Abschwüngen zu erholen, ohne zu gedrückten Preisen verkaufen zu müssen.",
+    `Ihr Worst-Case-Szenario (10. Perzentil) endet bei ${fmtEur(result.percentiles.p10)}.`,
+    `Maximaler Portfolio-Drawdown (Median über Simulationen): ${fmtPct(result.maxDrawdown)}.`,
   ];
 
   let yPos = 2.6;
@@ -843,7 +843,7 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
     yPos += 0.4;
   }
 
-  slide.addText("Mitigation Strategies", {
+  slide.addText("Gegenmaßnahmen", {
     x: 0.5,
     y: yPos + 0.2,
     w: 9,
@@ -855,11 +855,11 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
   });
 
   slide.addText(
-    "1. Maintain adequate cash reserves (Bucket 1) to cover 1–2 years of expenses\n" +
-    "2. Reduce withdrawal rate in years following significant market declines\n" +
-    "3. Consider dynamic withdrawal strategies (guardrails approach)\n" +
-    "4. Delay non-essential spending during bear markets\n" +
-    "5. Rebalance regularly to maintain target allocation",
+    "1. Ausreichende Bargeldreserven (Topf 1) für 1–2 Jahre Ausgaben vorhalten\n" +
+    "2. Entnahmerate in Jahren nach erheblichen Marktrückgängen reduzieren\n" +
+    "3. Dynamische Entnahmestrategien erwägen (Guardrails-Ansatz)\n" +
+    "4. Nicht wesentliche Ausgaben in Bärenmärkten aufschieben\n" +
+    "5. Regelmäßig rebalancieren, um die Zielallokation beizubehalten",
     {
       x: 0.5,
       y: yPos + 0.55,
@@ -878,10 +878,10 @@ function addHistoricalSlide(
   historical: HistoricalAnalysis | null
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Historical Backtest Results");
+  addSlideHeader(slide, "Historische Backtest-Ergebnisse");
 
   if (!historical) {
-    slide.addText("Historical backtest was not performed.", {
+    slide.addText("Kein historischer Backtest durchgeführt.", {
       x: 0.5,
       y: 2.5,
       w: 9,
@@ -917,7 +917,7 @@ function addHistoricalSlide(
     align: "center",
   });
 
-  slide.addText("Historical Success Rate", {
+  slide.addText("Historische Erfolgsquote", {
     x: 0.5,
     y: 1.95,
     w: 2.5,
@@ -929,11 +929,11 @@ function addHistoricalSlide(
   });
 
   const summaryData = [
-    ["Total Scenarios Tested", `${historical.scenarios.length}`],
-    ["Average Final Wealth", fmtEur(historical.averageFinalWealth)],
-    ["Best Start Year", `${historical.bestScenario?.startYear ?? "N/A"}`],
-    ["Worst Start Year", `${historical.worstScenario?.startYear ?? "N/A"}`],
-    ["Worst Final Wealth", fmtEur(historical.worstScenario?.finalWealth ?? 0)],
+    ["Getestete Szenarien", `${historical.scenarios.length}`],
+    ["Ø Endvermögen", fmtEur(historical.averageFinalWealth)],
+    ["Bestes Startjahr", `${historical.bestScenario?.startYear ?? "k. A."}`],
+    ["Schlechtestes Startjahr", `${historical.worstScenario?.startYear ?? "k. A."}`],
+    ["Schlecht. Endvermögen", fmtEur(historical.worstScenario?.finalWealth ?? 0)],
   ];
 
   let yPos = 1.25;
@@ -962,10 +962,10 @@ function addHistoricalSlide(
   }
 
   slide.addText(
-    "The historical backtest uses actual market returns (MSCI World, European bonds, EUR cash rates) " +
-    "to simulate rolling retirement scenarios. Each scenario starts in a different year, applying the same " +
-    "withdrawal plan to real historical returns. This reveals how sequence-of-returns risk would have " +
-    "affected outcomes in actual market conditions.",
+    "Der historische Backtest verwendet reale Marktrenditen (MSCI World, europäische Anleihen, EUR-Geldmarktzinsen), " +
+    "um rollierende Ruhestandsszenarien zu simulieren. Jedes Szenario beginnt in einem anderen Jahr und wendet denselben " +
+    "Entnahmeplan auf historische Renditen an. Dies zeigt, wie das Reihenfolge-der-Renditen-Risiko " +
+    "Ergebnisse unter tatsächlichen Marktbedingungen beeinflusst hätte.",
     {
       x: 0.5,
       y: 3.1,
@@ -978,7 +978,7 @@ function addHistoricalSlide(
     }
   );
 
-  slide.addText("Note: Past performance is not a reliable indicator of future results. Historical backtests are illustrative only.", {
+  slide.addText("Hinweis: Die Wertentwicklung der Vergangenheit ist kein zuverlässiger Indikator für zukünftige Ergebnisse. Historische Backtests dienen nur der Veranschaulichung.", {
     x: 0.5,
     y: 4.5,
     w: 9,
@@ -993,21 +993,21 @@ function addHistoricalSlide(
 function addEducationalSlides(pptx: Pptx) {
   // Modern Portfolio Theory
   let slide = pptx.addSlide();
-  addSlideHeader(slide, "Modern Portfolio Theory & Diversification");
+  addSlideHeader(slide, "Moderne Portfoliotheorie & Diversifikation");
 
   slide.addText(
-    "Modern Portfolio Theory (MPT), developed by Harry Markowitz in 1952, demonstrates that investors can construct " +
-    "portfolios to optimize expected return for a given level of risk through diversification.\n\n" +
-    "Key Principles:\n\n" +
-    "1. Diversification Benefit: By combining assets with low or negative correlations, the portfolio's overall " +
-    "volatility can be reduced below the weighted average of individual asset volatilities.\n\n" +
-    "2. Efficient Frontier: The set of portfolios offering the maximum expected return for each level of risk. " +
-    "Our three-bucket model is positioned on this frontier.\n\n" +
-    "3. Correlation Matters: The correlation between asset classes determines the diversification benefit. " +
-    "Stocks and high-quality bonds have historically exhibited low or negative correlation during crises, " +
-    "providing crucial downside protection.\n\n" +
-    "4. Risk-Adjusted Returns: The Sharpe Ratio measures excess return per unit of risk. Higher Sharpe Ratios " +
-    "indicate better risk-adjusted performance.",
+    "Die Moderne Portfoliotheorie (MPT), entwickelt von Harry Markowitz im Jahr 1952, zeigt, dass Anleger Portfolios " +
+    "konstruieren können, um die erwartete Rendite bei einem gegebenen Risikoniveau durch Diversifikation zu optimieren.\n\n" +
+    "Kernprinzipien:\n\n" +
+    "1. Diversifikationsvorteil: Durch die Kombination von Anlagen mit niedrigen oder negativen Korrelationen kann die " +
+    "Gesamtvolatilität des Portfolios unter den gewichteten Durchschnitt der einzelnen Anlagenvolatilitäten gesenkt werden.\n\n" +
+    "2. Effiziente Grenze: Die Menge der Portfolios, die die maximale erwartete Rendite für jedes Risikoniveau bieten. " +
+    "Unser Drei-Topf-Modell ist auf dieser Grenze positioniert.\n\n" +
+    "3. Korrelation ist entscheidend: Die Korrelation zwischen Anlageklassen bestimmt den Diversifikationsvorteil. " +
+    "Aktien und hochwertige Anleihen zeigten historisch eine niedrige oder negative Korrelation in Krisen, " +
+    "was einen entscheidenden Verlustschutz bietet.\n\n" +
+    "4. Risikobereinigte Renditen: Die Sharpe Ratio misst die Überrendite pro Risikoeinheit. Höhere Sharpe Ratios " +
+    "zeigen eine bessere risikobereinigte Performance an.",
     {
       x: 0.5,
       y: 1.2,
@@ -1022,23 +1022,23 @@ function addEducationalSlides(pptx: Pptx) {
 
   // Monte Carlo Explanation
   slide = pptx.addSlide();
-  addSlideHeader(slide, "Monte Carlo Simulation — How It Works");
+  addSlideHeader(slide, "Monte-Carlo-Simulation — So funktioniert es");
 
   slide.addText(
-    "Monte Carlo simulation is a computational technique that uses random sampling to model the probability " +
-    "of different outcomes in a process that involves uncertainty.\n\n" +
-    "How We Use It:\n\n" +
-    "1. We define return distributions for each asset class (mean return and volatility)\n\n" +
-    "2. We generate thousands of possible future return scenarios using correlated random draws\n\n" +
-    "3. For each scenario, we simulate your entire financial plan: savings phase, retirement, withdrawals, " +
-    "pension income, inflation, and rebalancing\n\n" +
-    "4. We analyze all outcomes statistically: What percentage of scenarios end successfully? What is the " +
-    "range of possible outcomes? At what age does the worst case run out of money?\n\n" +
-    "Why Monte Carlo?\n\n" +
-    "Unlike deterministic projections (which assume constant returns), Monte Carlo captures the reality that " +
-    "markets are volatile. A portfolio earning 7% on average does not earn exactly 7% each year — it might " +
-    "earn +25% one year and −15% the next. This volatility, combined with withdrawals, creates a wide range " +
-    "of possible outcomes that simple projections miss.",
+    "Die Monte-Carlo-Simulation ist eine rechnerische Methode, die Zufallsstichproben nutzt, um die Wahrscheinlichkeit " +
+    "verschiedener Ergebnisse in einem unsicheren Prozess zu modellieren.\n\n" +
+    "Wie wir sie einsetzen:\n\n" +
+    "1. Wir definieren Renditeverteilungen für jede Anlageklasse (Durchschnittsrendite und Volatilität)\n\n" +
+    "2. Wir generieren Tausende möglicher zukünftiger Renditeszenarien mit korrelierten Zufallsziehungen\n\n" +
+    "3. Für jedes Szenario simulieren wir Ihren gesamten Finanzplan: Ansparphase, Ruhestand, Entnahmen, " +
+    "Pensionseinkommen, Inflation und Rebalancing\n\n" +
+    "4. Wir analysieren alle Ergebnisse statistisch: Welcher Prozentsatz der Szenarien endet erfolgreich? Was ist die " +
+    "Bandbreite möglicher Ergebnisse? In welchem Alter gehen im schlimmsten Fall die Mittel aus?\n\n" +
+    "Warum Monte Carlo?\n\n" +
+    "Im Gegensatz zu deterministischen Projektionen (die konstante Renditen annehmen) erfasst Monte Carlo die Realität, " +
+    "dass Märkte volatil sind. Ein Portfolio mit durchschnittlich 7% Rendite erzielt nicht exakt 7% pro Jahr — es kann " +
+    "+25% in einem Jahr und −15% im nächsten erzielen. Diese Volatilität erzeugt in Kombination mit Entnahmen eine breite " +
+    "Bandbreite möglicher Ergebnisse, die einfache Projektionen verfehlen.",
     {
       x: 0.5,
       y: 1.2,
@@ -1053,33 +1053,33 @@ function addEducationalSlides(pptx: Pptx) {
 
   // Risks
   slide = pptx.addSlide();
-  addSlideHeader(slide, "Key Retirement Risks");
+  addSlideHeader(slide, "Zentrale Ruhestandsrisiken");
 
   const risks = [
     {
-      title: "Inflation Risk",
-      desc: "Even modest inflation of 2–3% can halve the purchasing power of savings over 25 years. " +
-        "All projections should use real (inflation-adjusted) values. State pensions in Austria have partial inflation protection.",
+      title: "Inflationsrisiko",
+      desc: "Selbst moderate Inflation von 2–3% kann die Kaufkraft von Ersparnissen über 25 Jahre halbieren. " +
+        "Alle Projektionen sollten reale (inflationsbereinigte) Werte verwenden. Staatliche Pensionen in Österreich haben teilweisen Inflationsschutz.",
     },
     {
-      title: "Longevity Risk",
-      desc: "The risk of outliving one's assets. Austrian life expectancy continues to rise — " +
-        "planning to age 90+ is prudent. A 65-year-old Austrian has roughly a 20% chance of reaching 95.",
+      title: "Langlebigkeitsrisiko",
+      desc: "Das Risiko, die eigenen Mittel zu überleben. Die österreichische Lebenserwartung steigt weiter — " +
+        "eine Planung bis 90+ ist ratsam. Ein 65-jähriger Österreicher hat etwa 20% Chance, 95 zu erreichen.",
     },
     {
-      title: "Sequence of Returns Risk",
-      desc: "Early retirement losses are disproportionately damaging. A −30% return in year 1 of retirement " +
-        "is far worse than in year 20, because withdrawals compound the loss on a depleted portfolio.",
+      title: "Reihenfolge-der-Renditen-Risiko",
+      desc: "Frühe Ruhestandsverluste sind überproportional schädlich. Eine Rendite von −30% im 1. Ruhestandsjahr " +
+        "ist weit schlimmer als im 20., weil Entnahmen den Verlust auf einem geschrumpften Portfolio verstärken.",
     },
     {
-      title: "Behavioral Risk",
-      desc: "Panic selling during market downturns, overconfidence in bull markets, and failure to rebalance " +
-        "are common mistakes. A disciplined, systematic approach (like the three-bucket strategy) helps mitigate these risks.",
+      title: "Verhaltensrisiko",
+      desc: "Panikverkäufe bei Marktrückgängen, Selbstüberschätzung in Bullenmärkten und fehlendes Rebalancing " +
+        "sind häufige Fehler. Ein disziplinierter, systematischer Ansatz (wie die Drei-Topf-Strategie) hilft, diese Risiken zu mindern.",
     },
     {
-      title: "Regulatory & Tax Risk",
-      desc: "Tax laws and pension regulations (KESt in Austria, social security contributions) may change. " +
-        "This model uses flexible assumptions but should be reviewed periodically with a tax advisor.",
+      title: "Regulatorisches & Steuerrisiko",
+      desc: "Steuergesetze und Pensionsregelungen (KESt in Österreich, Sozialversicherungsbeiträge) können sich ändern. " +
+        "Dieses Modell verwendet flexible Annahmen, sollte aber regelmäßig mit einem Steuerberater überprüft werden.",
     },
   ];
 
@@ -1126,21 +1126,21 @@ function addRecommendationsSlide(
   client: ClientProfile
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Recommendations");
+  addSlideHeader(slide, "Empfehlungen");
 
   const recommendations: string[] = [];
 
   if (result.successRate >= 95) {
     recommendations.push(
-      "Your plan shows a very high success probability. You may have room to increase spending or reduce risk."
+      "Ihr Plan zeigt eine sehr hohe Erfolgswahrscheinlichkeit. Sie haben möglicherweise Spielraum, Ausgaben zu erhöhen oder das Risiko zu reduzieren."
     );
   } else if (result.successRate >= 80) {
     recommendations.push(
-      "Your plan has a good success probability but consider building additional buffers."
+      "Ihr Plan hat eine gute Erfolgswahrscheinlichkeit, aber erwägen Sie den Aufbau zusätzlicher Puffer."
     );
   } else {
     recommendations.push(
-      "Your plan carries significant risk. Consider reducing planned withdrawals, increasing savings, or delaying retirement."
+      "Ihr Plan birgt erhebliches Risiko. Erwägen Sie, geplante Entnahmen zu reduzieren, Sparraten zu erhöhen oder den Ruhestandsbeginn zu verschieben."
     );
   }
 
@@ -1153,21 +1153,21 @@ function addRecommendationsSlide(
 
   if (withdrawalRate > 4) {
     recommendations.push(
-      `Your initial withdrawal rate of ${fmtPct(withdrawalRate)} exceeds the recommended 3.5–4.0% range. Consider reducing monthly withdrawals or accumulating more capital.`
+      `Ihre anfängliche Entnahmerate von ${fmtPct(withdrawalRate)} überschreitet den empfohlenen Bereich von 3,5–4,0%. Erwägen Sie, monatliche Entnahmen zu reduzieren oder mehr Kapital anzusparen.`
     );
   }
 
   recommendations.push(
-    "Review this plan annually and after major life events (job change, inheritance, health changes)."
+    "Überprüfen Sie diesen Plan jährlich und nach wichtigen Lebensereignissen (Jobwechsel, Erbschaft, Gesundheitsveränderungen)."
   );
   recommendations.push(
-    "Consider a dynamic withdrawal strategy: reduce spending by 10–15% in years following market declines of >15%."
+    "Erwägen Sie eine dynamische Entnahmestrategie: Reduzieren Sie Ausgaben um 10–15% in Jahren nach Marktrückgängen von >15%."
   );
   recommendations.push(
-    "Ensure your cash bucket (Bucket 1) covers at least 12–24 months of expenses before retirement."
+    "Stellen Sie sicher, dass Ihr Bargeldtopf (Topf 1) vor dem Ruhestand mindestens 12–24 Monate Ausgaben abdeckt."
   );
   recommendations.push(
-    "Consult a qualified financial advisor and tax professional before implementing this plan."
+    "Konsultieren Sie einen qualifizierten Finanzberater und Steuerexperten, bevor Sie diesen Plan umsetzen."
   );
 
   let yPos = 1.3;
@@ -1210,29 +1210,29 @@ function addRecommendationsSlide(
 
 function addAppendixSlide(pptx: Pptx) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Appendix — Methodology");
+  addSlideHeader(slide, "Anhang — Methodik");
 
   slide.addText(
-    "Simulation Methodology\n\n" +
-    "• Asset returns are modeled as correlated geometric Brownian motion processes\n" +
-    "• Correlation structure is enforced via Cholesky decomposition of the correlation matrix\n" +
-    "• Returns are generated in the specified time step (monthly or annually)\n" +
-    "• Withdrawals are deducted proportionally from all buckets after applying returns\n" +
-    "• Portfolio is rebalanced to target weights based on selected frequency and threshold\n" +
-    "• Inflation adjustments are applied cumulatively to withdrawals and pension income\n" +
-    "• A scenario is classified as 'failure' when portfolio value drops to zero or below\n\n" +
-    "Historical Backtest\n\n" +
-    "• Uses actual annual returns for global equities (MSCI World proxy), European government bonds, " +
-    "and EUR/ATS short-term rates from 1970 to 2024\n" +
-    "• Rolling windows test every possible start year with the defined plan parameters\n" +
-    "• Costs and tax drag are deducted from historical gross returns\n\n" +
-    "Limitations\n\n" +
-    "• Past performance does not guarantee future results\n" +
-    "• Model assumes constant correlations and return distributions (regime changes are not modeled)\n" +
-    "• Transaction costs are approximated, not precisely modeled\n" +
-    "• Tax calculations are simplified — actual Austrian KESt and social security may vary\n" +
-    "• Tail risks (black swans) may not be fully captured by normal distribution assumptions\n\n" +
-    "This report is for informational purposes only and does not constitute investment advice.",
+    "Simulationsmethodik\n\n" +
+    "• Anlageerträge werden als korrelierte geometrische Brownsche Bewegungsprozesse modelliert\n" +
+    "• Die Korrelationsstruktur wird mittels Cholesky-Zerlegung der Korrelationsmatrix erzwungen\n" +
+    "• Renditen werden im festgelegten Zeitschritt generiert (monatlich oder jährlich)\n" +
+    "• Entnahmen werden proportional aus allen Töpfen nach Anwendung der Renditen abgezogen\n" +
+    "• Das Portfolio wird gemäß gewählter Häufigkeit und Schwellenwert auf Zielgewichte rebalanciert\n" +
+    "• Inflationsanpassungen werden kumulativ auf Entnahmen und Pensionseinkommen angewandt\n" +
+    "• Ein Szenario wird als ‚gescheitert' klassifiziert, wenn der Portfoliowert auf null oder darunter fällt\n\n" +
+    "Historischer Backtest\n\n" +
+    "• Verwendet tatsächliche jährliche Renditen für globale Aktien (MSCI-World-Proxy), europäische Staatsanleihen " +
+    "und EUR/ATS-Kurzfristzinsen von 1970 bis 2024\n" +
+    "• Rollierende Fenster testen jedes mögliche Startjahr mit den definierten Planparametern\n" +
+    "• Kosten und Steuerbelastung werden von historischen Bruttorenditen abgezogen\n\n" +
+    "Einschränkungen\n\n" +
+    "• Die Wertentwicklung der Vergangenheit garantiert keine zukünftigen Ergebnisse\n" +
+    "• Das Modell nimmt konstante Korrelationen und Renditeverteilungen an (Regimewechsel werden nicht modelliert)\n" +
+    "• Transaktionskosten werden approximiert, nicht präzise modelliert\n" +
+    "• Steuerberechnungen sind vereinfacht — tatsächliche österreichische KESt und Sozialversicherung können abweichen\n" +
+    "• Tail-Risiken (Black Swans) werden durch Normalverteilungsannahmen möglicherweise nicht vollständig erfasst\n\n" +
+    "Dieser Bericht dient ausschließlich Informationszwecken und stellt keine Anlageberatung dar.",
     {
       x: 0.5,
       y: 1.1,
@@ -1258,20 +1258,20 @@ export async function generatePowerPointReport(
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "Retirement Planner Pro";
-  pptx.title = `Retirement Plan — ${client.name}`;
+  pptx.title = `Ruhestandsplan — ${client.name}`;
 
   addTitleSlide(pptx, client);
   addFinancialSummary(pptx, client, inputs);
   addPortfolioSlide(pptx, portfolio);
   addAssumptionsSlide(pptx, inputs, portfolio, result);
-  addSectionSlide(pptx, "Simulation Results", "Monte Carlo Analysis & Withdrawal Sustainability");
+  addSectionSlide(pptx, "Simulationsergebnisse", "Monte-Carlo-Analyse & Entnahme-Nachhaltigkeit");
   addMonteCarloResults(pptx, result, inputs, client);
   addSuccessProbabilitySlide(pptx, result);
   addWithdrawalSlide(pptx, result, inputs, client);
   addRiskAnalysis(pptx, result);
-  addSectionSlide(pptx, "Historical Analysis", "Backtesting with Real Market Data");
+  addSectionSlide(pptx, "Historische Analyse", "Backtest mit realen Marktdaten");
   addHistoricalSlide(pptx, historical);
-  addSectionSlide(pptx, "Education & Context", "Understanding the Key Concepts");
+  addSectionSlide(pptx, "Wissenswertes", "Die wichtigsten Konzepte verstehen");
   addEducationalSlides(pptx);
   addRecommendationsSlide(pptx, result, inputs, client);
   addAppendixSlide(pptx);
