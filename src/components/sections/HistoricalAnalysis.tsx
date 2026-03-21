@@ -58,7 +58,7 @@ export function HistoricalAnalysisSection() {
       <div data-design-id="historical-header">
         <h2 className="text-2xl font-bold text-slate-900" data-design-id="historical-title">Historischer Backtest</h2>
         <p className="text-slate-500 mt-1" data-design-id="historical-subtitle">
-          Rollierende Ruhestandsszenarien mit realen Marktdaten (1970–2024).
+          Rollierende Ruhestandsszenarien mit realen Marktdaten (1970–2024): MSCI World (EUR), europäische Staatsanleihen, AT/EUR-Geldmarkt.
         </p>
       </div>
 
