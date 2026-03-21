@@ -64,14 +64,14 @@ export function ResultsDashboard() {
 
   const successColor =
     result.successRate >= 90
-      ? "text-emerald-600"
+      ? "text-[#5a8a50]"
       : result.successRate >= 70
-        ? "text-amber-600"
+        ? "text-[#FAC075]"
         : "text-rose-600";
 
   const successBg =
     result.successRate >= 90
-      ? "bg-emerald-50 border-emerald-200"
+      ? "bg-[#8FB687]/10 border-[#8FB687]/40"
       : result.successRate >= 70
         ? "bg-amber-50 border-amber-200"
         : "bg-rose-50 border-rose-200";
@@ -96,7 +96,7 @@ export function ResultsDashboard() {
         </Card>
         <Card data-design-id="kpi-median-wealth">
           <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-[#4D4A47]">
               {fmtEur(result.medianFinalWealth)}
             </div>
             <div className="text-xs text-slate-500 mt-1">Median Endvermögen</div>
@@ -104,7 +104,7 @@ export function ResultsDashboard() {
         </Card>
         <Card data-design-id="kpi-withdrawal-rate">
           <CardContent className="pt-4 pb-4 text-center">
-            <div className={`text-2xl font-bold ${withdrawalRate <= 4 ? "text-emerald-600" : "text-rose-600"}`}>
+            <div className={`text-2xl font-bold ${withdrawalRate <= 4 ? "text-[#5a8a50]" : "text-rose-600"}`}>
               {fmtPct(withdrawalRate)}
             </div>
             <div className="text-xs text-slate-500 mt-1">Entnahmerate</div>
@@ -121,16 +121,16 @@ export function ResultsDashboard() {
       </div>
 
       {result.sustainableWithdrawal !== undefined && (
-        <Card className="border-emerald-200 bg-emerald-50/50" data-design-id="sustainable-withdrawal-card">
+        <Card className="border-[#8FB687]/40 bg-[#8FB687]/10/50" data-design-id="sustainable-withdrawal-card">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm text-slate-500">Nachhaltige monatliche Entnahme (95% Konfidenz)</div>
-                <div className="text-3xl font-bold text-emerald-600">{fmtEur(result.sustainableWithdrawal)}</div>
+                <div className="text-3xl font-bold text-[#5a8a50]">{fmtEur(result.sustainableWithdrawal)}</div>
               </div>
               <div className="text-right">
                 <div className="text-sm text-slate-500">Jährlich</div>
-                <div className="text-xl font-bold text-emerald-600">{fmtEur(result.sustainableWithdrawal * 12)}</div>
+                <div className="text-xl font-bold text-[#5a8a50]">{fmtEur(result.sustainableWithdrawal * 12)}</div>
               </div>
             </div>
           </CardContent>
@@ -138,19 +138,19 @@ export function ResultsDashboard() {
       )}
 
       {result.requiredCapital !== undefined && (
-        <Card className="border-blue-200 bg-blue-50/50" data-design-id="required-capital-card">
+        <Card className="border-neutral-200 bg-neutral-50/50" data-design-id="required-capital-card">
           <CardContent className="pt-4 pb-4">
             <div className="text-sm text-slate-500">Erforderliches Kapital (95% Konfidenz)</div>
-            <div className="text-3xl font-bold text-blue-600">{fmtEur(result.requiredCapital)}</div>
+            <div className="text-3xl font-bold text-[#4D4A47]">{fmtEur(result.requiredCapital)}</div>
           </CardContent>
         </Card>
       )}
 
       {result.requiredSavings !== undefined && (
-        <Card className="border-indigo-200 bg-indigo-50/50" data-design-id="required-savings-card">
+        <Card className="border-red-200 bg-red-50/50" data-design-id="required-savings-card">
           <CardContent className="pt-4 pb-4">
             <div className="text-sm text-slate-500">Erforderliche monatliche Sparrate (95% Konfidenz)</div>
-            <div className="text-3xl font-bold text-indigo-600">{fmtEur(result.requiredSavings)}</div>
+            <div className="text-3xl font-bold text-[#D31220]">{fmtEur(result.requiredSavings)}</div>
           </CardContent>
         </Card>
       )}
@@ -180,16 +180,16 @@ export function ResultsDashboard() {
               />
               <ReferenceLine
                 x={client.retirementAge}
-                stroke="#6366f1"
+                stroke="#D31220"
                 strokeDasharray="5 5"
-                label={{ value: "Pension", fontSize: 10, fill: "#6366f1" }}
+                label={{ value: "Pension", fontSize: 10, fill: "#D31220" }}
               />
-              <Area type="monotone" dataKey="p90" stackId="1" stroke="none" fill="#dbeafe" name="90. Perzentil" />
-              <Area type="monotone" dataKey="p75" stackId="2" stroke="none" fill="#bfdbfe" name="75. Perzentil" />
-              <Area type="monotone" dataKey="median" stackId="3" stroke="#3b82f6" strokeWidth={2} fill="#93c5fd" name="Median" />
-              <Area type="monotone" dataKey="p25" stackId="4" stroke="none" fill="#bfdbfe" name="25. Perzentil" />
-              <Area type="monotone" dataKey="p10" stackId="5" stroke="none" fill="#dbeafe" name="10. Perzentil" />
-              <Area type="monotone" dataKey="worst" stroke="#ef4444" strokeWidth={1} fill="none" strokeDasharray="4 4" name="Schlechtester Fall" />
+              <Area type="monotone" dataKey="p90" stackId="1" stroke="none" fill="#F7D8CD" name="90. Perzentil" />
+              <Area type="monotone" dataKey="p75" stackId="2" stroke="none" fill="#EDAC98" name="75. Perzentil" />
+              <Area type="monotone" dataKey="median" stackId="3" stroke="#D31220" strokeWidth={2} fill="#E37E67" name="Median" />
+              <Area type="monotone" dataKey="p25" stackId="4" stroke="none" fill="#EDAC98" name="25. Perzentil" />
+              <Area type="monotone" dataKey="p10" stackId="5" stroke="none" fill="#F7D8CD" name="10. Perzentil" />
+              <Area type="monotone" dataKey="worst" stroke="#D31220" strokeWidth={1} fill="none" strokeDasharray="4 4" name="Schlechtester Fall" />
             </AreaChart>
           </ResponsiveContainer>
         </CardContent>
@@ -203,10 +203,10 @@ export function ResultsDashboard() {
           <CardContent>
             <div className="space-y-2">
               {[
-                { label: "95. Perzentil", value: result.percentiles.p95, color: "bg-blue-100 text-blue-700" },
-                { label: "90. Perzentil", value: result.percentiles.p90, color: "bg-blue-100 text-blue-700" },
+                { label: "95. Perzentil", value: result.percentiles.p95, color: "bg-neutral-100 text-[#20201E]" },
+                { label: "90. Perzentil", value: result.percentiles.p90, color: "bg-neutral-100 text-[#20201E]" },
                 { label: "75. Perzentil", value: result.percentiles.p75, color: "bg-sky-100 text-sky-700" },
-                { label: "50. (Median)", value: result.percentiles.p50, color: "bg-indigo-100 text-indigo-700" },
+                { label: "50. (Median)", value: result.percentiles.p50, color: "bg-red-50 text-[#D31220]" },
                 { label: "25. Perzentil", value: result.percentiles.p25, color: "bg-amber-100 text-amber-700" },
                 { label: "10. Perzentil", value: result.percentiles.p10, color: "bg-orange-100 text-orange-700" },
                 { label: "5. Perzentil", value: result.percentiles.p5, color: "bg-rose-100 text-rose-700" },
@@ -286,19 +286,19 @@ export function ResultsDashboard() {
                   labelFormatter={(l) => `€${Number(l).toLocaleString("de-AT")}/Monat`}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />
-                <ReferenceLine y={95} stroke="#16a34a" strokeDasharray="3 3" label={{ value: "95%", fontSize: 10 }} />
+                <ReferenceLine y={95} stroke="#5a8a50" strokeDasharray="3 3" label={{ value: "95%", fontSize: 10 }} />
                 <Bar dataKey="successRate" name="Erfolgsquote" radius={[4, 4, 0, 0]}>
                   {heatmapData.map((entry, idx) => (
                     <Cell
                       key={idx}
                       fill={
                         entry.successRate >= 95
-                          ? "#16a34a"
+                          ? "#5a8a50"
                           : entry.successRate >= 80
                             ? "#eab308"
                             : entry.successRate >= 60
                               ? "#f97316"
-                              : "#ef4444"
+                              : "#D31220"
                       }
                     />
                   ))}

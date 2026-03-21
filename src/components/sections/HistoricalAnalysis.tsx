@@ -48,9 +48,9 @@ export function HistoricalAnalysisSection() {
   }));
 
   const successColor = overallSuccessRate >= 90
-    ? "text-emerald-600"
+    ? "text-[#5a8a50]"
     : overallSuccessRate >= 70
-      ? "text-amber-600"
+      ? "text-[#FAC075]"
       : "text-rose-600";
 
   return (
@@ -73,13 +73,13 @@ export function HistoricalAnalysisSection() {
         </Card>
         <Card data-design-id="hist-kpi-scenarios">
           <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-3xl font-bold text-blue-600">{scenarios.length}</div>
+            <div className="text-3xl font-bold text-[#4D4A47]">{scenarios.length}</div>
             <div className="text-xs text-slate-500 mt-1">Getestete Szenarien</div>
           </CardContent>
         </Card>
         <Card data-design-id="hist-kpi-avg-wealth">
           <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-2xl font-bold text-indigo-600">{fmtEur(averageFinalWealth)}</div>
+            <div className="text-2xl font-bold text-[#D31220]">{fmtEur(averageFinalWealth)}</div>
             <div className="text-xs text-slate-500 mt-1">Ø Endvermögen</div>
           </CardContent>
         </Card>
@@ -115,12 +115,12 @@ export function HistoricalAnalysisSection() {
                 labelFormatter={(l) => `Start: ${l}`}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
-              <ReferenceLine y={0} stroke="#ef4444" strokeWidth={2} />
+              <ReferenceLine y={0} stroke="#D31220" strokeWidth={2} />
               <Bar dataKey="finalWealth" name="Endvermögen" radius={[2, 2, 0, 0]}>
                 {scenarioBarData.map((entry, idx) => (
                   <Cell
                     key={idx}
-                    fill={entry.success ? "#3b82f6" : "#ef4444"}
+                    fill={entry.success ? "#8FB687" : "#D31220"}
                   />
                 ))}
               </Bar>
@@ -153,9 +153,9 @@ export function HistoricalAnalysisSection() {
               <Line
                 type="monotone"
                 dataKey="maxDrawdown"
-                stroke="#ef4444"
+                stroke="#D31220"
                 strokeWidth={2}
-                dot={{ r: 3, fill: "#ef4444" }}
+                dot={{ r: 3, fill: "#D31220" }}
                 name="Max. Drawdown"
               />
             </LineChart>

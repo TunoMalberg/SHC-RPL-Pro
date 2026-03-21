@@ -215,7 +215,7 @@ export function SimulationPanel() {
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-50 rounded-lg p-3" data-design-id="summary-acc-phase">
                 <div className="text-xs text-slate-500">Ansparphase</div>
-                <div className="text-lg font-bold text-indigo-600">
+                <div className="text-lg font-bold text-[#D31220]">
                   {client.retirementAge - client.currentAge} Jahre
                 </div>
                 <div className="text-xs text-slate-400">
@@ -233,13 +233,13 @@ export function SimulationPanel() {
               </div>
               <div className="bg-slate-50 rounded-lg p-3" data-design-id="summary-start-capital">
                 <div className="text-xs text-slate-500">Startkapital</div>
-                <div className="text-lg font-bold text-emerald-600">
+                <div className="text-lg font-bold text-[#5a8a50]">
                   {fmtEur(inputs.initialCapital)}
                 </div>
               </div>
               <div className="bg-slate-50 rounded-lg p-3" data-design-id="summary-monthly-need">
                 <div className="text-xs text-slate-500">Monatlicher Bedarf</div>
-                <div className="text-lg font-bold text-amber-600">
+                <div className="text-lg font-bold text-[#FAC075]">
                   {fmtEur(inputs.desiredMonthlyWithdrawal - inputs.monthlyPension)}
                 </div>
                 <div className="text-xs text-slate-400">Nach Pension</div>
@@ -249,7 +249,7 @@ export function SimulationPanel() {
             <Button
               onClick={runSimulation}
               disabled={running}
-              className="w-full h-14 text-lg font-semibold bg-indigo-600 hover:bg-indigo-700"
+              className="w-full h-14 text-lg font-semibold bg-[#D31220] hover:bg-[#a80e19]"
               data-design-id="run-simulation-button"
             >
               {running ? (
@@ -263,7 +263,7 @@ export function SimulationPanel() {
             </Button>
 
             {!running && progress && (
-              <p className="text-sm text-center text-emerald-600 font-medium" data-design-id="sim-status">
+              <p className="text-sm text-center text-[#5a8a50] font-medium" data-design-id="sim-status">
                 {progress}
               </p>
             )}

@@ -10,42 +10,49 @@ import { ResultsDashboard } from "@/components/sections/ResultsDashboard";
 import { HistoricalAnalysisSection } from "@/components/sections/HistoricalAnalysis";
 import { ScenarioComparisonSection } from "@/components/sections/ScenarioComparison";
 import { ExportPanel } from "@/components/sections/ExportPanel";
+import Image from "next/image";
 
 const TABS = [
-  { id: "profile", label: "Kunde", icon: "👤" },
-  { id: "inputs", label: "Eingaben", icon: "💶" },
-  { id: "portfolio", label: "Portfolio", icon: "📊" },
-  { id: "simulation", label: "Simulation", icon: "⚙️" },
-  { id: "results", label: "Ergebnisse", icon: "📈" },
-  { id: "historical", label: "Historie", icon: "📉" },
-  { id: "scenarios", label: "Szenarien", icon: "🔀" },
-  { id: "export", label: "Export", icon: "📄" },
+  { id: "profile", label: "Kunde", icon: "/icons/rot/schild.png" },
+  { id: "inputs", label: "Eingaben", icon: "/icons/rot/Scheckkarte.png" },
+  { id: "portfolio", label: "Portfolio", icon: "/icons/rot/Wagge.png" },
+  { id: "simulation", label: "Simulation", icon: "/icons/rot/Computer.png" },
+  { id: "results", label: "Ergebnisse", icon: "/icons/rot/Ziel.png" },
+  { id: "historical", label: "Historie", icon: "/icons/rot/Uhr.png" },
+  { id: "scenarios", label: "Szenarien", icon: "/icons/rot/Pfeil.png" },
+  { id: "export", label: "Export", icon: "/icons/rot/Daumenhoch.png" },
 ];
 
 export default function RetirementPlannerApp() {
   const { state, dispatch } = useAppState();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50" data-design-id="app-root">
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50" data-design-id="app-header">
+    <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-white to-red-50/30" data-design-id="app-root">
+      <header className="border-b border-neutral-200 bg-white/90 backdrop-blur-sm sticky top-0 z-50" data-design-id="app-header">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3" data-design-id="app-logo">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
-                RP
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 leading-tight" data-design-id="app-title">
-                  Ruhestandsplaner
+            <div className="flex items-center gap-4" data-design-id="app-logo">
+              <Image
+                src="/icons/shc-logo-pos-small.png"
+                alt="Schelhammer Capital"
+                width={150}
+                height={59}
+                className="h-10 w-auto"
+                priority
+              />
+              <div className="hidden sm:block h-8 w-px bg-neutral-300" />
+              <div className="hidden sm:block">
+                <h1 className="text-sm font-semibold text-[#20201E] leading-tight" data-design-id="app-title">
+                  Vermögensmanagement
                 </h1>
-                <p className="text-xs text-slate-400 leading-tight" data-design-id="app-tagline">
-                  Professionelle Ruhestandsanalyse — DACH-Markt
+                <p className="text-xs text-[#4D4A47] leading-tight" data-design-id="app-tagline">
+                  Ruhestandsplanung & Simulation
                 </p>
               </div>
             </div>
-            <div className="hidden md:flex items-center gap-2 text-xs text-slate-400" data-design-id="app-meta">
-              <span className="px-2 py-1 bg-slate-100 rounded-md font-medium">EUR</span>
-              <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-md font-medium">
+            <div className="hidden md:flex items-center gap-2 text-xs text-[#4D4A47]" data-design-id="app-meta">
+              <span className="px-2 py-1 bg-neutral-100 rounded-md font-medium">EUR</span>
+              <span className="px-2 py-1 bg-red-50 text-[#D31220] rounded-md font-medium">
                 3-Topf-Modell
               </span>
             </div>
@@ -59,15 +66,21 @@ export default function RetirementPlannerApp() {
           onValueChange={(tab) => dispatch({ type: "SET_TAB", payload: tab })}
           className="space-y-6"
         >
-          <TabsList className="grid grid-cols-4 md:grid-cols-8 w-full h-auto p-1 bg-white border shadow-sm rounded-xl" data-design-id="tabs-list">
+          <TabsList className="grid grid-cols-4 md:grid-cols-8 w-full h-auto p-1 bg-white border border-neutral-200 shadow-sm rounded-xl" data-design-id="tabs-list">
             {TABS.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="flex flex-col gap-0.5 py-2 px-1 text-xs data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm rounded-lg"
+                className="flex flex-col items-center gap-1 py-2 px-1 text-xs data-[state=active]:bg-red-50 data-[state=active]:text-[#D31220] data-[state=active]:shadow-sm rounded-lg transition-colors"
                 data-design-id={`tab-trigger-${tab.id}`}
               >
-                <span className="text-base leading-none">{tab.icon}</span>
+                <Image
+                  src={tab.icon}
+                  alt={tab.label}
+                  width={22}
+                  height={22}
+                  className="h-5 w-5 object-contain"
+                />
                 <span className="font-medium">{tab.label}</span>
               </TabsTrigger>
             ))}
@@ -100,14 +113,14 @@ export default function RetirementPlannerApp() {
         </Tabs>
       </main>
 
-      <footer className="border-t bg-white/60 backdrop-blur-sm mt-12" data-design-id="app-footer">
+      <footer className="border-t border-neutral-200 bg-white/60 backdrop-blur-sm mt-12" data-design-id="app-footer">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-[#4D4A47]">
             <p data-design-id="footer-disclaimer">
               Nur zu Informationszwecken. Keine Anlageberatung. Konsultieren Sie einen qualifizierten Finanzberater.
             </p>
             <p data-design-id="footer-copyright">
-              © {new Date().getFullYear()} Ruhestandsplaner Pro — Drei-Topf Monte-Carlo-Engine
+              © {new Date().getFullYear()} Schelhammer Capital Bank AG — Drei-Topf Monte-Carlo-Engine
             </p>
           </div>
         </div>

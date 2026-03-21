@@ -7,10 +7,11 @@ import type {
   HistoricalAnalysis,
 } from "../types";
 
+/* Schelhammer Capital Corporate Design Colors */
 const HEADER_FILL: ExcelJS.FillPattern = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FF1B2A4A" },
+  fgColor: { argb: "FF20201E" },  // Mattschwarz
 };
 const HEADER_FONT: Partial<ExcelJS.Font> = {
   bold: true,
@@ -21,13 +22,13 @@ const HEADER_FONT: Partial<ExcelJS.Font> = {
 const SECTION_FILL: ExcelJS.FillPattern = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFE8EDF3" },
+  fgColor: { argb: "FFF5F3F0" },  // SHC warm light
 };
 const SECTION_FONT: Partial<ExcelJS.Font> = {
   bold: true,
   size: 11,
   name: "Calibri",
-  color: { argb: "FF1B2A4A" },
+  color: { argb: "FFD31220" },  // Feuerrot
 };
 const NUM_FMT_EUR = '#,##0 "€"';
 const NUM_FMT_PCT = "0.0%";
@@ -93,7 +94,7 @@ function createInputsSheet(
 
   let row = 1;
   ws.getCell(row, 1).value = "RUHESTANDSPLANUNG — EINGABEN & ANNAHMEN";
-  ws.getCell(row, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FF1B2A4A" } };
+  ws.getCell(row, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
   ws.mergeCells(row, 1, row, 3);
 
   row = 3;
@@ -161,7 +162,7 @@ function createPortfolioSheet(wb: ExcelJS.Workbook, portfolio: PortfolioConfig) 
   ];
 
   ws.getCell(1, 1).value = "DREI-TOPF-PORTFOLIOMODELL";
-  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FF1B2A4A" } };
+  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
   ws.mergeCells(1, 1, 1, 7);
 
   const headers = ["Anlageklasse", "Allokation", "Bruttorendite", "Volatilität", "Kosten", "Steuerbelast.", "Nettorendite"];
@@ -220,7 +221,7 @@ function createMonteCarloSummary(wb: ExcelJS.Workbook, result: SimulationResult)
   ws.columns = [{ width: 32 }, { width: 22 }];
 
   ws.getCell(1, 1).value = "MONTE-CARLO-SIMULATIONSERGEBNISSE";
-  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FF1B2A4A" } };
+  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
   ws.mergeCells(1, 1, 1, 2);
 
   let row = 3;
@@ -293,7 +294,7 @@ function createPathsSheet(wb: ExcelJS.Workbook, result: SimulationResult) {
   ws.columns = headers.map(() => ({ width: 16 }));
 
   ws.getCell(1, 1).value = "PORTFOLIOWERT-PFADE (PERZENTILE)";
-  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FF1B2A4A" } };
+  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
   ws.mergeCells(1, 1, 1, 8);
 
   let row = 3;
@@ -331,7 +332,7 @@ function createWithdrawalSheet(
   ws.columns = [{ width: 20 }, { width: 20 }];
 
   ws.getCell(1, 1).value = "ENTNAHME-NACHHALTIGKEITSANALYSE";
-  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FF1B2A4A" } };
+  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
   ws.mergeCells(1, 1, 1, 2);
 
   let row = 3;
@@ -375,7 +376,7 @@ function createHistoricalSheet(
   ];
 
   ws.getCell(1, 1).value = "HISTORISCHE BACKTEST-ERGEBNISSE";
-  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FF1B2A4A" } };
+  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
   ws.mergeCells(1, 1, 1, 7);
 
   let row = 3;
@@ -430,7 +431,7 @@ function createMetricsSheet(
   ws.columns = [{ width: 36 }, { width: 22 }];
 
   ws.getCell(1, 1).value = "KENNZAHLEN-ZUSAMMENFASSUNG";
-  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FF1B2A4A" } };
+  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
   ws.mergeCells(1, 1, 1, 2);
 
   let row = 3;

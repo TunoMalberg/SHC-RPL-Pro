@@ -33,7 +33,7 @@ export function FinancialInputsSection() {
         <Card data-design-id="capital-savings-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2" data-design-id="capital-title">
-              <span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm font-bold">€</span>
+              <span className="w-8 h-8 rounded-lg bg-[#8FB687]/15 text-[#5a8a50] flex items-center justify-center text-sm font-bold">€</span>
               Kapital & Sparen
             </CardTitle>
           </CardHeader>
@@ -121,7 +121,7 @@ export function FinancialInputsSection() {
       <Card data-design-id="inflation-settings-card">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2" data-design-id="inflation-title">
-            <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">%</span>
+            <span className="w-8 h-8 rounded-lg bg-neutral-100 text-[#4D4A47] flex items-center justify-center text-sm font-bold">%</span>
             Inflation & Wertbasis
           </CardTitle>
         </CardHeader>
@@ -161,15 +161,15 @@ export function FinancialInputsSection() {
         </CardContent>
       </Card>
 
-      <Card className="border-emerald-200 bg-emerald-50/30" data-design-id="financial-summary-card">
+      <Card className="border-[#8FB687]/40 bg-[#8FB687]/10" data-design-id="financial-summary-card">
         <CardContent className="pt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div data-design-id="summary-initial-capital">
-              <div className="text-xl font-bold text-emerald-600">{fmtEur(inputs.initialCapital)}</div>
+              <div className="text-xl font-bold text-[#5a8a50]">{fmtEur(inputs.initialCapital)}</div>
               <div className="text-xs text-slate-500">Anfangskapital</div>
             </div>
             <div data-design-id="summary-total-contrib">
-              <div className="text-xl font-bold text-blue-600">{fmtEur(totalContrib)}</div>
+              <div className="text-xl font-bold text-[#4D4A47]">{fmtEur(totalContrib)}</div>
               <div className="text-xs text-slate-500">Gesamteinzahlungen</div>
             </div>
             <div data-design-id="summary-net-withdrawal">
@@ -177,7 +177,7 @@ export function FinancialInputsSection() {
               <div className="text-xs text-slate-500">Netto-Jahresentnahme</div>
             </div>
             <div data-design-id="summary-pension">
-              <div className="text-xl font-bold text-amber-600">{fmtEur(inputs.monthlyPension * 12)}</div>
+              <div className="text-xl font-bold text-[#FAC075]">{fmtEur(inputs.monthlyPension * 12)}</div>
               <div className="text-xs text-slate-500">Jährliche Pension</div>
             </div>
           </div>

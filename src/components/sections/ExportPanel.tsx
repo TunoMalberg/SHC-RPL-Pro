@@ -75,10 +75,10 @@ export function ExportPanel() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="border-emerald-200" data-design-id="excel-export-card">
+        <Card className="border-[#8FB687]/40" data-design-id="excel-export-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-3" data-design-id="excel-export-title">
-              <span className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">XLS</span>
+              <span className="w-10 h-10 rounded-lg bg-[#8FB687]/15 text-[#5a8a50] flex items-center justify-center font-bold text-sm">XLS</span>
               Excel-Bericht
             </CardTitle>
           </CardHeader>
@@ -86,19 +86,19 @@ export function ExportPanel() {
             <div className="text-sm text-slate-600 space-y-1.5" data-design-id="excel-sheets-list">
               <p className="font-medium text-slate-800">Enthaltene Tabellenblätter:</p>
               <ul className="list-none space-y-1">
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Eingaben & Annahmen</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Portfoliostruktur (3 Töpfe)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Monte-Carlo-Zusammenfassung</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Simulationspfade (Perzentile)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Entnahmeanalyse</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Historische Backtest-Ergebnisse</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Kennzahlen-Zusammenfassung</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Eingaben & Annahmen</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Portfoliostruktur (3 Töpfe)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Monte-Carlo-Zusammenfassung</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Simulationspfade (Perzentile)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Entnahmeanalyse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Historische Backtest-Ergebnisse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Kennzahlen-Zusammenfassung</li>
               </ul>
             </div>
             <Button
               onClick={exportExcel}
               disabled={!hasResults || exporting === "excel"}
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
+              className="w-full bg-[#5a8a50] hover:bg-[#4a7640]"
               data-design-id="excel-download-button"
             >
               {exporting === "excel" ? "Wird erstellt..." : "📊 Excel-Bericht herunterladen"}
@@ -106,10 +106,10 @@ export function ExportPanel() {
           </CardContent>
         </Card>
 
-        <Card className="border-blue-200" data-design-id="pptx-export-card">
+        <Card className="border-neutral-200" data-design-id="pptx-export-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-3" data-design-id="pptx-export-title">
-              <span className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">PPT</span>
+              <span className="w-10 h-10 rounded-lg bg-neutral-100 text-[#4D4A47] flex items-center justify-center font-bold text-sm">PPT</span>
               PowerPoint-Präsentation
             </CardTitle>
           </CardHeader>
@@ -117,24 +117,24 @@ export function ExportPanel() {
             <div className="text-sm text-slate-600 space-y-1.5" data-design-id="pptx-slides-list">
               <p className="font-medium text-slate-800">Enthaltene Folien:</p>
               <ul className="list-none space-y-1">
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Titelfolie (Kunde & Datum)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Finanzielle Übersicht</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Drei-Topf-Portfoliomodell</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Annahmen & Kennzahlen</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Monte-Carlo-Ergebnisse</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Erfolgswahrscheinlichkeit erklärt</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Entnahmerate & 4%-Regel</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Risikoanalyse & SoR-Risiko</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Historische Backtest-Ergebnisse</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Wissenswertes (MPT, Risiken)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Empfehlungen</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Anhang (Methodik)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Titelfolie (Kunde & Datum)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Finanzielle Übersicht</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Drei-Topf-Portfoliomodell</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Annahmen & Kennzahlen</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Monte-Carlo-Ergebnisse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Erfolgswahrscheinlichkeit erklärt</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Entnahmerate & 4%-Regel</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Risikoanalyse & SoR-Risiko</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Historische Backtest-Ergebnisse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Wissenswertes (MPT, Risiken)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Empfehlungen</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Anhang (Methodik)</li>
               </ul>
             </div>
             <Button
               onClick={exportPowerPoint}
               disabled={!hasResults || exporting === "pptx"}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full bg-[#D31220] hover:bg-[#a80e19]"
               data-design-id="pptx-download-button"
             >
               {exporting === "pptx" ? "Wird erstellt..." : "📝 PowerPoint-Präsentation herunterladen"}

@@ -21,9 +21,9 @@ import {
 import { fmtPct } from "@/lib/format";
 
 const BUCKET_COLORS = [
-  { bg: "bg-teal-50", border: "border-teal-200", accent: "text-teal-600", fill: "bg-teal-500" },
-  { bg: "bg-blue-50", border: "border-blue-200", accent: "text-blue-600", fill: "bg-blue-500" },
-  { bg: "bg-amber-50", border: "border-amber-200", accent: "text-amber-600", fill: "bg-amber-500" },
+  { bg: "bg-[#8FB687]/10", border: "border-[#8FB687]/40", accent: "text-[#5a8a50]", fill: "bg-[#8FB687]" },
+  { bg: "bg-[#87BBE6]/10", border: "border-[#87BBE6]/40", accent: "text-[#3a7cb8]", fill: "bg-[#87BBE6]" },
+  { bg: "bg-[#D31220]/5", border: "border-[#D31220]/30", accent: "text-[#D31220]", fill: "bg-[#D31220]" },
 ];
 
 export function PortfolioBuilderSection() {
@@ -210,9 +210,9 @@ export function PortfolioBuilderSection() {
                 <thead>
                   <tr>
                     <th className="text-left py-2 pr-3 text-slate-500 font-medium"></th>
-                    <th className="py-2 px-2 text-center text-teal-600 font-medium">Bargeld</th>
-                    <th className="py-2 px-2 text-center text-blue-600 font-medium">Anleihen</th>
-                    <th className="py-2 px-2 text-center text-amber-600 font-medium">Aktien</th>
+                    <th className="py-2 px-2 text-center text-[#5a8a50] font-medium">Bargeld</th>
+                    <th className="py-2 px-2 text-center text-[#4D4A47] font-medium">Anleihen</th>
+                    <th className="py-2 px-2 text-center text-[#D31220] font-medium">Aktien</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -297,7 +297,7 @@ export function PortfolioBuilderSection() {
 
             <div className="grid grid-cols-3 gap-3 pt-3 border-t" data-design-id="portfolio-metrics">
               <div className="text-center" data-design-id="metric-return">
-                <div className="text-lg font-bold text-emerald-600">{fmtPct(portReturn)}</div>
+                <div className="text-lg font-bold text-[#5a8a50]">{fmtPct(portReturn)}</div>
                 <div className="text-xs text-slate-500">Erwartete Rendite</div>
               </div>
               <div className="text-center" data-design-id="metric-volatility">
@@ -305,7 +305,7 @@ export function PortfolioBuilderSection() {
                 <div className="text-xs text-slate-500">Volatilität</div>
               </div>
               <div className="text-center" data-design-id="metric-sharpe">
-                <div className="text-lg font-bold text-blue-600">{sharpe.toFixed(2)}</div>
+                <div className="text-lg font-bold text-[#4D4A47]">{sharpe.toFixed(2)}</div>
                 <div className="text-xs text-slate-500">Sharpe Ratio</div>
               </div>
             </div>

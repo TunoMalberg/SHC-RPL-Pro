@@ -27,7 +27,7 @@ export function ClientProfileSection() {
         <Card data-design-id="client-personal-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2" data-design-id="personal-info-title">
-              <span className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold">P</span>
+              <span className="w-8 h-8 rounded-lg bg-red-50 text-[#D31220] flex items-center justify-center text-sm font-bold">P</span>
               Persönliche Daten
             </CardTitle>
           </CardHeader>
@@ -81,7 +81,7 @@ export function ClientProfileSection() {
         <Card data-design-id="client-horizon-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2" data-design-id="horizon-title">
-              <span className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-bold">H</span>
+              <span className="w-8 h-8 rounded-lg bg-amber-100 text-[#FAC075] flex items-center justify-center text-sm font-bold">H</span>
               Planungshorizont
             </CardTitle>
           </CardHeader>
@@ -124,19 +124,19 @@ export function ClientProfileSection() {
         </Card>
       </div>
 
-      <Card className="border-indigo-200 bg-indigo-50/30" data-design-id="client-summary-card">
+      <Card className="border-red-200 bg-red-50/30" data-design-id="client-summary-card">
         <CardContent className="pt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div data-design-id="summary-current-age">
-              <div className="text-2xl font-bold text-indigo-600">{client.currentAge}</div>
+              <div className="text-2xl font-bold text-[#D31220]">{client.currentAge}</div>
               <div className="text-xs text-slate-500">Aktuelles Alter</div>
             </div>
             <div data-design-id="summary-retirement-age">
-              <div className="text-2xl font-bold text-amber-600">{client.retirementAge}</div>
+              <div className="text-2xl font-bold text-[#FAC075]">{client.retirementAge}</div>
               <div className="text-xs text-slate-500">Pensionsalter</div>
             </div>
             <div data-design-id="summary-accumulation">
-              <div className="text-2xl font-bold text-emerald-600">
+              <div className="text-2xl font-bold text-[#5a8a50]">
                 {Math.max(0, client.retirementAge - client.currentAge)}
               </div>
               <div className="text-xs text-slate-500">Ansparjahre</div>

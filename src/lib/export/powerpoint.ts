@@ -10,19 +10,32 @@ import type {
 type Pptx = any;
 type Slide = any;
 
+/* Schelhammer Capital Corporate Design Colors */
 const COLORS = {
-  primary: "1B2A4A",
-  secondary: "2E5090",
-  accent: "E8913A",
-  success: "2E7D32",
-  danger: "C62828",
-  light: "F5F7FA",
-  white: "FFFFFF",
-  text: "333333",
-  muted: "6B7280",
-  blue: "1565C0",
-  teal: "00897B",
+  primary: "20201E",       // Mattschwarz
+  secondary: "4D4A47",     // Naturgrau
+  accent: "D31220",        // Feuerrot
+  success: "5A8A50",       // Gras (darker)
+  danger: "D31220",        // Feuerrot
+  light: "F5F3F0",         // Warm light bg
+  white: "FFFFFF",         // Reinweiß
+  text: "20201E",          // Mattschwarz
+  muted: "4D4A47",         // Naturgrau
+  gras: "8FB687",          // Gras (Cash)
+  eis: "87BBE6",           // Eis (Bonds)
+  feuerrot: "D31220",      // Feuerrot (Equities)
+  feuerrot80: "DA4D3E",    // 80% Feuerrot
+  feuerrot60: "E37E67",    // 60% Feuerrot
+  feuerrot40: "EDAC98",    // 40% Feuerrot
+  feuerrot20: "F7D8CD",    // 20% Feuerrot
+  oliv: "969476",
+  lavendel: "8A83BE",
+  heu: "D0D2AD",
+  orange: "FAC075",
 };
+
+const FONT_HEADING = "Sitka Heading";
+const FONT_BODY = "Skeena";
 
 function fmt(n: number, decimals = 0): string {
   return n.toLocaleString("de-AT", {
@@ -39,34 +52,61 @@ function fmtPct(n: number, decimals = 1): string {
   return `${fmt(n, decimals)}%`;
 }
 
+function addSlideFooter(slide: Slide) {
+  slide.addText("Vertraulichkeitsstufe: Klasse 1", {
+    x: 0.3,
+    y: 5.15,
+    w: 5,
+    h: 0.25,
+    fontSize: 7,
+    fontFace: FONT_BODY,
+    color: "9CA3AF",
+  });
+}
+
+function addRedTriangle(slide: Slide, pptx: Pptx, x: number, y: number, size: number) {
+  slide.addShape(pptx.ShapeType.rtTriangle, {
+    x,
+    y,
+    w: size,
+    h: size,
+    fill: { color: COLORS.accent },
+    rotate: 0,
+  });
+}
+
 function addTitleSlide(pptx: Pptx, client: ClientProfile) {
   const slide = pptx.addSlide();
   slide.background = { fill: COLORS.primary };
 
-  slide.addText("RUHESTANDSPLANUNG", {
+  /* Red triangle design element (SHC Diamond Grid) */
+  addRedTriangle(slide, pptx, 7.5, 3.5, 2.5);
+
+  slide.addText("Ruhestandsplanung", {
     x: 0.8,
-    y: 1.2,
+    y: 1.0,
     w: 8.4,
     h: 1,
     fontSize: 36,
-    fontFace: "Calibri",
+    fontFace: FONT_HEADING,
     color: COLORS.white,
     bold: true,
   });
 
   slide.addText("Professioneller Analysebericht", {
     x: 0.8,
-    y: 2.1,
+    y: 2.0,
     w: 8.4,
     h: 0.6,
     fontSize: 20,
-    fontFace: "Calibri",
-    color: COLORS.accent,
+    fontFace: FONT_BODY,
+    color: COLORS.feuerrot40,
   });
 
+  /* Red accent line */
   slide.addShape(pptx.ShapeType.rect, {
     x: 0.8,
-    y: 2.8,
+    y: 2.7,
     w: 2,
     h: 0.04,
     fill: { color: COLORS.accent },
@@ -74,36 +114,49 @@ function addTitleSlide(pptx: Pptx, client: ClientProfile) {
 
   slide.addText(
     [
-      { text: "Erstellt für: ", options: { color: "9CA3AF", fontSize: 14 } },
-      { text: client.name, options: { color: COLORS.white, fontSize: 14, bold: true } },
+      { text: "Erstellt für: ", options: { color: "9CA3AF", fontSize: 14, fontFace: FONT_BODY } },
+      { text: client.name, options: { color: COLORS.white, fontSize: 14, bold: true, fontFace: FONT_BODY } },
     ],
-    { x: 0.8, y: 3.4, w: 8.4, h: 0.4, fontFace: "Calibri" }
+    { x: 0.8, y: 3.2, w: 8.4, h: 0.4, fontFace: FONT_BODY }
   );
 
   slide.addText(`Datum: ${new Date().toLocaleDateString("de-AT")}`, {
     x: 0.8,
-    y: 3.9,
+    y: 3.7,
     w: 8.4,
     h: 0.4,
     fontSize: 12,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: "9CA3AF",
   });
 
   slide.addText("Drei-Topf-Portfoliostrategie  |  Monte-Carlo-Simulation  |  Historischer Backtest", {
     x: 0.8,
-    y: 4.8,
+    y: 4.6,
     w: 8.4,
     h: 0.4,
     fontSize: 10,
-    fontFace: "Calibri",
-    color: "6B7280",
+    fontFace: FONT_BODY,
+    color: COLORS.secondary,
+  });
+
+  slide.addText("Schelhammer Capital Bank AG", {
+    x: 0.8,
+    y: 5.1,
+    w: 8.4,
+    h: 0.3,
+    fontSize: 9,
+    fontFace: FONT_BODY,
+    color: COLORS.secondary,
   });
 }
 
 function addSectionSlide(pptx: Pptx, title: string, subtitle: string) {
   const slide = pptx.addSlide();
-  slide.background = { fill: COLORS.secondary };
+  slide.background = { fill: COLORS.primary };
+
+  /* Red triangle design element */
+  addRedTriangle(slide, pptx, 7.8, 3.8, 2.2);
 
   slide.addText(title, {
     x: 0.8,
@@ -111,7 +164,7 @@ function addSectionSlide(pptx: Pptx, title: string, subtitle: string) {
     w: 8.4,
     h: 1,
     fontSize: 32,
-    fontFace: "Calibri",
+    fontFace: FONT_HEADING,
     color: COLORS.white,
     bold: true,
   });
@@ -130,30 +183,44 @@ function addSectionSlide(pptx: Pptx, title: string, subtitle: string) {
     w: 8.4,
     h: 0.6,
     fontSize: 16,
-    fontFace: "Calibri",
-    color: "B0BEC5",
+    fontFace: FONT_BODY,
+    color: COLORS.feuerrot40,
   });
 }
 
-function addSlideHeader(slide: Slide, title: string) {
+function addSlideHeader(slide: Slide, title: string, pptx?: Pptx) {
+  /* SHC-style header: thin red top line + title */
   slide.addShape("rect" as any, {
     x: 0,
     y: 0,
     w: 10,
-    h: 0.9,
-    fill: { color: COLORS.primary },
+    h: 0.06,
+    fill: { color: COLORS.accent },
   });
 
   slide.addText(title, {
     x: 0.5,
-    y: 0.15,
-    w: 9,
+    y: 0.2,
+    w: 8.5,
     h: 0.6,
-    fontSize: 20,
-    fontFace: "Calibri",
-    color: COLORS.white,
+    fontSize: 22,
+    fontFace: FONT_HEADING,
+    color: COLORS.primary,
     bold: true,
   });
+
+  /* Subtle separator line */
+  slide.addShape("rect" as any, {
+    x: 0.5,
+    y: 0.85,
+    w: 9,
+    h: 0.01,
+    fill: { color: "E5E2DF" },
+  });
+
+  if (pptx) {
+    addSlideFooter(slide);
+  }
 }
 
 function addFinancialSummary(
@@ -162,7 +229,7 @@ function addFinancialSummary(
   inputs: FinancialInputs
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Finanzielle Gesamtübersicht");
+  addSlideHeader(slide, "Finanzielle Gesamtübersicht", pptx);
 
   const leftData = [
     ["Aktuelles Alter", `${client.currentAge} Jahre`],
@@ -186,14 +253,14 @@ function addFinancialSummary(
     w: 4,
     h: 0.4,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
 
   const leftRows: any[] = leftData.map(([k, v]) => [
-    { text: k, options: { fontSize: 11, color: COLORS.muted, fontFace: "Calibri" } },
-    { text: v, options: { fontSize: 11, color: COLORS.text, bold: true, fontFace: "Calibri" } },
+    { text: k, options: { fontSize: 11, color: COLORS.muted, fontFace: FONT_BODY } },
+    { text: v, options: { fontSize: 11, color: COLORS.text, bold: true, fontFace: FONT_BODY } },
   ]);
 
   slide.addTable(leftRows, {
@@ -211,14 +278,14 @@ function addFinancialSummary(
     w: 4,
     h: 0.4,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
 
   const rightRows: any[] = rightData.map(([k, v]) => [
-    { text: k, options: { fontSize: 11, color: COLORS.muted, fontFace: "Calibri" } },
-    { text: v, options: { fontSize: 11, color: COLORS.text, bold: true, fontFace: "Calibri" } },
+    { text: k, options: { fontSize: 11, color: COLORS.muted, fontFace: FONT_BODY } },
+    { text: v, options: { fontSize: 11, color: COLORS.text, bold: true, fontFace: FONT_BODY } },
   ]);
 
   slide.addTable(rightRows, {
@@ -239,7 +306,7 @@ function addFinancialSummary(
     y: 4.0,
     w: 9,
     h: 1.1,
-    fill: { color: "F0F4F8" },
+    fill: { color: COLORS.light },
     rectRadius: 0.1,
   });
 
@@ -251,8 +318,8 @@ function addFinancialSummary(
       w: 8.4,
       h: 0.35,
       fontSize: 12,
-      fontFace: "Calibri",
-      color: COLORS.blue,
+      fontFace: FONT_BODY,
+      color: COLORS.eis,
       bold: true,
     }
   );
@@ -265,7 +332,7 @@ function addFinancialSummary(
       w: 8.4,
       h: 0.35,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
     }
   );
@@ -273,24 +340,24 @@ function addFinancialSummary(
 
 function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Portfoliostruktur — Drei-Topf-Modell");
+  addSlideHeader(slide, "Portfoliostruktur — Drei-Topf-Modell", pptx);
 
   const headerRow: any = [
-    { text: "Anlageklasse", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri" } },
-    { text: "Allokation", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
-    { text: "Erw. Rendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
-    { text: "Volatilität", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
-    { text: "Nettorendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: "Calibri", align: "center" } },
+    { text: "Anlageklasse", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY } },
+    { text: "Allokation", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
+    { text: "Erw. Rendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
+    { text: "Volatilität", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
+    { text: "Nettorendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
   ];
 
   const dataRows: any[] = portfolio.buckets.map((b, i) => {
-    const colors = [COLORS.teal, COLORS.blue, COLORS.accent];
+    const colors = [COLORS.gras, COLORS.eis, COLORS.feuerrot];
     return [
-      { text: b.label, options: { fontSize: 11, fontFace: "Calibri", color: colors[i], bold: true } },
-      { text: fmtPct(b.allocation), options: { fontSize: 11, fontFace: "Calibri", align: "center" as const } },
-      { text: fmtPct(b.expectedReturn), options: { fontSize: 11, fontFace: "Calibri", align: "center" as const } },
-      { text: fmtPct(b.volatility), options: { fontSize: 11, fontFace: "Calibri", align: "center" as const } },
-      { text: fmtPct(b.netReturn), options: { fontSize: 11, fontFace: "Calibri", align: "center" as const } },
+      { text: b.label, options: { fontSize: 11, fontFace: FONT_BODY, color: colors[i], bold: true } },
+      { text: fmtPct(b.allocation), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const } },
+      { text: fmtPct(b.expectedReturn), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const } },
+      { text: fmtPct(b.volatility), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const } },
+      { text: fmtPct(b.netReturn), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const } },
     ];
   });
 
@@ -309,15 +376,15 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
     w: 9,
     h: 0.35,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
 
   const bucketDescriptions = [
-    { title: "Topf 1: Bargeld / Liquidität", desc: "Kurzfristige Reserven (1–2 Jahre Ausgaben). Bietet Stabilität und deckt den unmittelbaren Bedarf. Niedrige Rendite, aber nahezu keine Volatilität.", color: COLORS.teal },
-    { title: "Topf 2: Anleihen / Festverzinslich", desc: "Mittelfristige Stabilität (3–7 Jahre). Staats- und Unternehmensanleihen bieten regelmäßiges Einkommen und dienen als Puffer gegen Aktienvolatilität.", color: COLORS.blue },
-    { title: "Topf 3: Aktien / Beteiligungen", desc: "Langfristiger Wachstumsmotor. Diversifizierte globale Aktien (z. B. MSCI World) bieten inflationsübertreffende Renditen über Jahrzehnte.", color: COLORS.accent },
+    { title: "Topf 1: Bargeld / Liquidität", desc: "Kurzfristige Reserven (1–2 Jahre Ausgaben). Bietet Stabilität und deckt den unmittelbaren Bedarf. Niedrige Rendite, aber nahezu keine Volatilität.", color: COLORS.gras },
+    { title: "Topf 2: Anleihen / Festverzinslich", desc: "Mittelfristige Stabilität (3–7 Jahre). Staats- und Unternehmensanleihen bieten regelmäßiges Einkommen und dienen als Puffer gegen Aktienvolatilität.", color: COLORS.eis },
+    { title: "Topf 3: Aktien / Beteiligungen", desc: "Langfristiger Wachstumsmotor. Diversifizierte globale Aktien (z. B. MSCI World) bieten inflationsübertreffende Renditen über Jahrzehnte.", color: COLORS.feuerrot },
   ];
 
   let yPos = 3.6;
@@ -336,7 +403,7 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
       w: 8.5,
       h: 0.25,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: b.color,
       bold: true,
     });
@@ -347,7 +414,7 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
       w: 8.5,
       h: 0.3,
       fontSize: 9,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.muted,
     });
 
@@ -362,12 +429,12 @@ function addAssumptionsSlide(
   result: SimulationResult
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Annahmen & Portfolio-Kennzahlen");
+  addSlideHeader(slide, "Annahmen & Portfolio-Kennzahlen", pptx);
 
   const metrics = [
     { label: "Portfoliorendite (p.a.)", value: fmtPct(result.portfolioReturn), color: COLORS.success },
     { label: "Portfoliovolatilität (p.a.)", value: fmtPct(result.portfolioVolatility), color: COLORS.danger },
-    { label: "Sharpe Ratio", value: fmt(result.sharpeRatio, 2), color: COLORS.blue },
+    { label: "Sharpe Ratio", value: fmt(result.sharpeRatio, 2), color: COLORS.eis },
     { label: "Inflationsannahme", value: fmtPct(inputs.inflationRate), color: COLORS.accent },
   ];
 
@@ -378,7 +445,7 @@ function addAssumptionsSlide(
       y: 1.2,
       w: 2.2,
       h: 1.1,
-      fill: { color: "F8F9FA" },
+      fill: { color: COLORS.light },
       rectRadius: 0.08,
       line: { color: "E5E7EB", width: 0.5 },
     });
@@ -389,7 +456,7 @@ function addAssumptionsSlide(
       w: 2.2,
       h: 0.5,
       fontSize: 22,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: m.color,
       bold: true,
       align: "center",
@@ -401,7 +468,7 @@ function addAssumptionsSlide(
       w: 2.2,
       h: 0.35,
       fontSize: 9,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.muted,
       align: "center",
     });
@@ -415,25 +482,25 @@ function addAssumptionsSlide(
     w: 4,
     h: 0.4,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
 
   const labels = ["Bargeld", "Anleihen", "Aktien"];
   const corrHeader: any = [
-    { text: "", options: { fill: { color: COLORS.primary }, color: COLORS.white, fontSize: 10, fontFace: "Calibri" } },
+    { text: "", options: { fill: { color: COLORS.primary }, color: COLORS.white, fontSize: 10, fontFace: FONT_BODY } },
     ...labels.map((l) => ({
       text: l,
-      options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: "Calibri", align: "center" as const },
+      options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY, align: "center" as const },
     })),
   ];
 
   const corrRows: any[] = labels.map((l, i) => [
-    { text: l, options: { bold: true, fontSize: 10, fontFace: "Calibri", fill: { color: "F0F4F8" } } },
+    { text: l, options: { bold: true, fontSize: 10, fontFace: FONT_BODY, fill: { color: COLORS.light } } },
     ...portfolio.correlationMatrix[i].map((v) => ({
       text: fmt(v, 2),
-      options: { fontSize: 10, fontFace: "Calibri", align: "center" as const },
+      options: { fontSize: 10, fontFace: FONT_BODY, align: "center" as const },
     })),
   ]);
 
@@ -452,7 +519,7 @@ function addAssumptionsSlide(
     w: 3.8,
     h: 0.4,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
@@ -471,7 +538,7 @@ function addAssumptionsSlide(
     w: 3.8,
     h: 2.0,
     fontSize: 9,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.text,
     lineSpacing: 16,
   });
@@ -484,7 +551,7 @@ function addMonteCarloResults(
   client: ClientProfile
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Monte-Carlo-Simulationsergebnisse");
+  addSlideHeader(slide, "Monte-Carlo-Simulationsergebnisse", pptx);
 
   const successColor = result.successRate >= 90
     ? COLORS.success
@@ -497,7 +564,7 @@ function addMonteCarloResults(
     y: 1.2,
     w: 3,
     h: 1.6,
-    fill: { color: "F0FFF4" },
+    fill: { color: COLORS.light },
     rectRadius: 0.1,
     line: { color: successColor, width: 1 },
   });
@@ -508,7 +575,7 @@ function addMonteCarloResults(
     w: 3,
     h: 0.8,
     fontSize: 42,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: successColor,
     bold: true,
     align: "center",
@@ -520,7 +587,7 @@ function addMonteCarloResults(
     w: 3,
     h: 0.35,
     fontSize: 12,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.muted,
     align: "center",
   });
@@ -540,7 +607,7 @@ function addMonteCarloResults(
       w: 3,
       h: 0.3,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.muted,
     });
     slide.addText(value, {
@@ -549,7 +616,7 @@ function addMonteCarloResults(
       w: 2.5,
       h: 0.3,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       bold: true,
       align: "right",
@@ -563,7 +630,7 @@ function addMonteCarloResults(
     w: 9,
     h: 0.4,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
@@ -571,7 +638,7 @@ function addMonteCarloResults(
   const pctRows: any[] = [
     ["5.", "10.", "25.", "50. (Median)", "75.", "90.", "95."].map((p) => ({
       text: p,
-      options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: "Calibri", align: "center" as const },
+      options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY, align: "center" as const },
     })),
     [
       result.percentiles.p5,
@@ -583,7 +650,7 @@ function addMonteCarloResults(
       result.percentiles.p95,
     ].map((v) => ({
       text: fmtEur(v),
-      options: { fontSize: 10, fontFace: "Calibri", align: "center" as const },
+      options: { fontSize: 10, fontFace: FONT_BODY, align: "center" as const },
     })),
   ];
 
@@ -604,7 +671,7 @@ function addMonteCarloResults(
       w: 9,
       h: 0.35,
       fontSize: 9,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.muted,
       italic: true,
     }
@@ -613,7 +680,7 @@ function addMonteCarloResults(
 
 function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Erfolgswahrscheinlichkeit — Was bedeutet sie?");
+  addSlideHeader(slide, "Erfolgswahrscheinlichkeit — Was bedeutet sie?", pptx);
 
   slide.addText(
     "Die Erfolgswahrscheinlichkeit gibt den Prozentsatz der simulierten Szenarien an, in denen Ihr Portfolio " +
@@ -624,7 +691,7 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
       w: 9,
       h: 0.6,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 16,
     }
@@ -632,7 +699,7 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
 
   const interpretations = [
     { range: "> 95%", meaning: "Sehr hohe Sicherheit — konservativer Plan", color: COLORS.success },
-    { range: "85–95%", meaning: "Gute Sicherheit — vernünftiger Plan mit etwas Spielraum", color: COLORS.teal },
+    { range: "85–95%", meaning: "Gute Sicherheit — vernünftiger Plan mit etwas Spielraum", color: COLORS.gras },
     { range: "70–85%", meaning: "Mäßige Sicherheit — Entnahmereduktion oder Sparerhöhung erwägen", color: COLORS.accent },
     { range: "< 70%", meaning: "Erhöhtes Risiko — wesentliche Plananpassungen empfohlen", color: COLORS.danger },
   ];
@@ -644,7 +711,7 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
       y: yPos,
       w: 9,
       h: 0.4,
-      fill: { color: "F8F9FA" },
+      fill: { color: COLORS.light },
       rectRadius: 0.05,
     });
 
@@ -662,7 +729,7 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
       w: 1.5,
       h: 0.4,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: item.color,
       bold: true,
     });
@@ -673,7 +740,7 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
       w: 7,
       h: 0.4,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
     });
 
@@ -686,7 +753,7 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
     w: 9,
     h: 0.4,
     fontSize: 13,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
@@ -702,7 +769,7 @@ function addSuccessProbabilitySlide(pptx: Pptx, result: SimulationResult) {
       w: 9,
       h: 1.2,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 15,
     }
@@ -716,7 +783,7 @@ function addWithdrawalSlide(
   client: ClientProfile
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Analyse der nachhaltigen Entnahmerate");
+  addSlideHeader(slide, "Analyse der nachhaltigen Entnahmerate", pptx);
 
   const accYears = client.retirementAge - client.currentAge;
   const retIdx = Math.min(accYears, result.medianPath.length - 1);
@@ -730,7 +797,7 @@ function addWithdrawalSlide(
     w: 4,
     h: 0.4,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
@@ -741,7 +808,7 @@ function addWithdrawalSlide(
     w: 2,
     h: 0.7,
     fontSize: 36,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: withdrawalRate <= 4 ? COLORS.success : COLORS.danger,
     bold: true,
   });
@@ -752,7 +819,7 @@ function addWithdrawalSlide(
     w: 3,
     h: 0.7,
     fontSize: 10,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.muted,
   });
 
@@ -762,7 +829,7 @@ function addWithdrawalSlide(
     w: 9,
     h: 0.4,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
@@ -783,7 +850,7 @@ function addWithdrawalSlide(
       w: 9,
       h: 2.2,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 14,
     }
@@ -792,7 +859,7 @@ function addWithdrawalSlide(
 
 function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Risikoanalyse — Reihenfolge-der-Renditen-Risiko");
+  addSlideHeader(slide, "Risikoanalyse — Reihenfolge-der-Renditen-Risiko", pptx);
 
   slide.addText(
     "Das Reihenfolge-der-Renditen-Risiko (Sequence of Returns Risk, SoRR) beschreibt die Gefahr, dass der Zeitpunkt " +
@@ -804,7 +871,7 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
       w: 9,
       h: 0.8,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 16,
     }
@@ -816,7 +883,7 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
     w: 9,
     h: 0.35,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
@@ -837,7 +904,7 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
       w: 9,
       h: 0.35,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
     });
     yPos += 0.4;
@@ -849,7 +916,7 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
     w: 9,
     h: 0.35,
     fontSize: 14,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.secondary,
     bold: true,
   });
@@ -866,7 +933,7 @@ function addRiskAnalysis(pptx: Pptx, result: SimulationResult) {
       w: 9,
       h: 1.2,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 15,
     }
@@ -878,7 +945,7 @@ function addHistoricalSlide(
   historical: HistoricalAnalysis | null
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Historische Backtest-Ergebnisse");
+  addSlideHeader(slide, "Historische Backtest-Ergebnisse", pptx);
 
   if (!historical) {
     slide.addText("Kein historischer Backtest durchgeführt.", {
@@ -887,7 +954,7 @@ function addHistoricalSlide(
       w: 9,
       h: 0.5,
       fontSize: 14,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.muted,
       align: "center",
     });
@@ -901,7 +968,7 @@ function addHistoricalSlide(
     y: 1.2,
     w: 2.5,
     h: 1.2,
-    fill: { color: "F0FFF4" },
+    fill: { color: COLORS.light },
     rectRadius: 0.08,
   });
 
@@ -911,7 +978,7 @@ function addHistoricalSlide(
     w: 2.5,
     h: 0.6,
     fontSize: 32,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: successColor,
     bold: true,
     align: "center",
@@ -923,7 +990,7 @@ function addHistoricalSlide(
     w: 2.5,
     h: 0.35,
     fontSize: 10,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.muted,
     align: "center",
   });
@@ -944,7 +1011,7 @@ function addHistoricalSlide(
       w: 3,
       h: 0.3,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.muted,
     });
     slide.addText(value, {
@@ -953,7 +1020,7 @@ function addHistoricalSlide(
       w: 3,
       h: 0.3,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       bold: true,
       align: "right",
@@ -972,7 +1039,7 @@ function addHistoricalSlide(
       w: 9,
       h: 0.8,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 15,
     }
@@ -984,7 +1051,7 @@ function addHistoricalSlide(
     w: 9,
     h: 0.3,
     fontSize: 9,
-    fontFace: "Calibri",
+    fontFace: FONT_BODY,
     color: COLORS.muted,
     italic: true,
   });
@@ -993,7 +1060,7 @@ function addHistoricalSlide(
 function addEducationalSlides(pptx: Pptx) {
   // Modern Portfolio Theory
   let slide = pptx.addSlide();
-  addSlideHeader(slide, "Moderne Portfoliotheorie & Diversifikation");
+  addSlideHeader(slide, "Moderne Portfoliotheorie & Diversifikation", pptx);
 
   slide.addText(
     "Die Moderne Portfoliotheorie (MPT), entwickelt von Harry Markowitz im Jahr 1952, zeigt, dass Anleger Portfolios " +
@@ -1014,7 +1081,7 @@ function addEducationalSlides(pptx: Pptx) {
       w: 9,
       h: 4.0,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 14,
     }
@@ -1022,7 +1089,7 @@ function addEducationalSlides(pptx: Pptx) {
 
   // Monte Carlo Explanation
   slide = pptx.addSlide();
-  addSlideHeader(slide, "Monte-Carlo-Simulation — So funktioniert es");
+  addSlideHeader(slide, "Monte-Carlo-Simulation — So funktioniert es", pptx);
 
   slide.addText(
     "Die Monte-Carlo-Simulation ist eine rechnerische Methode, die Zufallsstichproben nutzt, um die Wahrscheinlichkeit " +
@@ -1045,7 +1112,7 @@ function addEducationalSlides(pptx: Pptx) {
       w: 9,
       h: 4.2,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 14,
     }
@@ -1053,7 +1120,7 @@ function addEducationalSlides(pptx: Pptx) {
 
   // Risks
   slide = pptx.addSlide();
-  addSlideHeader(slide, "Zentrale Ruhestandsrisiken");
+  addSlideHeader(slide, "Zentrale Ruhestandsrisiken", pptx);
 
   const risks = [
     {
@@ -1099,7 +1166,7 @@ function addEducationalSlides(pptx: Pptx) {
       w: 8.5,
       h: 0.25,
       fontSize: 11,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.secondary,
       bold: true,
     });
@@ -1110,7 +1177,7 @@ function addEducationalSlides(pptx: Pptx) {
       w: 8.5,
       h: 0.45,
       fontSize: 9,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 13,
     });
@@ -1126,7 +1193,7 @@ function addRecommendationsSlide(
   client: ClientProfile
 ) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Empfehlungen");
+  addSlideHeader(slide, "Empfehlungen", pptx);
 
   const recommendations: string[] = [];
 
@@ -1187,7 +1254,7 @@ function addRecommendationsSlide(
       w: 0.4,
       h: 0.55,
       fontSize: 14,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.secondary,
       bold: true,
     });
@@ -1198,7 +1265,7 @@ function addRecommendationsSlide(
       w: 8.2,
       h: 0.55,
       fontSize: 10,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 14,
       valign: "middle",
@@ -1210,7 +1277,7 @@ function addRecommendationsSlide(
 
 function addAppendixSlide(pptx: Pptx) {
   const slide = pptx.addSlide();
-  addSlideHeader(slide, "Anhang — Methodik");
+  addSlideHeader(slide, "Anhang — Methodik", pptx);
 
   slide.addText(
     "Simulationsmethodik\n\n" +
@@ -1239,7 +1306,7 @@ function addAppendixSlide(pptx: Pptx) {
       w: 9,
       h: 4.5,
       fontSize: 9,
-      fontFace: "Calibri",
+      fontFace: FONT_BODY,
       color: COLORS.text,
       lineSpacing: 13,
     }
@@ -1257,7 +1324,8 @@ export async function generatePowerPointReport(
   const PptxGenJS = mod.default;
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
-  pptx.author = "Retirement Planner Pro";
+  pptx.author = "Schelhammer Capital Bank AG";
+  pptx.company = "Schelhammer Capital Bank AG";
   pptx.title = `Ruhestandsplan — ${client.name}`;
 
   addTitleSlide(pptx, client);

@@ -20,7 +20,7 @@ import {
   Legend,
 } from "recharts";
 
-const SCENARIO_COLORS = ["#3b82f6", "#ef4444", "#16a34a", "#eab308", "#8b5cf6", "#f97316"];
+const SCENARIO_COLORS = ["#D31220", "#87BBE6", "#8FB687", "#FAC075", "#8A83BE", "#DA4D3E"];
 
 export function ScenarioComparisonSection() {
   const { state, dispatch } = useAppState();
@@ -81,7 +81,7 @@ export function ScenarioComparisonSection() {
                 placeholder={`Szenario ${scenarios.length + 1}`}
               />
             </div>
-            <Button onClick={addScenario} className="bg-indigo-600 hover:bg-indigo-700" data-design-id="add-scenario-button">
+            <Button onClick={addScenario} className="bg-[#D31220] hover:bg-[#a80e19]" data-design-id="add-scenario-button">
               + Aktuelle Einstellungen als Szenario speichern
             </Button>
           </div>
@@ -140,7 +140,7 @@ export function ScenarioComparisonSection() {
                       <div className="pt-2 border-t mt-2">
                         <div className="flex justify-between">
                           <span className="text-slate-500">Erfolgsquote</span>
-                          <span className={`font-bold ${s.result.successRate >= 90 ? "text-emerald-600" : s.result.successRate >= 70 ? "text-amber-600" : "text-rose-600"}`}>
+                          <span className={`font-bold ${s.result.successRate >= 90 ? "text-[#5a8a50]" : s.result.successRate >= 70 ? "text-[#FAC075]" : "text-rose-600"}`}>
                             {fmtPct(s.result.successRate)}
                           </span>
                         </div>
