@@ -27,7 +27,7 @@ import { fmtEur } from "@/lib/format";
 
 export function SimulationPanel() {
   const { state, dispatch } = useAppState();
-  const { settings, client, inputs, portfolio } = state;
+  const { settings, client, inputs, portfolio, liquidityEvents } = state;
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState("");
 
@@ -38,13 +38,13 @@ export function SimulationPanel() {
     await new Promise((r) => setTimeout(r, 50));
 
     try {
-      const result = runMonteCarloSimulation(client, inputs, portfolio, settings);
+      const result = runMonteCarloSimulation(client, inputs, portfolio, settings, liquidityEvents);
 
       if (settings.mode === "sustainable_withdrawal") {
         setProgress("Nachhaltige Entnahmerate wird ermittelt...");
         await new Promise((r) => setTimeout(r, 20));
         result.sustainableWithdrawal = findSustainableWithdrawal(
-          client, inputs, portfolio, settings
+          client, inputs, portfolio, settings, 95, liquidityEvents
         );
       }
 
@@ -52,7 +52,7 @@ export function SimulationPanel() {
         setProgress("Erforderliches Kapital wird ermittelt...");
         await new Promise((r) => setTimeout(r, 20));
         result.requiredCapital = findRequiredCapital(
-          client, inputs, portfolio, settings
+          client, inputs, portfolio, settings, 95, liquidityEvents
         );
       }
 
@@ -60,21 +60,21 @@ export function SimulationPanel() {
         setProgress("Erforderliche Sparrate wird ermittelt...");
         await new Promise((r) => setTimeout(r, 20));
         result.requiredSavings = findRequiredSavingsRate(
-          client, inputs, portfolio, settings
+          client, inputs, portfolio, settings, 95, liquidityEvents
         );
       }
 
       setProgress("Entnahme-Heatmap wird erstellt...");
       await new Promise((r) => setTimeout(r, 20));
       result.withdrawalHeatmap = generateWithdrawalHeatmap(
-        client, inputs, portfolio, settings
+        client, inputs, portfolio, settings, liquidityEvents
       );
 
       dispatch({ type: "SET_RESULT", payload: result });
 
       setProgress("Historischer Backtest wird durchgeführt...");
       await new Promise((r) => setTimeout(r, 20));
-      const historicalResult = runHistoricalBacktest(client, inputs, portfolio);
+      const historicalResult = runHistoricalBacktest(client, inputs, portfolio, liquidityEvents);
       dispatch({ type: "SET_HISTORICAL", payload: historicalResult });
 
       setProgress("Abgeschlossen!");
@@ -84,7 +84,7 @@ export function SimulationPanel() {
     } finally {
       setRunning(false);
     }
-  }, [client, inputs, portfolio, settings, dispatch]);
+  }, [client, inputs, portfolio, settings, liquidityEvents, dispatch]);
 
   return (
     <div className="space-y-6" data-design-id="simulation-panel-section">
@@ -245,6 +245,17 @@ export function SimulationPanel() {
                 <div className="text-xs text-slate-400">Nach Pension</div>
               </div>
             </div>
+
+            {liquidityEvents.length > 0 && (
+              <div className="bg-purple-50 rounded-lg p-3 border border-purple-100" data-design-id="summary-liquidity-events">
+                <div className="text-xs text-[#8A83BE] font-medium">
+                  {liquidityEvents.length} Liquiditätsereignis{liquidityEvents.length > 1 ? "se" : ""} berücksichtigt
+                </div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  Netto: {fmtEur(liquidityEvents.reduce((s, e) => s + e.amount, 0))}
+                </div>
+              </div>
+            )}
 
             <Button
               onClick={runSimulation}

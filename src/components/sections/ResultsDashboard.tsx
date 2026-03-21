@@ -19,7 +19,7 @@ import {
 
 export function ResultsDashboard() {
   const { state } = useAppState();
-  const { result, client, inputs } = state;
+  const { result, client, inputs, liquidityEvents } = state;
 
   if (!result) {
     return (
@@ -184,6 +184,21 @@ export function ResultsDashboard() {
                 strokeDasharray="5 5"
                 label={{ value: "Pension", fontSize: 10, fill: "#D31220" }}
               />
+              {liquidityEvents.map((ev) => (
+                <ReferenceLine
+                  key={`le-fan-${ev.id}`}
+                  x={ev.age}
+                  stroke="#8A83BE"
+                  strokeDasharray="4 2"
+                  strokeWidth={1.5}
+                  label={{
+                    value: `${ev.amount >= 0 ? "+" : ""}€${Math.round(ev.amount / 1000)}k`,
+                    fontSize: 9,
+                    fill: "#8A83BE",
+                    position: "top",
+                  }}
+                />
+              ))}
               <Area type="monotone" dataKey="p90" stackId="1" stroke="none" fill="#F7D8CD" name="90. Perzentil" />
               <Area type="monotone" dataKey="p75" stackId="2" stroke="none" fill="#EDAC98" name="75. Perzentil" />
               <Area type="monotone" dataKey="median" stackId="3" stroke="#D31220" strokeWidth={2} fill="#E37E67" name="Median" />

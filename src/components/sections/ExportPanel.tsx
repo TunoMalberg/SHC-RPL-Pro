@@ -9,7 +9,7 @@ import { generatePowerPointReport } from "@/lib/export/powerpoint";
 
 export function ExportPanel() {
   const { state } = useAppState();
-  const { client, inputs, portfolio, result, historicalResult } = state;
+  const { client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents } = state;
   const [exporting, setExporting] = useState<string | null>(null);
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -28,7 +28,7 @@ export function ExportPanel() {
     setExporting("excel");
     try {
       const blob = await generateExcelReport(
-        client, inputs, portfolio, result, historicalResult
+        client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents
       );
       const date = new Date().toISOString().slice(0, 10);
       downloadBlob(blob, `Retirement_Plan_${client.name.replace(/\s+/g, "_")}_${date}.xlsx`);
@@ -43,7 +43,7 @@ export function ExportPanel() {
     setExporting("pptx");
     try {
       const blob = await generatePowerPointReport(
-        client, inputs, portfolio, result, historicalResult
+        client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents
       );
       const date = new Date().toISOString().slice(0, 10);
       downloadBlob(blob, `Retirement_Plan_${client.name.replace(/\s+/g, "_")}_${date}.pptx`);
@@ -92,6 +92,7 @@ export function ExportPanel() {
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Simulationspfade (Perzentile)</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Entnahmeanalyse</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Historische Backtest-Ergebnisse</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Einzelpfad-Beispiel (Renditen & Umschichtungen)</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Kennzahlen-Zusammenfassung</li>
               </ul>
             </div>
@@ -125,6 +126,7 @@ export function ExportPanel() {
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Erfolgswahrscheinlichkeit erklärt</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Entnahmerate & 4%-Regel</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Risikoanalyse & SoR-Risiko</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Einzelpfad-Beispiel (Renditen & Umschichtungen)</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Historische Backtest-Ergebnisse</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Wissenswertes (MPT, Risiken)</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Empfehlungen</li>

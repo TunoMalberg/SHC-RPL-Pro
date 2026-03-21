@@ -1,3 +1,10 @@
+export interface LiquidityEvent {
+  id: string;
+  age: number;
+  description: string;
+  amount: number; // positive = inflow, negative = outflow
+}
+
 export interface ClientProfile {
   name: string;
   birthYear: number;
@@ -107,6 +114,43 @@ export interface HistoricalAnalysis {
   drawdownDistribution: number[];
 }
 
+export interface DetailedYearRow {
+  year: number;
+  age: number;
+  phase: "Anspar" | "Entnahme";
+  startTotal: number;
+  startCash: number;
+  startBonds: number;
+  startEquities: number;
+  returnCash: number;
+  returnBonds: number;
+  returnEquities: number;
+  returnCashPct: number;
+  returnBondsPct: number;
+  returnEquitiesPct: number;
+  cashflow: number;
+  cashflowLabel: string;
+  liquidityEvent: number;
+  liquidityEventLabel: string;
+  rebalanced: boolean;
+  rebalCashDelta: number;
+  rebalBondsDelta: number;
+  rebalEquitiesDelta: number;
+  endCash: number;
+  endBonds: number;
+  endEquities: number;
+  endTotal: number;
+  cumulativeInflation: number;
+}
+
+export interface DetailedSimTrace {
+  rows: DetailedYearRow[];
+  simulationIndex: number;
+  seed: number;
+  finalWealth: number;
+  success: boolean;
+}
+
 export interface Scenario {
   id: string;
   name: string;
@@ -120,8 +164,10 @@ export interface AppState {
   inputs: FinancialInputs;
   portfolio: PortfolioConfig;
   settings: SimulationSettings;
+  liquidityEvents: LiquidityEvent[];
   result: SimulationResult | null;
   historicalResult: HistoricalAnalysis | null;
+  detailedTrace: DetailedSimTrace | null;
   scenarios: Scenario[];
   activeTab: string;
 }

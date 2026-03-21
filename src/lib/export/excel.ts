@@ -5,6 +5,8 @@ import type {
   PortfolioConfig,
   SimulationResult,
   HistoricalAnalysis,
+  DetailedSimTrace,
+  LiquidityEvent,
 } from "../types";
 
 /* Schelhammer Capital Corporate Design Colors */
@@ -58,19 +60,24 @@ export async function generateExcelReport(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   result: SimulationResult,
-  historical: HistoricalAnalysis | null
+  historical: HistoricalAnalysis | null,
+  detailedTrace?: DetailedSimTrace | null,
+  liquidityEvents?: LiquidityEvent[]
 ): Promise<Blob> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Retirement Planner Pro";
   wb.created = new Date();
 
-  createInputsSheet(wb, client, inputs);
+  createInputsSheet(wb, client, inputs, liquidityEvents ?? []);
   createPortfolioSheet(wb, portfolio);
   createMonteCarloSummary(wb, result);
   createPathsSheet(wb, result);
   createWithdrawalSheet(wb, result);
   if (historical) {
     createHistoricalSheet(wb, historical);
+  }
+  if (detailedTrace) {
+    createDetailedTraceSheet(wb, detailedTrace, portfolio);
   }
   createMetricsSheet(wb, client, inputs, portfolio, result);
 
@@ -83,7 +90,8 @@ export async function generateExcelReport(
 function createInputsSheet(
   wb: ExcelJS.Workbook,
   client: ClientProfile,
-  inputs: FinancialInputs
+  inputs: FinancialInputs,
+  liquidityEvents: LiquidityEvent[] = []
 ) {
   const ws = wb.addWorksheet("Eingaben & Annahmen");
   ws.columns = [
@@ -145,8 +153,39 @@ function createInputsSheet(
     row++;
   }
 
-  ws.getCell(row + 1, 1).value = `Bericht erstellt am: ${new Date().toLocaleDateString("de-AT")}`;
-  ws.getCell(row + 1, 1).font = { italic: true, size: 9, color: { argb: "FF888888" }, name: "Calibri" };
+  if (liquidityEvents.length > 0) {
+    row += 2;
+    ws.getCell(row, 1).value = "Liquiditätsereignisse";
+    styleSectionRow(ws, row, 3);
+    row++;
+
+    ws.getCell(row, 1).value = "Alter";
+    ws.getCell(row, 2).value = "Beschreibung";
+    ws.getCell(row, 3).value = "Betrag";
+    styleHeaderRow(ws, row, 3);
+    row++;
+
+    const sorted = [...liquidityEvents].sort((a, b) => a.age - b.age);
+    for (const ev of sorted) {
+      ws.getCell(row, 1).value = ev.age;
+      ws.getCell(row, 1).font = { name: "Calibri", size: 10, bold: true };
+      ws.getCell(row, 2).value = ev.description;
+      ws.getCell(row, 2).font = { name: "Calibri", size: 10 };
+      ws.getCell(row, 3).value = ev.amount;
+      ws.getCell(row, 3).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 3).font = {
+        name: "Calibri",
+        size: 10,
+        bold: true,
+        color: { argb: ev.amount >= 0 ? "FF2E7D32" : "FFC62828" },
+      };
+      row++;
+    }
+  }
+
+  row++;
+  ws.getCell(row, 1).value = `Bericht erstellt am: ${new Date().toLocaleDateString("de-AT")}`;
+  ws.getCell(row, 1).font = { italic: true, size: 9, color: { argb: "FF888888" }, name: "Calibri" };
 }
 
 function createPortfolioSheet(wb: ExcelJS.Workbook, portfolio: PortfolioConfig) {
@@ -506,4 +545,164 @@ function createMetricsSheet(
     ws.getCell(row, 2).font = { bold: true, name: "Calibri", size: 10 };
     row++;
   }
+}
+
+const REBAL_FILL: ExcelJS.FillPattern = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFFFF8E1" },
+};
+
+function createDetailedTraceSheet(
+  wb: ExcelJS.Workbook,
+  trace: DetailedSimTrace,
+  portfolio: PortfolioConfig
+) {
+  const ws = wb.addWorksheet("Einzelpfad-Beispiel");
+
+  const colWidths = [10, 8, 10, 16, 14, 14, 14, 10, 10, 10, 16, 16, 10, 14, 14, 14, 16];
+  ws.columns = colWidths.map((w) => ({ width: w }));
+
+  ws.getCell(1, 1).value = "MONTE-CARLO EINZELPFAD — DETAILLIERTES BEISPIEL";
+  ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
+  ws.mergeCells(1, 1, 1, 17);
+
+  let row = 2;
+  ws.getCell(row, 1).value = `Simulation #${trace.simulationIndex + 1} (Seed: ${trace.seed})`;
+  ws.getCell(row, 1).font = { italic: true, size: 10, name: "Calibri", color: { argb: "FF888888" } };
+  ws.mergeCells(row, 1, row, 8);
+
+  ws.getCell(row, 9).value = `Ergebnis: ${trace.success ? "Erfolgreich" : "Kapital aufgebraucht"}`;
+  ws.getCell(row, 9).font = {
+    bold: true, size: 10, name: "Calibri",
+    color: { argb: trace.success ? "FF2E7D32" : "FFC62828" },
+  };
+  ws.mergeCells(row, 9, row, 12);
+
+  ws.getCell(row, 13).value = `Endvermögen: € ${Math.round(trace.finalWealth).toLocaleString("de-AT")}`;
+  ws.getCell(row, 13).font = { bold: true, size: 10, name: "Calibri" };
+  ws.mergeCells(row, 13, row, 16);
+
+  row = 4;
+  const headers = [
+    "Jahr", "Alter", "Phase",
+    "Start Gesamt",
+    "Bargeld", "Anleihen", "Aktien",
+    "Rend.% B", "Rend.% A", "Rend.% Akt",
+    "Cashflow", "Liquidität", "Umsch.",
+    "Umsch.Δ Barg.", "Umsch.Δ Anl.", "Umsch.Δ Akt.",
+    "Ende Gesamt",
+  ];
+
+  for (let c = 0; c < headers.length; c++) {
+    ws.getCell(row, c + 1).value = headers[c];
+  }
+  styleHeaderRow(ws, row, headers.length);
+
+  for (const r of trace.rows) {
+    row++;
+
+    ws.getCell(row, 1).value = r.year;
+    ws.getCell(row, 2).value = r.age;
+    ws.getCell(row, 3).value = r.phase;
+    ws.getCell(row, 3).font = {
+      name: "Calibri", size: 9, bold: true,
+      color: { argb: r.phase === "Anspar" ? "FF1565C0" : "FFE65100" },
+    };
+
+    ws.getCell(row, 4).value = Math.round(r.startTotal);
+    ws.getCell(row, 4).numFmt = NUM_FMT_EUR;
+
+    ws.getCell(row, 5).value = Math.round(r.startCash);
+    ws.getCell(row, 5).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 6).value = Math.round(r.startBonds);
+    ws.getCell(row, 6).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 7).value = Math.round(r.startEquities);
+    ws.getCell(row, 7).numFmt = NUM_FMT_EUR;
+
+    ws.getCell(row, 8).value = r.returnCashPct / 100;
+    ws.getCell(row, 8).numFmt = NUM_FMT_PCT;
+    ws.getCell(row, 8).font = {
+      name: "Calibri", size: 9,
+      color: { argb: r.returnCashPct >= 0 ? "FF2E7D32" : "FFC62828" },
+    };
+
+    ws.getCell(row, 9).value = r.returnBondsPct / 100;
+    ws.getCell(row, 9).numFmt = NUM_FMT_PCT;
+    ws.getCell(row, 9).font = {
+      name: "Calibri", size: 9,
+      color: { argb: r.returnBondsPct >= 0 ? "FF1565C0" : "FFC62828" },
+    };
+
+    ws.getCell(row, 10).value = r.returnEquitiesPct / 100;
+    ws.getCell(row, 10).numFmt = NUM_FMT_PCT;
+    ws.getCell(row, 10).font = {
+      name: "Calibri", size: 9,
+      color: { argb: r.returnEquitiesPct >= 0 ? "FFD31220" : "FFC62828" },
+    };
+
+    ws.getCell(row, 11).value = Math.round(r.cashflow);
+    ws.getCell(row, 11).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 11).font = {
+      name: "Calibri", size: 9,
+      color: { argb: r.cashflow >= 0 ? "FF2E7D32" : "FFE65100" },
+    };
+
+    ws.getCell(row, 12).value = r.liquidityEvent !== 0 ? Math.round(r.liquidityEvent) : "";
+    if (r.liquidityEvent !== 0) {
+      ws.getCell(row, 12).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 12).font = {
+        name: "Calibri", size: 9, bold: true,
+        color: { argb: r.liquidityEvent >= 0 ? "FF2E7D32" : "FFC62828" },
+      };
+      ws.getCell(row, 12).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFF3F0FF" },
+      };
+    }
+
+    ws.getCell(row, 13).value = r.rebalanced ? "Ja" : "";
+    ws.getCell(row, 13).font = {
+      name: "Calibri", size: 9, bold: r.rebalanced,
+      color: { argb: r.rebalanced ? "FFE65100" : "FFCCCCCC" },
+    };
+
+    if (r.rebalanced) {
+      ws.getCell(row, 14).value = Math.round(r.rebalCashDelta);
+      ws.getCell(row, 14).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 15).value = Math.round(r.rebalBondsDelta);
+      ws.getCell(row, 15).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 16).value = Math.round(r.rebalEquitiesDelta);
+      ws.getCell(row, 16).numFmt = NUM_FMT_EUR;
+
+      for (let c = 1; c <= headers.length; c++) {
+        ws.getCell(row, c).fill = REBAL_FILL;
+      }
+    }
+
+    ws.getCell(row, 17).value = Math.round(r.endTotal);
+    ws.getCell(row, 17).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 17).font = { bold: true, name: "Calibri", size: 9 };
+  }
+
+  row += 2;
+  ws.getCell(row, 1).value = "Legende";
+  styleSectionRow(ws, row, 6);
+  row++;
+  ws.getCell(row, 1).value = "Rend.% B/A/Akt = Jahresrendite je Topf (Bargeld/Anleihen/Aktien)";
+  ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF888888" } };
+  ws.mergeCells(row, 1, row, 8);
+  row++;
+  ws.getCell(row, 1).value = "Liquidität = Sonder-Ein-/Auszahlungen (Erbschaft, Immobilienverkauf, etc.)";
+  ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF8A83BE" } };
+  ws.mergeCells(row, 1, row, 8);
+  row++;
+  ws.getCell(row, 1).value = "Umsch.Δ = Umschichtungsbetrag bei Rebalancing (positiv = Zufluss, negativ = Abfluss)";
+  ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF888888" } };
+  ws.mergeCells(row, 1, row, 8);
+  row++;
+  ws.getCell(row, 1).value = "Gelb hinterlegte Zeilen = Rebalancing wurde ausgelöst";
+  ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FFE65100" } };
+  ws.mergeCells(row, 1, row, 8);
 }

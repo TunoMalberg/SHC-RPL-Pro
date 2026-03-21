@@ -4,6 +4,9 @@ import type {
   SimulationSettings,
   SimulationResult,
   ClientProfile,
+  DetailedSimTrace,
+  DetailedYearRow,
+  LiquidityEvent,
 } from "../types";
 import {
   SeededRandom,
@@ -21,7 +24,8 @@ export function runMonteCarloSimulation(
   client: ClientProfile,
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
-  settings: SimulationSettings
+  settings: SimulationSettings,
+  liquidityEvents: LiquidityEvent[] = []
 ): SimulationResult {
   const accumulationYears = Math.max(0, client.retirementAge - client.currentAge);
   const withdrawalYears = Math.max(0, client.lifeExpectancy - client.retirementAge);
@@ -105,6 +109,28 @@ export function runMonteCarloSimulation(
           const withdrawRatio = Math.min(1, netWithdrawal / totalPortfolio);
           for (let i = 0; i < 3; i++) {
             bucketValues[i] *= 1 - withdrawRatio;
+          }
+        }
+      }
+
+      const currentAgeAtStep = client.currentAge + step / stepsPerYear;
+      for (const le of liquidityEvents) {
+        const leStepAge = le.age;
+        const prevAge = client.currentAge + (step - 1) / stepsPerYear;
+        if (currentAgeAtStep >= leStepAge && prevAge < leStepAge) {
+          const amount = le.amount;
+          if (amount > 0) {
+            for (let i = 0; i < 3; i++) {
+              bucketValues[i] += weights[i] * amount;
+            }
+          } else {
+            const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
+            if (totalPortfolio > 0) {
+              const withdrawRatio = Math.min(1, Math.abs(amount) / totalPortfolio);
+              for (let i = 0; i < 3; i++) {
+                bucketValues[i] *= 1 - withdrawRatio;
+              }
+            }
           }
         }
       }
@@ -223,7 +249,8 @@ export function findSustainableWithdrawal(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   settings: SimulationSettings,
-  targetSuccessRate: number = 95
+  targetSuccessRate: number = 95,
+  liquidityEvents: LiquidityEvent[] = []
 ): number {
   let low = 0;
   let high = inputs.initialCapital * 0.1;
@@ -236,7 +263,8 @@ export function findSustainableWithdrawal(
       client,
       testInputs,
       portfolio,
-      { ...settings, numSimulations: Math.min(settings.numSimulations, 2000) }
+      { ...settings, numSimulations: Math.min(settings.numSimulations, 2000) },
+      liquidityEvents
     );
 
     if (result.successRate >= targetSuccessRate) {
@@ -254,7 +282,8 @@ export function findRequiredCapital(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   settings: SimulationSettings,
-  targetSuccessRate: number = 95
+  targetSuccessRate: number = 95,
+  liquidityEvents: LiquidityEvent[] = []
 ): number {
   let low = 0;
   let high = inputs.desiredMonthlyWithdrawal * 12 * 50;
@@ -267,7 +296,8 @@ export function findRequiredCapital(
       client,
       testInputs,
       portfolio,
-      { ...settings, numSimulations: Math.min(settings.numSimulations, 2000) }
+      { ...settings, numSimulations: Math.min(settings.numSimulations, 2000) },
+      liquidityEvents
     );
 
     if (result.successRate >= targetSuccessRate) {
@@ -285,7 +315,8 @@ export function findRequiredSavingsRate(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   settings: SimulationSettings,
-  targetSuccessRate: number = 95
+  targetSuccessRate: number = 95,
+  liquidityEvents: LiquidityEvent[] = []
 ): number {
   let low = 0;
   let high = 20000;
@@ -298,7 +329,8 @@ export function findRequiredSavingsRate(
       client,
       testInputs,
       portfolio,
-      { ...settings, numSimulations: Math.min(settings.numSimulations, 2000) }
+      { ...settings, numSimulations: Math.min(settings.numSimulations, 2000) },
+      liquidityEvents
     );
 
     if (result.successRate >= targetSuccessRate) {
@@ -315,7 +347,8 @@ export function generateWithdrawalHeatmap(
   client: ClientProfile,
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
-  settings: SimulationSettings
+  settings: SimulationSettings,
+  liquidityEvents: LiquidityEvent[] = []
 ): { withdrawal: number; successRate: number }[] {
   const results: { withdrawal: number; successRate: number }[] = [];
   const baseWithdrawal = inputs.desiredMonthlyWithdrawal;
@@ -329,11 +362,210 @@ export function generateWithdrawalHeatmap(
       client,
       testInputs,
       portfolio,
-      { ...settings, numSimulations: Math.min(settings.numSimulations, 1000) }
+      { ...settings, numSimulations: Math.min(settings.numSimulations, 1000) },
+      liquidityEvents
     );
     results.push({ withdrawal, successRate: result.successRate });
   }
   return results;
+}
+
+export function runDetailedSingleSimulation(
+  client: ClientProfile,
+  inputs: FinancialInputs,
+  portfolio: PortfolioConfig,
+  settings: SimulationSettings,
+  simIndex: number = 0,
+  liquidityEvents: LiquidityEvent[] = []
+): DetailedSimTrace {
+  const accumulationYears = Math.max(0, client.retirementAge - client.currentAge);
+  const withdrawalYears = Math.max(0, client.lifeExpectancy - client.retirementAge);
+  const totalYears = accumulationYears + withdrawalYears;
+
+  const weights = portfolio.buckets.map((b) => b.allocation / 100);
+  const annualMeans = portfolio.buckets.map((b) => b.netReturn / 100);
+  const annualVols = portfolio.buckets.map((b) => b.volatility / 100);
+
+  const corrMatrix = portfolio.correlationMatrix;
+  const cholesky = choleskyDecomposition(corrMatrix);
+
+  const seed = (settings.randomSeed ?? 42) + simIndex;
+  const rng = new SeededRandom(seed);
+
+  let bucketValues = weights.map((w) => w * inputs.initialCapital);
+  let cumulativeInflation = 1;
+  let failed = false;
+
+  const rows: DetailedYearRow[] = [];
+
+  for (let y = 0; y < totalYears; y++) {
+    const age = client.currentAge + y;
+    const isAccumulation = y < accumulationYears;
+    const phase = isAccumulation ? "Anspar" : "Entnahme";
+
+    const startCash = bucketValues[0];
+    const startBonds = bucketValues[1];
+    const startEquities = bucketValues[2];
+    const startTotal = startCash + startBonds + startEquities;
+
+    const returns = generateCorrelatedReturns(rng, cholesky, annualMeans, annualVols);
+
+    const returnCash = startCash * returns[0];
+    const returnBonds = startBonds * returns[1];
+    const returnEquities = startEquities * returns[2];
+
+    bucketValues[0] += returnCash;
+    bucketValues[1] += returnBonds;
+    bucketValues[2] += returnEquities;
+
+    const inflationThisYear = inputs.inflationRate / 100;
+    cumulativeInflation *= 1 + inflationThisYear;
+
+    let cashflow = 0;
+    let cashflowLabel = "";
+
+    if (isAccumulation) {
+      const annualSavings = inputs.monthlySavings * 12;
+      const adjustedSavings = inputs.useRealValues
+        ? annualSavings * cumulativeInflation
+        : annualSavings * Math.pow(1 + inputs.annualSavingsIncrease / 100, y);
+
+      cashflow = adjustedSavings;
+      cashflowLabel = "Sparrate";
+
+      for (let i = 0; i < 3; i++) {
+        bucketValues[i] += weights[i] * adjustedSavings;
+      }
+    } else {
+      const annualWithdrawal = inputs.useRealValues
+        ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
+        : inputs.desiredMonthlyWithdrawal * 12;
+
+      const currentAge = age;
+      const hasPension = currentAge >= inputs.pensionStartAge;
+      const annualPension = hasPension
+        ? inputs.useRealValues
+          ? inputs.monthlyPension * 12 * cumulativeInflation
+          : inputs.monthlyPension * 12
+        : 0;
+
+      const netWithdrawal = Math.max(0, annualWithdrawal - annualPension);
+      cashflow = -netWithdrawal;
+      cashflowLabel = hasPension
+        ? `Entnahme ${Math.round(annualWithdrawal)} − Pension ${Math.round(annualPension)}`
+        : "Entnahme";
+
+      const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
+
+      if (totalPortfolio <= netWithdrawal && !failed) {
+        failed = true;
+      }
+
+      if (totalPortfolio > 0) {
+        const withdrawRatio = Math.min(1, netWithdrawal / totalPortfolio);
+        for (let i = 0; i < 3; i++) {
+          bucketValues[i] *= 1 - withdrawRatio;
+        }
+      }
+    }
+
+    let liquidityEventAmount = 0;
+    let liquidityEventLabel = "";
+    const eventsThisYear = liquidityEvents.filter((le) => le.age === age);
+    if (eventsThisYear.length > 0) {
+      for (const le of eventsThisYear) {
+        liquidityEventAmount += le.amount;
+        liquidityEventLabel += (liquidityEventLabel ? "; " : "") + le.description;
+      }
+      if (liquidityEventAmount > 0) {
+        for (let i = 0; i < 3; i++) {
+          bucketValues[i] += weights[i] * liquidityEventAmount;
+        }
+      } else if (liquidityEventAmount < 0) {
+        const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
+        if (totalPortfolio > 0) {
+          const withdrawRatio = Math.min(1, Math.abs(liquidityEventAmount) / totalPortfolio);
+          for (let i = 0; i < 3; i++) {
+            bucketValues[i] *= 1 - withdrawRatio;
+          }
+        }
+      }
+    }
+
+    const beforeRebalCash = bucketValues[0];
+    const beforeRebalBonds = bucketValues[1];
+    const beforeRebalEquities = bucketValues[2];
+
+    const shouldRebalance = checkRebalancingYearly(y, portfolio.rebalancingFrequency);
+    let rebalanced = false;
+    let rebalCashDelta = 0;
+    let rebalBondsDelta = 0;
+    let rebalEquitiesDelta = 0;
+
+    if (shouldRebalance) {
+      const newValues = rebalancePortfolio(bucketValues, weights, portfolio.rebalancingThreshold);
+      if (newValues[0] !== bucketValues[0] || newValues[1] !== bucketValues[1] || newValues[2] !== bucketValues[2]) {
+        rebalanced = true;
+        rebalCashDelta = newValues[0] - beforeRebalCash;
+        rebalBondsDelta = newValues[1] - beforeRebalBonds;
+        rebalEquitiesDelta = newValues[2] - beforeRebalEquities;
+        bucketValues = newValues;
+      }
+    }
+
+    const endCash = Math.max(0, bucketValues[0]);
+    const endBonds = Math.max(0, bucketValues[1]);
+    const endEquities = Math.max(0, bucketValues[2]);
+    const endTotal = endCash + endBonds + endEquities;
+
+    bucketValues = [endCash, endBonds, endEquities];
+
+    rows.push({
+      year: client.birthYear + age,
+      age,
+      phase,
+      startTotal,
+      startCash,
+      startBonds,
+      startEquities,
+      returnCash,
+      returnBonds,
+      returnEquities,
+      returnCashPct: startCash > 0 ? returns[0] * 100 : 0,
+      returnBondsPct: startBonds > 0 ? returns[1] * 100 : 0,
+      returnEquitiesPct: startEquities > 0 ? returns[2] * 100 : 0,
+      cashflow,
+      cashflowLabel,
+      liquidityEvent: liquidityEventAmount,
+      liquidityEventLabel,
+      rebalanced,
+      rebalCashDelta,
+      rebalBondsDelta,
+      rebalEquitiesDelta,
+      endCash,
+      endBonds,
+      endEquities,
+      endTotal,
+      cumulativeInflation,
+    });
+  }
+
+  const finalWealth = bucketValues.reduce((a, b) => a + b, 0);
+
+  return {
+    rows,
+    simulationIndex: simIndex,
+    seed,
+    finalWealth: Math.max(0, finalWealth),
+    success: !failed,
+  };
+}
+
+function checkRebalancingYearly(year: number, frequency: string): boolean {
+  if (frequency === "none") return false;
+  if (frequency === "monthly" || frequency === "annually") return true;
+  if (frequency === "quarterly") return true;
+  return false;
 }
 
 function checkRebalancing(

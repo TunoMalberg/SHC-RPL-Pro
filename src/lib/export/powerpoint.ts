@@ -4,6 +4,8 @@ import type {
   PortfolioConfig,
   SimulationResult,
   HistoricalAnalysis,
+  DetailedSimTrace,
+  LiquidityEvent,
 } from "../types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -334,6 +336,93 @@ function addFinancialSummary(
       fontSize: 11,
       fontFace: FONT_BODY,
       color: COLORS.text,
+    }
+  );
+}
+
+function addLiquidityEventsSlide(pptx: Pptx, events: LiquidityEvent[]) {
+  const slide = pptx.addSlide();
+  addSlideHeader(slide, "Liquiditätsereignisse", pptx);
+
+  slide.addText(
+    "Geplante Sonder-Ein- und Auszahlungen, die den Portfolioverlauf beeinflussen.",
+    {
+      x: 0.5,
+      y: 1.2,
+      w: 9,
+      h: 0.4,
+      fontSize: 11,
+      fontFace: FONT_BODY,
+      color: COLORS.muted,
+    }
+  );
+
+  const sorted = [...events].sort((a, b) => a.age - b.age);
+
+  const headerRow: any = [
+    { text: "Alter", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
+    { text: "Beschreibung", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY } },
+    { text: "Betrag", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "right" } },
+    { text: "Typ", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
+  ];
+
+  const dataRows: any[] = sorted.map((ev) => [
+    { text: String(ev.age), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const, bold: true } },
+    { text: ev.description, options: { fontSize: 11, fontFace: FONT_BODY } },
+    {
+      text: `${ev.amount >= 0 ? "+" : ""}${fmtEur(ev.amount)}`,
+      options: {
+        fontSize: 11,
+        fontFace: FONT_BODY,
+        align: "right" as const,
+        bold: true,
+        color: ev.amount >= 0 ? COLORS.success : COLORS.danger,
+      },
+    },
+    {
+      text: ev.amount >= 0 ? "Einzahlung" : "Auszahlung",
+      options: {
+        fontSize: 10,
+        fontFace: FONT_BODY,
+        align: "center" as const,
+        color: ev.amount >= 0 ? COLORS.success : COLORS.danger,
+      },
+    },
+  ]);
+
+  slide.addTable([headerRow, ...dataRows], {
+    x: 0.5,
+    y: 1.8,
+    w: 9,
+    colW: [1.2, 4.0, 2.2, 1.6],
+    border: { type: "solid", pt: 0.5, color: "DEE2E6" },
+    rowH: 0.4,
+  });
+
+  const totalAmount = events.reduce((s, e) => s + e.amount, 0);
+  const yPos = 1.8 + 0.4 * (sorted.length + 1) + 0.3;
+
+  slide.addShape(pptx.ShapeType.rect, {
+    x: 0.5,
+    y: Math.min(yPos, 4.5),
+    w: 9,
+    h: 0.5,
+    fill: { color: COLORS.light },
+    rectRadius: 0.08,
+  });
+
+  slide.addText(
+    `Netto-Summe aller Liquiditätsereignisse: ${totalAmount >= 0 ? "+" : ""}${fmtEur(totalAmount)}`,
+    {
+      x: 0.8,
+      y: Math.min(yPos, 4.5),
+      w: 8.4,
+      h: 0.5,
+      fontSize: 12,
+      fontFace: FONT_BODY,
+      color: totalAmount >= 0 ? COLORS.success : COLORS.danger,
+      bold: true,
+      valign: "middle",
     }
   );
 }
@@ -1318,17 +1407,22 @@ export async function generatePowerPointReport(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   result: SimulationResult,
-  historical: HistoricalAnalysis | null
+  historical: HistoricalAnalysis | null,
+  detailedTrace?: DetailedSimTrace | null,
+  liquidityEvents?: LiquidityEvent[]
 ): Promise<Blob> {
   const PptxGenJS = (await import("pptxgenjs")).default;
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
-  pptx.author = "Schelhammer Capital Bank AG";
-  pptx.company = "Schelhammer Capital Bank AG";
+  pptx.author = "Ruhestandsplaner Pro";
+  pptx.company = "Ruhestandsplaner Pro";
   pptx.title = `Ruhestandsplan — ${client.name}`;
 
   addTitleSlide(pptx, client);
   addFinancialSummary(pptx, client, inputs);
+  if (liquidityEvents && liquidityEvents.length > 0) {
+    addLiquidityEventsSlide(pptx, liquidityEvents);
+  }
   addPortfolioSlide(pptx, portfolio);
   addAssumptionsSlide(pptx, inputs, portfolio, result);
   addSectionSlide(pptx, "Simulationsergebnisse", "Monte-Carlo-Analyse & Entnahme-Nachhaltigkeit");
@@ -1336,6 +1430,10 @@ export async function generatePowerPointReport(
   addSuccessProbabilitySlide(pptx, result);
   addWithdrawalSlide(pptx, result, inputs, client);
   addRiskAnalysis(pptx, result);
+  if (detailedTrace) {
+    addSectionSlide(pptx, "Einzelpfad-Beispiel", "Detaillierte Portfolioentwicklung eines Simulationspfades");
+    addDetailedTraceSlides(pptx, detailedTrace, client);
+  }
   addSectionSlide(pptx, "Historische Analyse", "Backtest mit realen Marktdaten");
   addHistoricalSlide(pptx, historical);
   addSectionSlide(pptx, "Wissenswertes", "Die wichtigsten Konzepte verstehen");
@@ -1345,4 +1443,149 @@ export async function generatePowerPointReport(
 
   const output = await pptx.write({ outputType: "blob" });
   return output as Blob;
+}
+
+function addDetailedTraceSlides(pptx: Pptx, trace: DetailedSimTrace, client: ClientProfile) {
+  const slide1 = pptx.addSlide();
+  slide1.background = { fill: COLORS.white };
+  addSlideFooter(slide1);
+
+  slide1.addText("Einzelpfad-Beispiel: Portfolioentwicklung", {
+    x: 0.5, y: 0.3, w: 8, h: 0.45,
+    fontSize: 20, fontFace: FONT_HEADING, color: COLORS.primary, bold: true,
+  });
+
+  slide1.addText(
+    `Simulation #${trace.simulationIndex + 1} — ${trace.success ? "Erfolgreich" : "Kapital aufgebraucht"} — Endvermögen: € ${Math.round(trace.finalWealth).toLocaleString("de-AT")}`,
+    {
+      x: 0.5, y: 0.75, w: 12, h: 0.3,
+      fontSize: 11, fontFace: FONT_BODY,
+      color: trace.success ? COLORS.success : COLORS.danger, bold: true,
+    }
+  );
+
+  const accYears = client.retirementAge - client.currentAge;
+  const keyYears = trace.rows.filter((r, i) =>
+    i === 0 ||
+    i === trace.rows.length - 1 ||
+    i === accYears - 1 ||
+    i === accYears ||
+    r.rebalanced ||
+    i % 5 === 0
+  );
+
+  const displayRows = keyYears.slice(0, 18);
+
+  const tableRows: any[][] = [
+    [
+      { text: "Jahr", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "center" } },
+      { text: "Alter", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "center" } },
+      { text: "Phase", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "center" } },
+      { text: "Start Ges.", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Rend. B%", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Rend. A%", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Rend. Akt%", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Cashflow", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Liquid.", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Umsch.", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "center" } },
+      { text: "Ende Ges.", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Bargeld", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Anleihen", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+      { text: "Aktien", options: { bold: true, fontSize: 7, color: COLORS.white, fill: { color: COLORS.primary }, align: "right" } },
+    ],
+  ];
+
+  for (const r of displayRows) {
+    const isRetStart = r.age === client.retirementAge;
+    const hasLE = r.liquidityEvent !== 0;
+    const rowFill = hasLE ? "FFF3F0FF" : r.rebalanced ? "FFFFF3E0" : isRetStart ? "FFFCE4EC" : "FFFFFFFF";
+
+    tableRows.push([
+      { text: String(r.year), options: { fontSize: 7, align: "center", fill: { color: rowFill } } },
+      { text: String(r.age), options: { fontSize: 7, align: "center", fill: { color: rowFill } } },
+      { text: r.phase, options: { fontSize: 7, align: "center", bold: true, color: r.phase === "Anspar" ? "1565C0" : "E65100", fill: { color: rowFill } } },
+      { text: `€ ${fmt(r.startTotal)}`, options: { fontSize: 7, align: "right", fill: { color: rowFill } } },
+      { text: fmtPct(r.returnCashPct), options: { fontSize: 7, align: "right", color: r.returnCashPct >= 0 ? COLORS.success : COLORS.danger, fill: { color: rowFill } } },
+      { text: fmtPct(r.returnBondsPct), options: { fontSize: 7, align: "right", color: r.returnBondsPct >= 0 ? "1565C0" : COLORS.danger, fill: { color: rowFill } } },
+      { text: fmtPct(r.returnEquitiesPct), options: { fontSize: 7, align: "right", color: r.returnEquitiesPct >= 0 ? COLORS.feuerrot : COLORS.danger, fill: { color: rowFill } } },
+      { text: `€ ${fmt(r.cashflow)}`, options: { fontSize: 7, align: "right", color: r.cashflow >= 0 ? COLORS.success : "E65100", fill: { color: rowFill } } },
+      { text: hasLE ? `€ ${fmt(r.liquidityEvent)}` : "—", options: { fontSize: 7, align: "right", bold: hasLE, color: hasLE ? (r.liquidityEvent >= 0 ? COLORS.success : COLORS.danger) : "CCCCCC", fill: { color: rowFill } } },
+      { text: r.rebalanced ? "⟳" : "—", options: { fontSize: 7, align: "center", bold: r.rebalanced, color: r.rebalanced ? "E65100" : "CCCCCC", fill: { color: rowFill } } },
+      { text: `€ ${fmt(r.endTotal)}`, options: { fontSize: 7, align: "right", bold: true, fill: { color: rowFill } } },
+      { text: `€ ${fmt(r.endCash)}`, options: { fontSize: 7, align: "right", color: COLORS.success, fill: { color: rowFill } } },
+      { text: `€ ${fmt(r.endBonds)}`, options: { fontSize: 7, align: "right", color: "1565C0", fill: { color: rowFill } } },
+      { text: `€ ${fmt(r.endEquities)}`, options: { fontSize: 7, align: "right", color: COLORS.feuerrot, fill: { color: rowFill } } },
+    ]);
+  }
+
+  slide1.addTable(tableRows, {
+    x: 0.2, y: 1.15, w: 12.8,
+    fontSize: 7,
+    fontFace: FONT_BODY,
+    border: { type: "solid", pt: 0.5, color: "E5E7EB" },
+    colW: [0.7, 0.5, 0.7, 1.0, 0.75, 0.75, 0.75, 0.9, 0.8, 0.5, 1.0, 0.85, 0.85, 0.85],
+    autoPage: false,
+  });
+
+  const legendY = 1.15 + 0.25 * (displayRows.length + 1) + 0.15;
+  if (legendY < 4.8) {
+    slide1.addText(
+      [
+        { text: "Legende: ", options: { bold: true, fontSize: 8, color: COLORS.primary } },
+        { text: "Rend.% = Jahresrendite  |  ", options: { fontSize: 8, color: COLORS.muted } },
+        { text: "Liquid. = Sonderzahlung  |  ", options: { fontSize: 8, color: COLORS.lavendel } },
+        { text: "Umsch. = Rebalancing (⟳)  |  ", options: { fontSize: 8, color: COLORS.muted } },
+        { text: "Gelb = Rebal.  |  ", options: { fontSize: 8, color: "E65100" } },
+        { text: "Lila = Liquidität  |  ", options: { fontSize: 8, color: COLORS.lavendel } },
+        { text: "Rosa = Pension", options: { fontSize: 8, color: COLORS.danger } },
+      ],
+      { x: 0.3, y: Math.min(legendY, 4.7), w: 12, h: 0.3 }
+    );
+  }
+
+  if (trace.rows.length > 18) {
+    const slide2 = pptx.addSlide();
+    slide2.background = { fill: COLORS.white };
+    addSlideFooter(slide2);
+
+    slide2.addText("Einzelpfad-Beispiel: Fortsetzung", {
+      x: 0.5, y: 0.3, w: 8, h: 0.45,
+      fontSize: 20, fontFace: FONT_HEADING, color: COLORS.primary, bold: true,
+    });
+
+    const remaining = keyYears.slice(18, 36);
+    const tableRows2: any[][] = [tableRows[0]];
+
+    for (const r of remaining) {
+      const isRetStart = r.age === client.retirementAge;
+      const hasLE = r.liquidityEvent !== 0;
+      const rowFill = hasLE ? "FFF3F0FF" : r.rebalanced ? "FFFFF3E0" : isRetStart ? "FFFCE4EC" : "FFFFFFFF";
+
+      tableRows2.push([
+        { text: String(r.year), options: { fontSize: 7, align: "center", fill: { color: rowFill } } },
+        { text: String(r.age), options: { fontSize: 7, align: "center", fill: { color: rowFill } } },
+        { text: r.phase, options: { fontSize: 7, align: "center", bold: true, color: r.phase === "Anspar" ? "1565C0" : "E65100", fill: { color: rowFill } } },
+        { text: `€ ${fmt(r.startTotal)}`, options: { fontSize: 7, align: "right", fill: { color: rowFill } } },
+        { text: fmtPct(r.returnCashPct), options: { fontSize: 7, align: "right", color: r.returnCashPct >= 0 ? COLORS.success : COLORS.danger, fill: { color: rowFill } } },
+        { text: fmtPct(r.returnBondsPct), options: { fontSize: 7, align: "right", color: r.returnBondsPct >= 0 ? "1565C0" : COLORS.danger, fill: { color: rowFill } } },
+        { text: fmtPct(r.returnEquitiesPct), options: { fontSize: 7, align: "right", color: r.returnEquitiesPct >= 0 ? COLORS.feuerrot : COLORS.danger, fill: { color: rowFill } } },
+        { text: `€ ${fmt(r.cashflow)}`, options: { fontSize: 7, align: "right", color: r.cashflow >= 0 ? COLORS.success : "E65100", fill: { color: rowFill } } },
+        { text: hasLE ? `€ ${fmt(r.liquidityEvent)}` : "—", options: { fontSize: 7, align: "right", bold: hasLE, color: hasLE ? (r.liquidityEvent >= 0 ? COLORS.success : COLORS.danger) : "CCCCCC", fill: { color: rowFill } } },
+        { text: r.rebalanced ? "⟳" : "—", options: { fontSize: 7, align: "center", bold: r.rebalanced, color: r.rebalanced ? "E65100" : "CCCCCC", fill: { color: rowFill } } },
+        { text: `€ ${fmt(r.endTotal)}`, options: { fontSize: 7, align: "right", bold: true, fill: { color: rowFill } } },
+        { text: `€ ${fmt(r.endCash)}`, options: { fontSize: 7, align: "right", color: COLORS.success, fill: { color: rowFill } } },
+        { text: `€ ${fmt(r.endBonds)}`, options: { fontSize: 7, align: "right", color: "1565C0", fill: { color: rowFill } } },
+        { text: `€ ${fmt(r.endEquities)}`, options: { fontSize: 7, align: "right", color: COLORS.feuerrot, fill: { color: rowFill } } },
+      ]);
+    }
+
+    slide2.addTable(tableRows2, {
+      x: 0.2, y: 0.9, w: 12.8,
+      fontSize: 7,
+      fontFace: FONT_BODY,
+      border: { type: "solid", pt: 0.5, color: "E5E7EB" },
+      colW: [0.7, 0.5, 0.7, 1.0, 0.75, 0.75, 0.75, 0.9, 0.8, 0.5, 1.0, 0.85, 0.85, 0.85],
+      autoPage: false,
+    });
+  }
 }

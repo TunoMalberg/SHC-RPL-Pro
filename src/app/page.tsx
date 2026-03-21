@@ -9,6 +9,7 @@ import { SimulationPanel } from "@/components/sections/SimulationPanel";
 import { ResultsDashboard } from "@/components/sections/ResultsDashboard";
 import { HistoricalAnalysisSection } from "@/components/sections/HistoricalAnalysis";
 import { ScenarioComparisonSection } from "@/components/sections/ScenarioComparison";
+import { DetailedExampleSection } from "@/components/sections/DetailedExample";
 import { ExportPanel } from "@/components/sections/ExportPanel";
 import Image from "next/image";
 
@@ -20,6 +21,7 @@ const TABS = [
   { id: "results", label: "Ergebnisse", icon: "/icons/rot/Ziel.png" },
   { id: "historical", label: "Historie", icon: "/icons/rot/Uhr.png" },
   { id: "scenarios", label: "Szenarien", icon: "/icons/rot/Pfeil.png" },
+  { id: "detailed", label: "Einzelpfad", icon: "/icons/rot/Uhr.png" },
   { id: "export", label: "Export", icon: "/icons/rot/Daumenhoch.png" },
 ];
 
@@ -33,20 +35,20 @@ export default function RetirementPlannerApp() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4" data-design-id="app-logo">
               <Image
-                src="/icons/shc-logo-pos-small.png"
-                alt="Schelhammer Capital"
-                width={150}
-                height={59}
+                src="/icons/logo.png"
+                alt="Ruhestandsplaner Pro"
+                width={48}
+                height={48}
                 className="h-10 w-auto"
                 priority
               />
               <div className="hidden sm:block h-8 w-px bg-neutral-300" />
               <div className="hidden sm:block">
                 <h1 className="text-sm font-semibold text-[#20201E] leading-tight" data-design-id="app-title">
-                  Vermögensmanagement
+                  Ruhestandsplaner Pro
                 </h1>
                 <p className="text-xs text-[#4D4A47] leading-tight" data-design-id="app-tagline">
-                  Ruhestandsplanung & Simulation
+                  Planung & Simulation
                 </p>
               </div>
             </div>
@@ -66,7 +68,7 @@ export default function RetirementPlannerApp() {
           onValueChange={(tab) => dispatch({ type: "SET_TAB", payload: tab })}
           className="space-y-6"
         >
-          <TabsList className="grid grid-cols-4 md:grid-cols-8 w-full h-auto p-1 bg-white border border-neutral-200 shadow-sm rounded-xl" data-design-id="tabs-list">
+          <TabsList className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 w-full h-auto p-1 bg-white border border-neutral-200 shadow-sm rounded-xl" data-design-id="tabs-list">
             {TABS.map((tab) => (
               <TabsTrigger
                 key={tab.id}
@@ -107,6 +109,9 @@ export default function RetirementPlannerApp() {
           <TabsContent value="scenarios" data-design-id="tab-content-scenarios">
             <ScenarioComparisonSection />
           </TabsContent>
+          <TabsContent value="detailed" data-design-id="tab-content-detailed">
+            <DetailedExampleSection />
+          </TabsContent>
           <TabsContent value="export" data-design-id="tab-content-export">
             <ExportPanel />
           </TabsContent>
@@ -120,7 +125,7 @@ export default function RetirementPlannerApp() {
               Nur zu Informationszwecken. Keine Anlageberatung. Konsultieren Sie einen qualifizierten Finanzberater.
             </p>
             <p data-design-id="footer-copyright">
-              © {new Date().getFullYear()} Schelhammer Capital Bank AG — Drei-Topf Monte-Carlo-Engine
+              © {new Date().getFullYear()} Ruhestandsplaner Pro — Drei-Topf Monte-Carlo-Engine
             </p>
           </div>
         </div>

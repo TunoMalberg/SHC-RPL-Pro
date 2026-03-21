@@ -5,6 +5,7 @@ import type {
   FinancialInputs,
   PortfolioConfig,
   ClientProfile,
+  LiquidityEvent,
 } from "../types";
 
 // Historische Marktdaten 1970–2024
@@ -77,7 +78,8 @@ export const historicalData: HistoricalData[] = [
 export function runHistoricalBacktest(
   client: ClientProfile,
   inputs: FinancialInputs,
-  portfolio: PortfolioConfig
+  portfolio: PortfolioConfig,
+  liquidityEvents: LiquidityEvent[] = []
 ): HistoricalAnalysis {
   const withdrawalYears = client.lifeExpectancy - client.retirementAge;
   const accumulationYears = client.retirementAge - client.currentAge;
@@ -146,6 +148,13 @@ export function runHistoricalBacktest(
 
         const netWithdrawal = Math.max(0, withdrawal - pension);
         capital = capital * (1 + portfolioReturn) - netWithdrawal;
+      }
+
+      const ageAtStep = client.currentAge + y;
+      for (const le of liquidityEvents) {
+        if (le.age === ageAtStep) {
+          capital += le.amount;
+        }
       }
 
       if (capital > maxVal) maxVal = capital;

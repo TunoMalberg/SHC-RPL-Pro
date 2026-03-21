@@ -9,7 +9,9 @@ import type {
   SimulationSettings,
   SimulationResult,
   HistoricalAnalysis,
+  DetailedSimTrace,
   Scenario,
+  LiquidityEvent,
 } from "./types";
 import {
   defaultClient,
@@ -23,8 +25,10 @@ export const initialState: AppState = {
   inputs: defaultInputs,
   portfolio: defaultPortfolio,
   settings: defaultSettings,
+  liquidityEvents: [],
   result: null,
   historicalResult: null,
+  detailedTrace: null,
   scenarios: [],
   activeTab: "profile",
 };
@@ -34,8 +38,13 @@ export type Action =
   | { type: "SET_INPUTS"; payload: Partial<FinancialInputs> }
   | { type: "SET_PORTFOLIO"; payload: Partial<PortfolioConfig> }
   | { type: "SET_SETTINGS"; payload: Partial<SimulationSettings> }
+  | { type: "SET_LIQUIDITY_EVENTS"; payload: LiquidityEvent[] }
+  | { type: "ADD_LIQUIDITY_EVENT"; payload: LiquidityEvent }
+  | { type: "REMOVE_LIQUIDITY_EVENT"; payload: string }
+  | { type: "UPDATE_LIQUIDITY_EVENT"; payload: LiquidityEvent }
   | { type: "SET_RESULT"; payload: SimulationResult | null }
   | { type: "SET_HISTORICAL"; payload: HistoricalAnalysis | null }
+  | { type: "SET_DETAILED_TRACE"; payload: DetailedSimTrace | null }
   | { type: "ADD_SCENARIO"; payload: Scenario }
   | { type: "REMOVE_SCENARIO"; payload: string }
   | { type: "UPDATE_SCENARIO"; payload: { id: string; result: SimulationResult } }
@@ -52,10 +61,25 @@ export function appReducer(state: AppState, action: Action): AppState {
       return { ...state, portfolio: { ...state.portfolio, ...action.payload } };
     case "SET_SETTINGS":
       return { ...state, settings: { ...state.settings, ...action.payload } };
+    case "SET_LIQUIDITY_EVENTS":
+      return { ...state, liquidityEvents: action.payload };
+    case "ADD_LIQUIDITY_EVENT":
+      return { ...state, liquidityEvents: [...state.liquidityEvents, action.payload] };
+    case "REMOVE_LIQUIDITY_EVENT":
+      return { ...state, liquidityEvents: state.liquidityEvents.filter((e) => e.id !== action.payload) };
+    case "UPDATE_LIQUIDITY_EVENT":
+      return {
+        ...state,
+        liquidityEvents: state.liquidityEvents.map((e) =>
+          e.id === action.payload.id ? action.payload : e
+        ),
+      };
     case "SET_RESULT":
       return { ...state, result: action.payload };
     case "SET_HISTORICAL":
       return { ...state, historicalResult: action.payload };
+    case "SET_DETAILED_TRACE":
+      return { ...state, detailedTrace: action.payload };
     case "ADD_SCENARIO":
       return { ...state, scenarios: [...state.scenarios, action.payload] };
     case "REMOVE_SCENARIO":

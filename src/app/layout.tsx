@@ -10,8 +10,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Schelhammer Capital — Ruhestandsplanung",
-  description: "Professionelle Ruhestandsplanung mit Drei-Topf-Portfoliomodell, Monte-Carlo-Simulation und historischer Rückrechnung. Schelhammer Capital Bank AG.",
+  title: "Ruhestandsplaner Pro — Planung & Simulation",
+  description: "Professionelle Ruhestandsplanung mit Drei-Topf-Portfoliomodell, Monte-Carlo-Simulation und historischer Rückrechnung.",
 };
 
 export default function RootLayout({
