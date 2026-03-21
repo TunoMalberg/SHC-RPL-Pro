@@ -1,10 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Use different output dir ONLY for local production builds
-  output: 'standalone',
-  distDir: process.env.NODE_ENV === 'production'
-    ? (process.env.BUILD_DIR || '.next-build')
-    : '.next',
+  // Use standalone output only for Docker/self-hosted builds (not Vercel)
+  ...(process.env.VERCEL ? {} : { output: 'standalone' }),
+  distDir: process.env.VERCEL ? '.next' : (process.env.BUILD_DIR || '.next-build'),
   webpack: (config, { isServer, webpack }) => {
     if (!isServer) {
       config.resolve.fallback = {
