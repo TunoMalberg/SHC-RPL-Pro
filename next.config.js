@@ -5,7 +5,7 @@ const nextConfig = {
   distDir: process.env.NODE_ENV === 'production'
     ? (process.env.BUILD_DIR || '.next-build')
     : '.next',
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -18,14 +18,13 @@ const nextConfig = {
         zlib: false,
         path: false,
         crypto: false,
-        'node:https': false,
-        'node:http': false,
-        'node:stream': false,
-        'node:zlib': false,
-        'node:crypto': false,
-        'node:path': false,
-        'node:fs': false,
       };
+      // Replace node: protocol imports with empty modules for browser builds
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource) => {
+          resource.request = resource.request.replace(/^node:/, '');
+        })
+      );
     }
     return config;
   },

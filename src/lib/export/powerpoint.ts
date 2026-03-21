@@ -1320,8 +1320,7 @@ export async function generatePowerPointReport(
   result: SimulationResult,
   historical: HistoricalAnalysis | null
 ): Promise<Blob> {
-  const mod = await import(/* webpackIgnore: true */ "pptxgenjs");
-  const PptxGenJS = mod.default;
+  const PptxGenJS = (await import("pptxgenjs")).default;
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "Schelhammer Capital Bank AG";
