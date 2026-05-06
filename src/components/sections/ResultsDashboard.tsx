@@ -176,7 +176,7 @@ export function ResultsDashboard() {
                 label={{ value: t("results.portfolioValue"), angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
               />
               <Tooltip
-                formatter={(value: number) => fmtEur(value)}
+                formatter={(value) => fmtEur(Number(value) || 0)}
                 labelFormatter={(l) => `${t("results.ageAxis")} ${l}`}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
@@ -299,7 +299,7 @@ export function ResultsDashboard() {
                   label={{ value: t("results.successRate"), angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
                 />
                 <Tooltip
-                  formatter={(value: number) => `${value.toFixed(1)}%`}
+                  formatter={(value) => `${(Number(value) || 0).toFixed(1)}%`}
                   labelFormatter={(l) => `€${Number(l).toLocaleString("de-AT")}/Monat`}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />

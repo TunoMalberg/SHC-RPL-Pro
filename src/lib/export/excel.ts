@@ -9,6 +9,7 @@ import type {
   LiquidityEvent,
 } from "../types";
 import { historicalData } from "../engine/historical";
+import { safeCell } from "./sanitize";
 
 /* Schelhammer Capital Corporate Design Colors */
 const HEADER_FILL: ExcelJS.FillPattern = {
@@ -121,7 +122,7 @@ function createInputsSheet(
   styleSectionRow(ws, row, 3);
 
   const clientData = [
-    ["Name", client.name],
+    ["Name", safeCell(client.name)],
     ["Geburtsjahr", client.birthYear],
     ["Aktuelles Alter", client.currentAge],
     ["Pensionsalter", client.retirementAge],
@@ -180,7 +181,7 @@ function createInputsSheet(
     for (const ev of sorted) {
       ws.getCell(row, 1).value = ev.age;
       ws.getCell(row, 1).font = { name: "Calibri", size: 10, bold: true };
-      ws.getCell(row, 2).value = ev.description;
+      ws.getCell(row, 2).value = safeCell(ev.description);
       ws.getCell(row, 2).font = { name: "Calibri", size: 10 };
       ws.getCell(row, 3).value = ev.amount;
       ws.getCell(row, 3).numFmt = NUM_FMT_EUR;

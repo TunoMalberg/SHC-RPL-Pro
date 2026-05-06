@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAppState } from "@/lib/store";
+import { useAppState, type Action } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -144,7 +144,7 @@ export function FinancialInputsSection() {
   );
 }
 
-function LiquidityEventsCard({ events, dispatch, minAge, maxAge }: { events: LiquidityEvent[]; dispatch: React.Dispatch<any>; minAge: number; maxAge: number; }) {
+function LiquidityEventsCard({ events, dispatch, minAge, maxAge }: { events: LiquidityEvent[]; dispatch: React.Dispatch<Action>; minAge: number; maxAge: number; }) {
   const { t } = useI18n();
   const [newAge, setNewAge] = useState(minAge + 5);
   const [newDesc, setNewDesc] = useState("");

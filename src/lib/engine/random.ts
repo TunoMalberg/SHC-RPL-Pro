@@ -12,11 +12,10 @@ export class SeededRandom {
 
   nextGaussian(): number {
     let u1: number;
-    let u2: number;
     do {
       u1 = this.next();
     } while (u1 === 0);
-    u2 = this.next();
+    const u2 = this.next();
     return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
   }
 

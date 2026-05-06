@@ -113,7 +113,7 @@ export function HistoricalAnalysisSection() {
                 tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
-                formatter={(value: number) => fmtEur(value)}
+                formatter={(value) => fmtEur(Number(value) || 0)}
                 labelFormatter={(l) => `${t("hist.start")}: ${l}`}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
@@ -149,7 +149,7 @@ export function HistoricalAnalysisSection() {
                 domain={[0, "auto"]}
               />
               <Tooltip
-                formatter={(value: number) => `${value.toFixed(1)}%`}
+                formatter={(value) => `${(Number(value) || 0).toFixed(1)}%`}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
               <Line

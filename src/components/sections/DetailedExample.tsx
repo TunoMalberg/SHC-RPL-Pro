@@ -165,7 +165,7 @@ export function DetailedExampleSection() {
                     tickFormatter={(v) => `€${(Number(v) / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
-                    formatter={(value: number, name: string) => [fmtEur(value), name]}
+                    formatter={(value, name) => [fmtEur(Number(value) || 0), String(name)]}
                     labelFormatter={(l) => `${t("results.ageAxis")} ${l}`}
                     contentStyle={{ fontSize: 12, borderRadius: 8 }}
                   />

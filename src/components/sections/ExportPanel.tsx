@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { generateExcelReport } from "@/lib/export/excel";
 import { generatePowerPointReport } from "@/lib/export/powerpoint";
+import { safeFilename } from "@/lib/export/sanitize";
 
 export function ExportPanel() {
   const { state } = useAppState();
@@ -33,7 +34,8 @@ export function ExportPanel() {
         client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents
       );
       const date = new Date().toISOString().slice(0, 10);
-      downloadBlob(blob, `Retirement_Plan_${client.name.replace(/\s+/g, "_")}_${date}.xlsx`);
+      // F-06: strict filename whitelist + length cap (safeFilename)
+      downloadBlob(blob, `Retirement_Plan_${safeFilename(client.name, "Kunde")}_${date}.xlsx`);
     } catch (err) {
       console.error("Excel export error:", err);
     }
@@ -48,7 +50,8 @@ export function ExportPanel() {
         client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents
       );
       const date = new Date().toISOString().slice(0, 10);
-      downloadBlob(blob, `Retirement_Plan_${client.name.replace(/\s+/g, "_")}_${date}.pptx`);
+      // F-06: strict filename whitelist + length cap (safeFilename)
+      downloadBlob(blob, `Retirement_Plan_${safeFilename(client.name, "Kunde")}_${date}.pptx`);
     } catch (err) {
       console.error("PowerPoint export error:", err);
     }

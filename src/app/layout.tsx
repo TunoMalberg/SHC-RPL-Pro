@@ -21,12 +21,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de" className={dmSans.variable}>
-      <head>
-        <script data-design-ignore="true" dangerouslySetInnerHTML={{ __html: `(function(){if(window===window.parent||window.__DESIGN_NAV_REPORTER__)return;window.__DESIGN_NAV_REPORTER__=true;function report(){try{window.parent.postMessage({type:'IFRAME_URL_CHANGE',payload:{url:location.origin+location.pathname+location.hash}},'*');}catch(e){}}report();var ps=history.pushState,rs=history.replaceState;history.pushState=function(){ps.apply(this,arguments);report();};history.replaceState=function(){rs.apply(this,arguments);report();};window.addEventListener('popstate',report);window.addEventListener('hashchange',report);window.addEventListener('load',report);})();` }} />
-      </head>
       <body suppressHydrationWarning className="antialiased font-sans">
         <ClientBody>{children}</ClientBody>
       </body>
     </html>
   );
 }
+/*
+ * F-04 (Audit 06.05.2026, CWE-940): The previous root-layout carried an inline
+ * script that posted `location.origin + pathname + hash` to `window.parent`
+ * with a wildcard target ('*'). It was a leftover of the original Same.dev
+ * preview harness and has no purpose in the production deployment. Removal
+ * eliminates the cross-origin information-leak surface and, as a
+ * side-benefit, unblocks a strict CSP without `script-src 'unsafe-inline'`
+ * (see F-02).
+ */

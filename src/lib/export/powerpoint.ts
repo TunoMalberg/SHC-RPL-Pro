@@ -7,6 +7,7 @@ import type {
   DetailedSimTrace,
   LiquidityEvent,
 } from "../types";
+import { safeCell } from "./sanitize";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Pptx = any;
@@ -117,7 +118,7 @@ function addTitleSlide(pptx: Pptx, client: ClientProfile) {
   slide.addText(
     [
       { text: "Erstellt für: ", options: { color: "9CA3AF", fontSize: 14, fontFace: FONT_BODY } },
-      { text: client.name, options: { color: COLORS.white, fontSize: 14, bold: true, fontFace: FONT_BODY } },
+      { text: safeCell(client.name), options: { color: COLORS.white, fontSize: 14, bold: true, fontFace: FONT_BODY } },
     ],
     { x: 0.8, y: 3.2, w: 8.4, h: 0.4, fontFace: FONT_BODY }
   );
@@ -368,7 +369,7 @@ function addLiquidityEventsSlide(pptx: Pptx, events: LiquidityEvent[]) {
 
   const dataRows: any[] = sorted.map((ev) => [
     { text: String(ev.age), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const, bold: true } },
-    { text: ev.description, options: { fontSize: 11, fontFace: FONT_BODY } },
+    { text: safeCell(ev.description), options: { fontSize: 11, fontFace: FONT_BODY } },
     {
       text: `${ev.amount >= 0 ? "+" : ""}${fmtEur(ev.amount)}`,
       options: {
@@ -1429,7 +1430,7 @@ export async function generatePowerPointReport(
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "Ruhestandsplaner Pro";
   pptx.company = "Ruhestandsplaner Pro";
-  pptx.title = `Ruhestandsplan — ${client.name}`;
+  pptx.title = `Ruhestandsplan — ${safeCell(client.name)}`;
 
   addTitleSlide(pptx, client);
   addFinancialSummary(pptx, client, inputs);
