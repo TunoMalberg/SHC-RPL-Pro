@@ -18,6 +18,7 @@ import {
   computePortfolioVolatility,
   computeSharpeRatio,
   rebalancePortfolio,
+  rebalanceThreeBuckets,
 } from "./portfolio";
 
 export function runMonteCarloSimulation(
@@ -49,6 +50,7 @@ export function runMonteCarloSimulation(
   const withdrawalPerStep = inputs.desiredMonthlyWithdrawal * settings.timeStepMonths;
   const pensionPerStep = inputs.monthlyPension * settings.timeStepMonths;
   const accumulationSteps = Math.ceil(accumulationYears * stepsPerYear);
+  const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
 
   const allFinalValues: number[] = [];
   const allPaths: number[][] = [];
@@ -106,9 +108,18 @@ export function runMonteCarloSimulation(
         }
 
         if (totalPortfolio > 0) {
-          const withdrawRatio = Math.min(1, netWithdrawal / totalPortfolio);
-          for (let i = 0; i < 3; i++) {
-            bucketValues[i] *= 1 - withdrawRatio;
+          const cashAvailable = bucketValues[0];
+          if (cashAvailable >= netWithdrawal) {
+            bucketValues[0] -= netWithdrawal;
+          } else {
+            const remaining = netWithdrawal - cashAvailable;
+            bucketValues[0] = 0;
+            const restTotal = bucketValues[1] + bucketValues[2];
+            if (restTotal > 0) {
+              const ratio = Math.min(1, remaining / restTotal);
+              bucketValues[1] *= 1 - ratio;
+              bucketValues[2] *= 1 - ratio;
+            }
           }
         }
       }
@@ -141,11 +152,30 @@ export function runMonteCarloSimulation(
         portfolio.rebalancingFrequency
       );
       if (shouldRebalance) {
-        bucketValues = rebalancePortfolio(
-          bucketValues,
-          weights,
-          portfolio.rebalancingThreshold
-        );
+        if (step < accumulationSteps) {
+          bucketValues = rebalancePortfolio(
+            bucketValues,
+            weights,
+            portfolio.rebalancingThreshold
+          );
+        } else {
+          const annualWithdrawalForTarget = inputs.useRealValues
+            ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
+            : inputs.desiredMonthlyWithdrawal * 12;
+          const pensionForTarget =
+            (client.currentAge + step / stepsPerYear) >= inputs.pensionStartAge
+              ? (inputs.useRealValues ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
+              : 0;
+          const netAnnualWithdrawal = Math.max(0, annualWithdrawalForTarget - pensionForTarget);
+
+          const result = rebalanceThreeBuckets(
+            bucketValues,
+            netAnnualWithdrawal / stepsPerYear,
+            cashYearsTarget,
+            returns[2]
+          );
+          bucketValues = result.values;
+        }
       }
 
       const totalValue = Math.max(0, bucketValues.reduce((a, b) => a + b, 0));
@@ -385,6 +415,7 @@ export function runDetailedSingleSimulation(
   const weights = portfolio.buckets.map((b) => b.allocation / 100);
   const annualMeans = portfolio.buckets.map((b) => b.netReturn / 100);
   const annualVols = portfolio.buckets.map((b) => b.volatility / 100);
+  const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
 
   const corrMatrix = portfolio.correlationMatrix;
   const cholesky = choleskyDecomposition(corrMatrix);
@@ -441,8 +472,8 @@ export function runDetailedSingleSimulation(
         ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
         : inputs.desiredMonthlyWithdrawal * 12;
 
-      const currentAge = age;
-      const hasPension = currentAge >= inputs.pensionStartAge;
+      const ageForPension = age;
+      const hasPension = ageForPension >= inputs.pensionStartAge;
       const annualPension = hasPension
         ? inputs.useRealValues
           ? inputs.monthlyPension * 12 * cumulativeInflation
@@ -462,9 +493,18 @@ export function runDetailedSingleSimulation(
       }
 
       if (totalPortfolio > 0) {
-        const withdrawRatio = Math.min(1, netWithdrawal / totalPortfolio);
-        for (let i = 0; i < 3; i++) {
-          bucketValues[i] *= 1 - withdrawRatio;
+        const cashAvailable = bucketValues[0];
+        if (cashAvailable >= netWithdrawal) {
+          bucketValues[0] -= netWithdrawal;
+        } else {
+          const remaining = netWithdrawal - cashAvailable;
+          bucketValues[0] = 0;
+          const restTotal = bucketValues[1] + bucketValues[2];
+          if (restTotal > 0) {
+            const ratio = Math.min(1, remaining / restTotal);
+            bucketValues[1] *= 1 - ratio;
+            bucketValues[2] *= 1 - ratio;
+          }
         }
       }
     }
@@ -501,15 +541,42 @@ export function runDetailedSingleSimulation(
     let rebalCashDelta = 0;
     let rebalBondsDelta = 0;
     let rebalEquitiesDelta = 0;
+    let rebalSource = "";
 
     if (shouldRebalance) {
-      const newValues = rebalancePortfolio(bucketValues, weights, portfolio.rebalancingThreshold);
-      if (newValues[0] !== bucketValues[0] || newValues[1] !== bucketValues[1] || newValues[2] !== bucketValues[2]) {
-        rebalanced = true;
-        rebalCashDelta = newValues[0] - beforeRebalCash;
-        rebalBondsDelta = newValues[1] - beforeRebalBonds;
-        rebalEquitiesDelta = newValues[2] - beforeRebalEquities;
-        bucketValues = newValues;
+      if (isAccumulation) {
+        const newValues = rebalancePortfolio(bucketValues, weights, portfolio.rebalancingThreshold);
+        if (newValues[0] !== bucketValues[0] || newValues[1] !== bucketValues[1] || newValues[2] !== bucketValues[2]) {
+          rebalanced = true;
+          rebalCashDelta = newValues[0] - beforeRebalCash;
+          rebalBondsDelta = newValues[1] - beforeRebalBonds;
+          rebalEquitiesDelta = newValues[2] - beforeRebalEquities;
+          rebalSource = "Zielallokation";
+          bucketValues = newValues;
+        }
+      } else {
+        const annualWithdrawalForTarget = inputs.useRealValues
+          ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
+          : inputs.desiredMonthlyWithdrawal * 12;
+        const pensionForTarget = age >= inputs.pensionStartAge
+          ? (inputs.useRealValues ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
+          : 0;
+        const netAnnualForTarget = Math.max(0, annualWithdrawalForTarget - pensionForTarget);
+
+        const result = rebalanceThreeBuckets(
+          bucketValues,
+          netAnnualForTarget,
+          cashYearsTarget,
+          returns[2]
+        );
+        if (result.rebalanced) {
+          rebalanced = true;
+          rebalCashDelta = result.cashDelta;
+          rebalBondsDelta = result.bondsDelta;
+          rebalEquitiesDelta = result.equitiesDelta;
+          rebalSource = result.source;
+          bucketValues = result.values;
+        }
       }
     }
 
@@ -542,6 +609,7 @@ export function runDetailedSingleSimulation(
       rebalCashDelta,
       rebalBondsDelta,
       rebalEquitiesDelta,
+      rebalSource,
       endCash,
       endBonds,
       endEquities,

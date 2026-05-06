@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useAppState } from "@/lib/store";
+import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
@@ -30,6 +31,7 @@ const COLORS = {
 export function DetailedExampleSection() {
   const { state, dispatch } = useAppState();
   const { client, inputs, portfolio, settings, result, detailedTrace, liquidityEvents } = state;
+  const { t } = useI18n();
   const [simIndex, setSimIndex] = useState(0);
 
   const generateTrace = () => {
@@ -44,10 +46,10 @@ export function DetailedExampleSection() {
     return detailedTrace.rows.map((r) => ({
       age: r.age,
       year: r.year,
-      Bargeld: Math.round(r.endCash),
-      Anleihen: Math.round(r.endBonds),
-      Aktien: Math.round(r.endEquities),
-      Gesamt: Math.round(r.endTotal),
+      [t("detailed.cash")]: Math.round(r.endCash),
+      [t("detailed.bonds")]: Math.round(r.endBonds),
+      [t("detailed.equities")]: Math.round(r.endEquities),
+      [t("detailed.total")]: Math.round(r.endTotal),
       liquidityEvent: r.liquidityEvent || 0,
     }));
   }, [detailedTrace]);
@@ -70,11 +72,10 @@ export function DetailedExampleSection() {
     <div className="space-y-6" data-design-id="detailed-example-section">
       <div data-design-id="detailed-example-header">
         <h2 className="text-2xl font-bold text-slate-900" data-design-id="detailed-example-title">
-          Beispiel-Simulation (Einzelpfad)
+          {t("detailed.title")}
         </h2>
         <p className="text-slate-500 mt-1" data-design-id="detailed-example-subtitle">
-          Detaillierte Darstellung eines einzelnen Monte-Carlo-Simulationspfades mit
-          Renditen je Topf, Cashflows und allen Umschichtungen.
+          {t("detailed.subtitle")}
         </p>
       </div>
 
@@ -82,7 +83,7 @@ export function DetailedExampleSection() {
         <Card className="border-amber-200 bg-amber-50" data-design-id="detailed-no-results">
           <CardContent className="pt-6 text-center">
             <p className="text-amber-700 font-medium">
-              Führen Sie zuerst eine Simulation durch (Tab „Simulation"), um ein Beispiel generieren zu können.
+              {t("detailed.noResults")}
             </p>
           </CardContent>
         </Card>
@@ -94,7 +95,7 @@ export function DetailedExampleSection() {
             <div className="flex flex-wrap gap-3 items-end">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Simulationsnummer (Seed-Variation)
+                  {t("detailed.simNumber")}
                 </label>
                 <div className="flex gap-2 items-center">
                   <Button
@@ -127,16 +128,16 @@ export function DetailedExampleSection() {
               {detailedTrace && (
                 <div className="ml-auto flex items-center gap-4 text-sm">
                   <span className={`font-bold ${detailedTrace.success ? "text-[#5a8a50]" : "text-rose-600"}`}>
-                    {detailedTrace.success ? "✓ Erfolgreich" : "✗ Kapital aufgebraucht"}
+                    {detailedTrace.success ? t("detailed.success") : t("detailed.depleted")}
                   </span>
                   <span className="text-slate-500">
-                    Endvermögen: <span className="font-semibold text-slate-800">{fmtEur(detailedTrace.finalWealth)}</span>
+                    {t("detailed.finalWealth")}: <span className="font-semibold text-slate-800">{fmtEur(detailedTrace.finalWealth)}</span>
                   </span>
                 </div>
               )}
             </div>
             <p className="text-xs text-slate-400 mt-2">
-              Jede Nummer erzeugt einen reproduzierbaren, einzigartigen Simulationspfad. Blättern Sie durch verschiedene Szenarien.
+              {t("detailed.hint")}
             </p>
           </CardContent>
         </Card>
@@ -147,7 +148,7 @@ export function DetailedExampleSection() {
           <Card data-design-id="detailed-chart-card">
             <CardHeader>
               <CardTitle data-design-id="detailed-chart-title">
-                Portfolioentwicklung nach Töpfen
+                {t("detailed.chartTitle")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -157,7 +158,7 @@ export function DetailedExampleSection() {
                   <XAxis
                     dataKey="age"
                     tick={{ fontSize: 11 }}
-                    label={{ value: "Alter", position: "insideBottom", offset: -5, fontSize: 12 }}
+                    label={{ value: t("results.ageAxis"), position: "insideBottom", offset: -5, fontSize: 12 }}
                   />
                   <YAxis
                     tick={{ fontSize: 11 }}
@@ -165,7 +166,7 @@ export function DetailedExampleSection() {
                   />
                   <Tooltip
                     formatter={(value: number, name: string) => [fmtEur(value), name]}
-                    labelFormatter={(l) => `Alter ${l}`}
+                    labelFormatter={(l) => `${t("results.ageAxis")} ${l}`}
                     contentStyle={{ fontSize: 12, borderRadius: 8 }}
                   />
                   <Legend />
@@ -173,7 +174,7 @@ export function DetailedExampleSection() {
                     x={client.retirementAge}
                     stroke="#D31220"
                     strokeDasharray="6 3"
-                    label={{ value: "Pension", fill: "#D31220", fontSize: 11, position: "top" }}
+                    label={{ value: t("results.pension"), fill: "#D31220", fontSize: 11, position: "top" }}
                   />
                   {rebalanceYears.map((age) => (
                     <ReferenceLine
@@ -201,7 +202,7 @@ export function DetailedExampleSection() {
                   ))}
                   <Area
                     type="monotone"
-                    dataKey="Bargeld"
+                    dataKey={t("detailed.cash")}
                     stackId="1"
                     fill={COLORS.cash}
                     stroke={COLORS.cash}
@@ -209,7 +210,7 @@ export function DetailedExampleSection() {
                   />
                   <Area
                     type="monotone"
-                    dataKey="Anleihen"
+                    dataKey={t("detailed.bonds")}
                     stackId="1"
                     fill={COLORS.bonds}
                     stroke={COLORS.bonds}
@@ -217,7 +218,7 @@ export function DetailedExampleSection() {
                   />
                   <Area
                     type="monotone"
-                    dataKey="Aktien"
+                    dataKey={t("detailed.equities")}
                     stackId="1"
                     fill={COLORS.equities}
                     stroke={COLORS.equities}
@@ -247,49 +248,50 @@ export function DetailedExampleSection() {
           <Card data-design-id="detailed-table-card">
             <CardHeader>
               <CardTitle data-design-id="detailed-table-title">
-                Jahresdetails — Renditen, Cashflows & Umschichtungen
+                {t("detailed.tableTitle")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse min-w-[1200px]">
+                <table className="w-full text-xs border-collapse min-w-[1400px]">
                   <thead>
                     <tr className="bg-[#20201E] text-white">
-                      <th className="py-2 px-2 text-left font-semibold sticky left-0 bg-[#20201E] z-10">Jahr</th>
-                      <th className="py-2 px-2 text-center font-semibold">Alter</th>
-                      <th className="py-2 px-2 text-center font-semibold">Phase</th>
-                      <th className="py-2 px-2 text-right font-semibold" colSpan={1}>Start Gesamt</th>
+                      <th className="py-2 px-2 text-left font-semibold sticky left-0 bg-[#20201E] z-10">{t("detailed.colYear")}</th>
+                      <th className="py-2 px-2 text-center font-semibold">{t("detailed.colAge")}</th>
+                      <th className="py-2 px-2 text-center font-semibold">{t("detailed.colPhase")}</th>
+                      <th className="py-2 px-2 text-right font-semibold" colSpan={1}>{t("detailed.colStartTotal")}</th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#5a8a50]/20" style={{ color: "#d4edda" }}>
-                        Bargeld
+                        {t("detailed.colCash")}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#1a6eb0]/20" style={{ color: "#cce5ff" }}>
-                        Anleihen
+                        {t("detailed.colBonds")}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#D31220]/20" style={{ color: "#f8d7da" }}>
-                        Aktien
+                        {t("detailed.colEquities")}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#5a8a50]/20" style={{ color: "#d4edda" }}>
-                        Rend. %
+                        {t("detailed.colReturnPct")}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#1a6eb0]/20" style={{ color: "#cce5ff" }}>
-                        Rend. %
+                        {t("detailed.colReturnPct")}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#D31220]/20" style={{ color: "#f8d7da" }}>
-                        Rend. %
+                        {t("detailed.colReturnPct")}
                       </th>
-                      <th className="py-2 px-2 text-right font-semibold">Cashflow</th>
-                      <th className="py-2 px-2 text-right font-semibold bg-[#8A83BE]/20" style={{ color: "#e0ddf5" }}>Liquidität</th>
-                      <th className="py-2 px-2 text-center font-semibold">Umsch.</th>
+                      <th className="py-2 px-2 text-right font-semibold">{t("detailed.colCashflow")}</th>
+                      <th className="py-2 px-2 text-right font-semibold bg-[#8A83BE]/20" style={{ color: "#e0ddf5" }}>{t("detailed.colLiquidity")}</th>
+                      <th className="py-2 px-2 text-center font-semibold">{t("detailed.colRebal")}</th>
+                      <th className="py-2 px-2 text-left font-semibold">{t("detailed.colSource")}</th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#5a8a50]/20" style={{ color: "#d4edda" }}>
-                        Umsch. Δ
+                        {t("detailed.colRebalDelta")}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#1a6eb0]/20" style={{ color: "#cce5ff" }}>
-                        Umsch. Δ
+                        {t("detailed.colRebalDelta")}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#D31220]/20" style={{ color: "#f8d7da" }}>
-                        Umsch. Δ
+                        {t("detailed.colRebalDelta")}
                       </th>
-                      <th className="py-2 px-2 text-right font-semibold">Ende Gesamt</th>
+                      <th className="py-2 px-2 text-right font-semibold">{t("detailed.colEndTotal")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -360,6 +362,15 @@ export function DetailedExampleSection() {
                               <span className="text-slate-300">—</span>
                             )}
                           </td>
+                          <td className="py-1.5 px-2 text-left text-[10px] max-w-[120px] truncate" title={row.rebalSource || ""}>
+                            {row.rebalanced && row.rebalSource ? (
+                              <span className={`font-medium ${row.rebalSource.includes("Verlustschutz") ? "text-amber-600" : "text-slate-600"}`}>
+                                {row.rebalSource}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
                           <td className={`py-1.5 px-2 text-right tabular-nums ${row.rebalCashDelta > 0 ? "text-[#5a8a50]" : row.rebalCashDelta < 0 ? "text-rose-500" : "text-slate-300"}`}>
                             {row.rebalanced ? (row.rebalCashDelta >= 0 ? "+" : "") + fmtEur(row.rebalCashDelta) : "—"}
                           </td>
@@ -383,26 +394,27 @@ export function DetailedExampleSection() {
 
           <Card className="bg-slate-50" data-design-id="detailed-legend-card">
             <CardContent className="pt-6">
-              <h3 className="font-semibold text-slate-800 mb-2" data-design-id="detailed-legend-title">Legende</h3>
+              <h3 className="font-semibold text-slate-800 mb-2" data-design-id="detailed-legend-title">{t("detailed.legendTitle")}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
                 <div>
                   <p><span className="inline-block w-3 h-3 rounded-sm bg-[#8FB687] mr-2" />
-                    <strong>Bargeld/Liquidität</strong> — kurzfristig verfügbar, niedrige Rendite
+                    <strong>{t("detailed.cash")}</strong> — {t("detailed.legendCash").split(" — ")[1]}
                   </p>
                   <p><span className="inline-block w-3 h-3 rounded-sm bg-[#87BBE6] mr-2" />
-                    <strong>Anleihen</strong> — mittlere Rendite, mittleres Risiko
+                    <strong>{t("detailed.bonds")}</strong> — {t("detailed.legendBonds").split(" — ")[1]}
                   </p>
                   <p><span className="inline-block w-3 h-3 rounded-sm bg-[#D31220] mr-2" />
-                    <strong>Aktien</strong> — höchste erwartete Rendite, höchstes Risiko
+                    <strong>{t("detailed.equities")}</strong> — {t("detailed.legendEquities").split(" — ")[1]}
                   </p>
                 </div>
                 <div>
-                  <p><strong>Rend. %</strong> — realisierte Jahresrendite je Topf (simuliert)</p>
-                  <p><strong>Cashflow</strong> — Sparrate (Ansparphase) oder Netto-Entnahme (Ruhestandsphase)</p>
+                  <p><strong>{t("detailed.colReturnPct")}</strong> — {t("detailed.legendReturn").split(" — ")[1]}</p>
+                  <p><strong>{t("detailed.colCashflow")}</strong> — {t("detailed.legendCashflow").split(" — ")[1]}</p>
                   <p><span className="inline-block w-3 h-3 rounded-sm bg-[#8A83BE] mr-2" />
-                    <strong>Liquidität</strong> — Sonder-Ein-/Auszahlungen (z.B. Erbschaft, Immobilienverkauf)</p>
-                  <p><strong>Umsch. Δ</strong> — Umschichtungsbetrag bei Rebalancing (⟳ = Rebalancing erfolgt)</p>
-                  <p><strong>Anspar</strong> vs. <strong>Entnahme</strong> — Phase des Lebenszyklus</p>
+                    <strong>{t("detailed.colLiquidity")}</strong> — {t("detailed.legendLiquidity").split(" — ")[1]}</p>
+                  <p><strong>{t("detailed.colRebalDelta")}</strong> — {t("detailed.legendRebal").split(" — ")[1]}</p>
+                  <p><strong>{t("detailed.colSource")}</strong> — {t("detailed.legendSource").split(" — ")[1]}</p>
+                  <p><strong>{t("detailed.phaseAccumulation")}</strong> vs. <strong>{t("detailed.phaseWithdrawal")}</strong> — {t("detailed.legendPhase").split(" — ")[1]}</p>
                 </div>
               </div>
             </CardContent>

@@ -54,6 +54,19 @@ export function choleskyDecomposition(matrix: number[][]): number[][] {
   return L;
 }
 
+/**
+ * Generate correlated returns using Geometric Brownian Motion (GBM).
+ *
+ * Uses the log-normal model with Itô correction (variance drag):
+ *   r = exp((μ − σ²/2) + σ·Z) − 1
+ *
+ * This ensures the *geometric* mean of simulated returns equals the
+ * intended expected return, and guarantees returns > −100 % (positive
+ * portfolio values).
+ *
+ * @param means  – per-step arithmetic mean returns  (e.g. annual / stepsPerYear)
+ * @param vols   – per-step volatilities              (e.g. annual / √stepsPerYear)
+ */
 export function generateCorrelatedReturns(
   rng: SeededRandom,
   cholesky: number[][],
@@ -72,7 +85,9 @@ export function generateCorrelatedReturns(
     for (let j = 0; j <= i; j++) {
       val += cholesky[i][j] * z[j];
     }
-    correlated.push(means[i] + vols[i] * val);
+    // GBM with Itô correction: exp((μ − σ²/2) + σ·Z) − 1
+    const drift = means[i] - 0.5 * vols[i] * vols[i];
+    correlated.push(Math.exp(drift + vols[i] * val) - 1);
   }
   return correlated;
 }

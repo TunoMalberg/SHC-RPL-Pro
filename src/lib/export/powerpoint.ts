@@ -432,21 +432,25 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
   addSlideHeader(slide, "Portfoliostruktur — Drei-Topf-Modell", pptx);
 
   const headerRow: any = [
-    { text: "Anlageklasse", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY } },
-    { text: "Allokation", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
-    { text: "Erw. Rendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
-    { text: "Volatilität", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
-    { text: "Nettorendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 11, fontFace: FONT_BODY, align: "center" } },
+    { text: "Anlageklasse", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY } },
+    { text: "Allokation", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY, align: "center" } },
+    { text: "Erw. Rendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY, align: "center" } },
+    { text: "Volat.", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY, align: "center" } },
+    { text: "Kosten", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY, align: "center" } },
+    { text: "KESt", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY, align: "center" } },
+    { text: "Nettorendite", options: { fill: { color: COLORS.primary }, color: COLORS.white, bold: true, fontSize: 10, fontFace: FONT_BODY, align: "center" } },
   ];
 
   const dataRows: any[] = portfolio.buckets.map((b, i) => {
     const colors = [COLORS.gras, COLORS.eis, COLORS.feuerrot];
     return [
-      { text: b.label, options: { fontSize: 11, fontFace: FONT_BODY, color: colors[i], bold: true } },
-      { text: fmtPct(b.allocation), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const } },
-      { text: fmtPct(b.expectedReturn), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const } },
-      { text: fmtPct(b.volatility), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const } },
-      { text: fmtPct(b.netReturn), options: { fontSize: 11, fontFace: FONT_BODY, align: "center" as const } },
+      { text: b.label, options: { fontSize: 10, fontFace: FONT_BODY, color: colors[i], bold: true } },
+      { text: fmtPct(b.allocation), options: { fontSize: 10, fontFace: FONT_BODY, align: "center" as const } },
+      { text: fmtPct(b.expectedReturn), options: { fontSize: 10, fontFace: FONT_BODY, align: "center" as const } },
+      { text: fmtPct(b.volatility), options: { fontSize: 10, fontFace: FONT_BODY, align: "center" as const } },
+      { text: fmtPct(b.costs, 2), options: { fontSize: 10, fontFace: FONT_BODY, align: "center" as const } },
+      { text: fmtPct(b.taxDrag, 2), options: { fontSize: 10, fontFace: FONT_BODY, align: "center" as const } },
+      { text: fmtPct(b.netReturn), options: { fontSize: 10, fontFace: FONT_BODY, align: "center" as const, bold: true } },
     ];
   });
 
@@ -454,10 +458,18 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
     x: 0.5,
     y: 1.3,
     w: 9,
-    colW: [2.5, 1.5, 1.8, 1.5, 1.7],
+    colW: [2.1, 1.15, 1.25, 0.9, 0.9, 0.9, 1.3],
     border: { type: "solid", pt: 0.5, color: "DEE2E6" },
     rowH: 0.4,
   });
+
+  slide.addText(
+    `KESt = ${fmtPct(portfolio.kestRate ?? 27.5, 1)} (österreichische Kapitalertragsteuer, angewandt auf Rendite − Kosten)`,
+    {
+      x: 0.5, y: 2.95, w: 9, h: 0.25,
+      fontSize: 9, fontFace: FONT_BODY, italic: true, color: COLORS.accent,
+    }
+  );
 
   slide.addText("Die Drei-Topf-Strategie", {
     x: 0.5,
@@ -470,10 +482,11 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
     bold: true,
   });
 
+  const cashYrs = portfolio.cashYearsTarget ?? 2;
   const bucketDescriptions = [
-    { title: "Topf 1: Bargeld / Liquidität", desc: "Kurzfristige Reserven (1–2 Jahre Ausgaben). Bietet Stabilität und deckt den unmittelbaren Bedarf. Niedrige Rendite, aber nahezu keine Volatilität.", color: COLORS.gras },
-    { title: "Topf 2: Anleihen / Festverzinslich", desc: "Mittelfristige Stabilität (3–7 Jahre). Staats- und Unternehmensanleihen bieten regelmäßiges Einkommen und dienen als Puffer gegen Aktienvolatilität.", color: COLORS.eis },
-    { title: "Topf 3: Aktien / Beteiligungen", desc: "Langfristiger Wachstumsmotor. Diversifizierte globale Aktien (z. B. MSCI World) bieten inflationsübertreffende Renditen über Jahrzehnte.", color: COLORS.feuerrot },
+    { title: "Topf 1: Bargeld / Liquidität", desc: `Entnahmephase: Hält ${cashYrs} Jahre der jährlichen Entnahme als Puffer. Entnahmen werden zuerst aus diesem Topf bedient. In der Ansparphase kein separater Liquiditätstopf.`, color: COLORS.gras },
+    { title: "Topf 2: Anleihen / Festverzinslich", desc: "Mittelfristige Stabilität. Dient als Auffüllquelle für Topf 1, wenn Aktien Verluste aufweisen (Verlustschutz-Mechanismus der 3-Töpfe-Strategie).", color: COLORS.eis },
+    { title: "Topf 3: Aktien / Beteiligungen", desc: "Langfristiger Wachstumsmotor. Bei positiver Rendite wird Topf 1 primär aus Aktiengewinnen aufgefüllt. Bei Verlusten wird nicht aus Aktien verkauft.", color: COLORS.feuerrot },
   ];
 
   let yPos = 3.6;
@@ -1440,9 +1453,63 @@ export async function generatePowerPointReport(
   addEducationalSlides(pptx);
   addRecommendationsSlide(pptx, result, inputs, client);
   addAppendixSlide(pptx);
+  addMarketingDisclaimerSlide(pptx);
 
   const output = await pptx.write({ outputType: "blob" });
   return output as Blob;
+}
+
+function addMarketingDisclaimerSlide(pptx: Pptx) {
+  const slide = pptx.addSlide();
+  slide.background = { fill: COLORS.white };
+  addSlideFooter(slide);
+
+  // Red accent bar at top-left
+  slide.addShape(pptx.ShapeType.rect, {
+    x: 0.5, y: 0.3, w: 0.12, h: 0.5,
+    fill: { color: COLORS.accent },
+    line: { type: "none" },
+  });
+
+  slide.addText("Rechtlicher Hinweis — Marketingmitteilung", {
+    x: 0.75, y: 0.3, w: 12, h: 0.5,
+    fontSize: 20, fontFace: FONT_HEADING, color: COLORS.primary, bold: true,
+  });
+
+  slide.addText(
+    "Hierbei handelt es sich um eine Marketingmitteilung der Schelhammer Capital Bank AG, FN 58248i, " +
+      "http://www.schelhammer.at, Goldschmiedgasse 3, 1010 Wien, welche keinesfalls eine anlegergerechte " +
+      "Beratung sowie umfassende Risikoaufklärung ersetzt. Es handelt sich weder um ein Anbot oder " +
+      "Aufforderung zum Kauf oder Verkauf, noch um eine Einladung zur Angebotslegung, ebenso wenig um " +
+      "eine Kauf- bzw. Verkaufsempfehlung. Die Rendite des Investments kann je nach Währungsdomizil " +
+      "infolge von Währungsschwankungen fallen oder steigen. Bitte beachten Sie, dass Investitionen " +
+      "erheblichen Risiken ausgesetzt sind. Ein Totalverlust des eingesetzten Kapitals ist möglich. " +
+      "Wir weisen darauf hin, dass sich die Rechtslage durch Gesetzesänderungen, Steuererlässe, " +
+      "Rechtsprechung usw. ändern kann. Es wird keine Gewähr für die Vollständigkeit und Richtigkeit " +
+      "der vorliegenden Marketingmitteilung übernommen. Irrtümer und Druckfehler vorbehalten. " +
+      "Vergangene Wertentwicklungen sind kein verlässlicher Indikator für zukünftige Ergebnisse.",
+    {
+      x: 0.75, y: 1.1, w: 11.5, h: 5.0,
+      fontSize: 13,
+      fontFace: FONT_BODY,
+      color: COLORS.text,
+      lineSpacing: 20,
+      valign: "top",
+      paraSpaceAfter: 6,
+    }
+  );
+
+  slide.addText(
+    "Schelhammer Capital Bank AG · FN 58248i · Goldschmiedgasse 3, 1010 Wien · www.schelhammer.at",
+    {
+      x: 0.75, y: 6.45, w: 11.5, h: 0.3,
+      fontSize: 9,
+      fontFace: FONT_BODY,
+      color: COLORS.accent,
+      italic: true,
+      bold: true,
+    }
+  );
 }
 
 function addDetailedTraceSlides(pptx: Pptx, trace: DetailedSimTrace, client: ClientProfile) {

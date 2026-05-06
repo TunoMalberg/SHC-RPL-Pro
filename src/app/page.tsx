@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppState } from "@/lib/store";
+import { useI18n } from "@/lib/i18n";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ClientProfileSection } from "@/components/sections/ClientProfile";
 import { FinancialInputsSection } from "@/components/sections/FinancialInputs";
@@ -11,22 +12,24 @@ import { HistoricalAnalysisSection } from "@/components/sections/HistoricalAnaly
 import { ScenarioComparisonSection } from "@/components/sections/ScenarioComparison";
 import { DetailedExampleSection } from "@/components/sections/DetailedExample";
 import { ExportPanel } from "@/components/sections/ExportPanel";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import Image from "next/image";
 
-const TABS = [
-  { id: "profile", label: "Kunde", icon: "/icons/rot/schild.png" },
-  { id: "inputs", label: "Eingaben", icon: "/icons/rot/Scheckkarte.png" },
-  { id: "portfolio", label: "Portfolio", icon: "/icons/rot/Wagge.png" },
-  { id: "simulation", label: "Simulation", icon: "/icons/rot/Computer.png" },
-  { id: "results", label: "Ergebnisse", icon: "/icons/rot/Ziel.png" },
-  { id: "historical", label: "Historie", icon: "/icons/rot/Uhr.png" },
-  { id: "scenarios", label: "Szenarien", icon: "/icons/rot/Pfeil.png" },
-  { id: "detailed", label: "Einzelpfad", icon: "/icons/rot/Uhr.png" },
-  { id: "export", label: "Export", icon: "/icons/rot/Daumenhoch.png" },
+const TAB_IDS = [
+  { id: "profile", labelKey: "tab.profile", icon: "/icons/rot/schild.png" },
+  { id: "inputs", labelKey: "tab.inputs", icon: "/icons/rot/Scheckkarte.png" },
+  { id: "portfolio", labelKey: "tab.portfolio", icon: "/icons/rot/Wagge.png" },
+  { id: "simulation", labelKey: "tab.simulation", icon: "/icons/rot/Computer.png" },
+  { id: "results", labelKey: "tab.results", icon: "/icons/rot/Ziel.png" },
+  { id: "historical", labelKey: "tab.historical", icon: "/icons/rot/Uhr.png" },
+  { id: "scenarios", labelKey: "tab.scenarios", icon: "/icons/rot/Pfeil.png" },
+  { id: "detailed", labelKey: "tab.detailed", icon: "/icons/rot/Uhr.png" },
+  { id: "export", labelKey: "tab.export", icon: "/icons/rot/Daumenhoch.png" },
 ];
 
 export default function RetirementPlannerApp() {
   const { state, dispatch } = useAppState();
+  const { t } = useI18n();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-white to-red-50/30" data-design-id="app-root">
@@ -36,7 +39,7 @@ export default function RetirementPlannerApp() {
             <div className="flex items-center gap-4" data-design-id="app-logo">
               <Image
                 src="/icons/logo.png"
-                alt="Ruhestandsplaner Pro"
+                alt={t("app.title")}
                 width={48}
                 height={48}
                 className="h-10 w-auto"
@@ -45,17 +48,18 @@ export default function RetirementPlannerApp() {
               <div className="hidden sm:block h-8 w-px bg-neutral-300" />
               <div className="hidden sm:block">
                 <h1 className="text-sm font-semibold text-[#20201E] leading-tight" data-design-id="app-title">
-                  Ruhestandsplaner Pro
+                  {t("app.title")}
                 </h1>
                 <p className="text-xs text-[#4D4A47] leading-tight" data-design-id="app-tagline">
-                  Planung & Simulation
+                  {t("app.tagline")}
                 </p>
               </div>
             </div>
-            <div className="hidden md:flex items-center gap-2 text-xs text-[#4D4A47]" data-design-id="app-meta">
-              <span className="px-2 py-1 bg-neutral-100 rounded-md font-medium">EUR</span>
-              <span className="px-2 py-1 bg-red-50 text-[#D31220] rounded-md font-medium">
-                3-Topf-Modell
+            <div className="flex items-center gap-2 text-xs text-[#4D4A47]" data-design-id="app-meta">
+              <LanguageToggle />
+              <span className="hidden md:inline-block px-2 py-1 bg-neutral-100 rounded-md font-medium">EUR</span>
+              <span className="hidden md:inline-block px-2 py-1 bg-red-50 text-[#D31220] rounded-md font-medium">
+                {t("app.threeBucket")}
               </span>
             </div>
           </div>
@@ -69,7 +73,7 @@ export default function RetirementPlannerApp() {
           className="space-y-6"
         >
           <TabsList className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 w-full h-auto p-1 bg-white border border-neutral-200 shadow-sm rounded-xl" data-design-id="tabs-list">
-            {TABS.map((tab) => (
+            {TAB_IDS.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
@@ -78,12 +82,12 @@ export default function RetirementPlannerApp() {
               >
                 <Image
                   src={tab.icon}
-                  alt={tab.label}
+                  alt={t(tab.labelKey)}
                   width={22}
                   height={22}
                   className="h-5 w-5 object-contain"
                 />
-                <span className="font-medium">{tab.label}</span>
+                <span className="font-medium">{t(tab.labelKey)}</span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -122,10 +126,10 @@ export default function RetirementPlannerApp() {
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-[#4D4A47]">
             <p data-design-id="footer-disclaimer">
-              Nur zu Informationszwecken. Keine Anlageberatung. Konsultieren Sie einen qualifizierten Finanzberater.
+              {t("app.footer.disclaimer")}
             </p>
             <p data-design-id="footer-copyright">
-              © {new Date().getFullYear()} Ruhestandsplaner Pro — Drei-Topf Monte-Carlo-Engine
+              © {new Date().getFullYear()} {t("app.footer.copyright")}
             </p>
           </div>
         </div>

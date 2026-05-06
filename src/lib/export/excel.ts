@@ -8,6 +8,7 @@ import type {
   DetailedSimTrace,
   LiquidityEvent,
 } from "../types";
+import { historicalData } from "../engine/historical";
 
 /* Schelhammer Capital Corporate Design Colors */
 const HEADER_FILL: ExcelJS.FillPattern = {
@@ -80,6 +81,16 @@ export async function generateExcelReport(
     createDetailedTraceSheet(wb, detailedTrace, portfolio);
   }
   createMetricsSheet(wb, client, inputs, portfolio, result);
+
+  // Raw data sheets — enable full chart reconstruction in Excel
+  createRawPathsSheet(wb, result);
+  createRawAnnualsSheet(wb, result);
+  createRawFinalsSheet(wb, result);
+  createRawWithdrawalHeatmapSheet(wb, result);
+  if (historical) {
+    createRawHistoricalPathsSheet(wb, historical);
+    createRawHistoricalReturnsSheet(wb);
+  }
 
   const buffer = await wb.xlsx.writeBuffer();
   return new Blob([buffer], {
@@ -253,6 +264,10 @@ function createPortfolioSheet(wb: ExcelJS.Workbook, portfolio: PortfolioConfig) 
   row += 2;
   ws.getCell(row, 1).value = `Rebalancing: ${portfolio.rebalancingFrequency} (Schwellenwert: ${portfolio.rebalancingThreshold}%)`;
   ws.getCell(row, 1).font = { italic: true, size: 10, name: "Calibri" };
+
+  row++;
+  ws.getCell(row, 1).value = `KESt (Kapitalertragsteuer): ${(portfolio.kestRate ?? 27.5).toFixed(2)} % — angewandt auf (Rendite − Kosten) je Topf`;
+  ws.getCell(row, 1).font = { italic: true, size: 10, name: "Calibri", color: { argb: "FFD31220" } };
 }
 
 function createMonteCarloSummary(wb: ExcelJS.Workbook, result: SimulationResult) {
@@ -560,12 +575,12 @@ function createDetailedTraceSheet(
 ) {
   const ws = wb.addWorksheet("Einzelpfad-Beispiel");
 
-  const colWidths = [10, 8, 10, 16, 14, 14, 14, 10, 10, 10, 16, 16, 10, 14, 14, 14, 16];
+  const colWidths = [10, 8, 10, 16, 14, 14, 14, 10, 10, 10, 16, 16, 10, 18, 14, 14, 14, 16];
   ws.columns = colWidths.map((w) => ({ width: w }));
 
   ws.getCell(1, 1).value = "MONTE-CARLO EINZELPFAD — DETAILLIERTES BEISPIEL";
   ws.getCell(1, 1).font = { bold: true, size: 14, name: "Calibri", color: { argb: "FFD31220" } };
-  ws.mergeCells(1, 1, 1, 17);
+  ws.mergeCells(1, 1, 1, 18);
 
   let row = 2;
   ws.getCell(row, 1).value = `Simulation #${trace.simulationIndex + 1} (Seed: ${trace.seed})`;
@@ -590,6 +605,7 @@ function createDetailedTraceSheet(
     "Bargeld", "Anleihen", "Aktien",
     "Rend.% B", "Rend.% A", "Rend.% Akt",
     "Cashflow", "Liquidität", "Umsch.",
+    "Quelle",
     "Umsch.Δ Barg.", "Umsch.Δ Anl.", "Umsch.Δ Akt.",
     "Ende Gesamt",
   ];
@@ -668,22 +684,28 @@ function createDetailedTraceSheet(
       color: { argb: r.rebalanced ? "FFE65100" : "FFCCCCCC" },
     };
 
+    ws.getCell(row, 14).value = r.rebalanced && r.rebalSource ? r.rebalSource : "";
+    ws.getCell(row, 14).font = {
+      name: "Calibri", size: 8, italic: true,
+      color: { argb: r.rebalSource?.includes("Verlustschutz") ? "FFE65100" : "FF666666" },
+    };
+
     if (r.rebalanced) {
-      ws.getCell(row, 14).value = Math.round(r.rebalCashDelta);
-      ws.getCell(row, 14).numFmt = NUM_FMT_EUR;
-      ws.getCell(row, 15).value = Math.round(r.rebalBondsDelta);
+      ws.getCell(row, 15).value = Math.round(r.rebalCashDelta);
       ws.getCell(row, 15).numFmt = NUM_FMT_EUR;
-      ws.getCell(row, 16).value = Math.round(r.rebalEquitiesDelta);
+      ws.getCell(row, 16).value = Math.round(r.rebalBondsDelta);
       ws.getCell(row, 16).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 17).value = Math.round(r.rebalEquitiesDelta);
+      ws.getCell(row, 17).numFmt = NUM_FMT_EUR;
 
       for (let c = 1; c <= headers.length; c++) {
         ws.getCell(row, c).fill = REBAL_FILL;
       }
     }
 
-    ws.getCell(row, 17).value = Math.round(r.endTotal);
-    ws.getCell(row, 17).numFmt = NUM_FMT_EUR;
-    ws.getCell(row, 17).font = { bold: true, name: "Calibri", size: 9 };
+    ws.getCell(row, 18).value = Math.round(r.endTotal);
+    ws.getCell(row, 18).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 18).font = { bold: true, name: "Calibri", size: 9 };
   }
 
   row += 2;
@@ -698,6 +720,10 @@ function createDetailedTraceSheet(
   ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF8A83BE" } };
   ws.mergeCells(row, 1, row, 8);
   row++;
+  ws.getCell(row, 1).value = "Quelle = Woher der Liquiditätspuffer aufgefüllt wird (Aktien bei Gewinnen, Anleihen bei Verlusten)";
+  ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FFE65100" } };
+  ws.mergeCells(row, 1, row, 10);
+  row++;
   ws.getCell(row, 1).value = "Umsch.Δ = Umschichtungsbetrag bei Rebalancing (positiv = Zufluss, negativ = Abfluss)";
   ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF888888" } };
   ws.mergeCells(row, 1, row, 8);
@@ -705,4 +731,219 @@ function createDetailedTraceSheet(
   ws.getCell(row, 1).value = "Gelb hinterlegte Zeilen = Rebalancing wurde ausgelöst";
   ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FFE65100" } };
   ws.mergeCells(row, 1, row, 8);
+  row++;
+  ws.getCell(row, 1).value = `3-Töpfe-Strategie: Liquiditätspuffer = ${portfolio.cashYearsTarget} Jahre der jährlichen Entnahme`;
+  ws.getCell(row, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF1565C0" } };
+  ws.mergeCells(row, 1, row, 10);
+}
+
+/* ============================================================================
+ * RAW DATA SHEETS
+ * Full, unrounded numeric series so that all charts can be rebuilt in Excel.
+ * ============================================================================ */
+
+function createRawPathsSheet(wb: ExcelJS.Workbook, result: SimulationResult) {
+  const ws = wb.addWorksheet("Rohdaten_MC_Pfade");
+
+  ws.getCell(1, 1).value = "ROHDATEN — Monte-Carlo-Pfade (Perzentile, vollständig)";
+  ws.getCell(1, 1).font = { bold: true, size: 13, name: "Calibri", color: { argb: "FFD31220" } };
+  ws.mergeCells(1, 1, 1, 10);
+  ws.getCell(2, 1).value = "Jede Zeile = ein Simulations-Zeitschritt. Beträge in EUR, nicht gerundet.";
+  ws.getCell(2, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF666666" } };
+  ws.mergeCells(2, 1, 2, 10);
+
+  const headers = ["Schritt", "Alter", "Jahr (rel.)", "Schlechtester", "P10", "P25", "Median", "P75", "P90", "Bester"];
+  ws.columns = headers.map(() => ({ width: 16 }));
+  let row = 4;
+  for (let c = 0; c < headers.length; c++) ws.getCell(row, c + 1).value = headers[c];
+  styleHeaderRow(ws, row, headers.length);
+
+  const n = result.yearLabels.length;
+  const a0 = result.yearLabels[0] ?? 0;
+  for (let i = 0; i < n; i++) {
+    row++;
+    ws.getCell(row, 1).value = i;
+    ws.getCell(row, 2).value = result.yearLabels[i];
+    ws.getCell(row, 2).numFmt = "0.00";
+    ws.getCell(row, 3).value = result.yearLabels[i] - a0;
+    ws.getCell(row, 3).numFmt = "0.00";
+    ws.getCell(row, 4).value = result.worstPath[i];
+    ws.getCell(row, 4).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 5).value = result.p10Path[i];
+    ws.getCell(row, 5).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 6).value = result.p25Path[i];
+    ws.getCell(row, 6).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 7).value = result.medianPath[i];
+    ws.getCell(row, 7).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 8).value = result.p75Path[i];
+    ws.getCell(row, 8).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 9).value = result.p90Path[i];
+    ws.getCell(row, 9).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 10).value = result.bestPath[i];
+    ws.getCell(row, 10).numFmt = NUM_FMT_EUR;
+  }
+}
+
+function createRawAnnualsSheet(wb: ExcelJS.Workbook, result: SimulationResult) {
+  const ws = wb.addWorksheet("Rohdaten_Jahreswerte");
+
+  ws.getCell(1, 1).value = "ROHDATEN — Jährliche Median-Portfoliowerte & Entnahmen";
+  ws.getCell(1, 1).font = { bold: true, size: 13, name: "Calibri", color: { argb: "FFD31220" } };
+  ws.mergeCells(1, 1, 1, 4);
+
+  const headers = ["Jahr (rel.)", "Portfoliowert (Median)", "Jährliche Entnahme", "Entnahme kumuliert"];
+  ws.columns = headers.map(() => ({ width: 22 }));
+  let row = 3;
+  for (let c = 0; c < headers.length; c++) ws.getCell(row, c + 1).value = headers[c];
+  styleHeaderRow(ws, row, headers.length);
+
+  let cum = 0;
+  for (let i = 0; i < result.annualPortfolioValues.length; i++) {
+    row++;
+    ws.getCell(row, 1).value = i;
+    ws.getCell(row, 2).value = result.annualPortfolioValues[i];
+    ws.getCell(row, 2).numFmt = NUM_FMT_EUR;
+    ws.getCell(row, 3).value = result.annualWithdrawals[i] ?? 0;
+    ws.getCell(row, 3).numFmt = NUM_FMT_EUR;
+    cum += result.annualWithdrawals[i] ?? 0;
+    ws.getCell(row, 4).value = cum;
+    ws.getCell(row, 4).numFmt = NUM_FMT_EUR;
+  }
+}
+
+function createRawFinalsSheet(wb: ExcelJS.Workbook, result: SimulationResult) {
+  const ws = wb.addWorksheet("Rohdaten_Endwerte_Perz");
+
+  ws.getCell(1, 1).value = "ROHDATEN — Endvermögen nach Perzentilen";
+  ws.getCell(1, 1).font = { bold: true, size: 13, name: "Calibri", color: { argb: "FFD31220" } };
+  ws.mergeCells(1, 1, 1, 2);
+
+  const headers = ["Perzentil", "Endvermögen (EUR)"];
+  ws.columns = [{ width: 14 }, { width: 22 }];
+  let row = 3;
+  for (let c = 0; c < headers.length; c++) ws.getCell(row, c + 1).value = headers[c];
+  styleHeaderRow(ws, row, headers.length);
+
+  const entries: [number, number][] = [
+    [5, result.percentiles.p5],
+    [10, result.percentiles.p10],
+    [25, result.percentiles.p25],
+    [50, result.percentiles.p50],
+    [75, result.percentiles.p75],
+    [90, result.percentiles.p90],
+    [95, result.percentiles.p95],
+  ];
+  for (const [p, v] of entries) {
+    row++;
+    ws.getCell(row, 1).value = p;
+    ws.getCell(row, 1).numFmt = "0";
+    ws.getCell(row, 2).value = v;
+    ws.getCell(row, 2).numFmt = NUM_FMT_EUR;
+  }
+
+  row += 2;
+  ws.getCell(row, 1).value = "Median";
+  ws.getCell(row, 2).value = result.medianFinalWealth;
+  ws.getCell(row, 2).numFmt = NUM_FMT_EUR;
+  row++;
+  ws.getCell(row, 1).value = "Mittelwert";
+  ws.getCell(row, 2).value = result.meanFinalWealth;
+  ws.getCell(row, 2).numFmt = NUM_FMT_EUR;
+}
+
+function createRawWithdrawalHeatmapSheet(wb: ExcelJS.Workbook, result: SimulationResult) {
+  const ws = wb.addWorksheet("Rohdaten_Heatmap");
+
+  ws.getCell(1, 1).value = "ROHDATEN — Entnahme-Heatmap (monatl. Entnahme vs. Erfolgsquote)";
+  ws.getCell(1, 1).font = { bold: true, size: 13, name: "Calibri", color: { argb: "FFD31220" } };
+  ws.mergeCells(1, 1, 1, 3);
+
+  const headers = ["Monatl. Entnahme (EUR)", "Jährl. Entnahme (EUR)", "Erfolgsquote"];
+  ws.columns = [{ width: 24 }, { width: 22 }, { width: 16 }];
+  let row = 3;
+  for (let c = 0; c < headers.length; c++) ws.getCell(row, c + 1).value = headers[c];
+  styleHeaderRow(ws, row, headers.length);
+
+  if (result.withdrawalHeatmap) {
+    for (const it of result.withdrawalHeatmap) {
+      row++;
+      ws.getCell(row, 1).value = it.withdrawal;
+      ws.getCell(row, 1).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 2).value = it.withdrawal * 12;
+      ws.getCell(row, 2).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 3).value = it.successRate / 100;
+      ws.getCell(row, 3).numFmt = NUM_FMT_PCT;
+    }
+  }
+}
+
+function createRawHistoricalPathsSheet(
+  wb: ExcelJS.Workbook,
+  historical: HistoricalAnalysis
+) {
+  const ws = wb.addWorksheet("Rohdaten_Backtest_Pfade");
+
+  ws.getCell(1, 1).value = "ROHDATEN — Historische Backtest-Pfade (alle Startjahre)";
+  ws.getCell(1, 1).font = { bold: true, size: 13, name: "Calibri", color: { argb: "FFD31220" } };
+  ws.mergeCells(1, 1, 1, 6);
+  ws.getCell(2, 1).value =
+    "Spalte A: Jahr (relativ zum Planstart). Weitere Spalten: Portfoliowert je rollierendem Startjahr.";
+  ws.getCell(2, 1).font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF666666" } };
+  ws.mergeCells(2, 1, 2, 10);
+
+  const scenarios = historical.scenarios;
+  if (scenarios.length === 0) return;
+
+  const maxLen = Math.max(...scenarios.map((s) => s.path.length));
+
+  ws.columns = [{ width: 12 }, ...scenarios.map(() => ({ width: 14 }))];
+
+  // Header row
+  const headerRow = 4;
+  ws.getCell(headerRow, 1).value = "Jahr (rel.)";
+  for (let i = 0; i < scenarios.length; i++) {
+    ws.getCell(headerRow, i + 2).value = `Start ${scenarios[i].startYear}`;
+  }
+  styleHeaderRow(ws, headerRow, scenarios.length + 1);
+
+  for (let t = 0; t < maxLen; t++) {
+    const row = headerRow + 1 + t;
+    ws.getCell(row, 1).value = t;
+    for (let s = 0; s < scenarios.length; s++) {
+      const v = scenarios[s].path[t];
+      if (v !== undefined) {
+        ws.getCell(row, s + 2).value = v;
+        ws.getCell(row, s + 2).numFmt = NUM_FMT_EUR;
+      }
+    }
+  }
+}
+
+function createRawHistoricalReturnsSheet(wb: ExcelJS.Workbook) {
+  const data = historicalData;
+
+  const ws = wb.addWorksheet("Rohdaten_Marktrenditen");
+
+  ws.getCell(1, 1).value = "ROHDATEN — Historische Jahresrenditen (Quelle: OeNB, MSCI, Bundesbank, Statistik Austria)";
+  ws.getCell(1, 1).font = { bold: true, size: 13, name: "Calibri", color: { argb: "FFD31220" } };
+  ws.mergeCells(1, 1, 1, 5);
+
+  const headers = ["Jahr", "Aktien (%)", "Anleihen (%)", "Cash (%)", "Inflation (%)"];
+  ws.columns = headers.map(() => ({ width: 16 }));
+  let row = 3;
+  for (let c = 0; c < headers.length; c++) ws.getCell(row, c + 1).value = headers[c];
+  styleHeaderRow(ws, row, headers.length);
+
+  for (const d of data) {
+    row++;
+    ws.getCell(row, 1).value = d.year;
+    ws.getCell(row, 2).value = d.equityReturn / 100;
+    ws.getCell(row, 2).numFmt = NUM_FMT_PCT;
+    ws.getCell(row, 3).value = d.bondReturn / 100;
+    ws.getCell(row, 3).numFmt = NUM_FMT_PCT;
+    ws.getCell(row, 4).value = d.cashReturn / 100;
+    ws.getCell(row, 4).numFmt = NUM_FMT_PCT;
+    ws.getCell(row, 5).value = d.inflation / 100;
+    ws.getCell(row, 5).numFmt = NUM_FMT_PCT;
+  }
 }

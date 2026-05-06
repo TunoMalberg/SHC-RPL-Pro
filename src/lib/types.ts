@@ -42,6 +42,8 @@ export interface PortfolioConfig {
   correlationMatrix: number[][];
   rebalancingFrequency: 'monthly' | 'quarterly' | 'annually' | 'none';
   rebalancingThreshold: number;
+  cashYearsTarget: number; // 1-3 years of withdrawals held as cash in withdrawal phase
+  kestRate: number; // Austrian KESt / capital gains tax rate in percent (default 27.5)
 }
 
 export interface SimulationSettings {
@@ -136,6 +138,7 @@ export interface DetailedYearRow {
   rebalCashDelta: number;
   rebalBondsDelta: number;
   rebalEquitiesDelta: number;
+  rebalSource: string; // e.g. "Aktien → Liquidität", "Anleihen → Liquidität (Verlustschutz)"
   endCash: number;
   endBonds: number;
   endEquities: number;

@@ -26,46 +26,63 @@ export const defaultInputs: FinancialInputs = {
   useRealValues: true,
 };
 
+// Default KESt rate (Austrian capital gains tax) applied to (gross return − costs)
+const KEST_DEFAULT = 27.5;
+const autoTax = (grossReturn: number, costs: number, kest = KEST_DEFAULT) =>
+  Math.max(0, (grossReturn - costs) * (kest / 100));
+
+const cashGross = 2.0;
+const cashCost = 0.1;
+const cashTax = autoTax(cashGross, cashCost); // ≈ 0.52
+const bondsGross = 3.5;
+const bondsCost = 0.3;
+const bondsTax = autoTax(bondsGross, bondsCost); // ≈ 0.88
+const eqGross = 7.0;
+const eqCost = 0.5;
+const eqTax = autoTax(eqGross, eqCost); // ≈ 1.79
+
 export const defaultPortfolio: PortfolioConfig = {
   buckets: [
     {
       name: "cash",
       label: "Bargeld / Liquidität",
       allocation: 15,
-      expectedReturn: 2.0,
-      volatility: 0.5,
-      costs: 0.1,
-      taxDrag: 0.3,
-      netReturn: 1.6,
+      expectedReturn: cashGross,
+      volatility: 2.0,
+      costs: cashCost,
+      taxDrag: +cashTax.toFixed(2),
+      netReturn: +(cashGross - cashCost - cashTax).toFixed(2),
     },
     {
       name: "bonds",
       label: "Anleihen / Festverzinslich",
       allocation: 35,
-      expectedReturn: 3.5,
-      volatility: 5.0,
-      costs: 0.3,
-      taxDrag: 0.5,
-      netReturn: 2.7,
+      expectedReturn: bondsGross,
+      volatility: 5.5,
+      costs: bondsCost,
+      taxDrag: +bondsTax.toFixed(2),
+      netReturn: +(bondsGross - bondsCost - bondsTax).toFixed(2),
     },
     {
       name: "equities",
       label: "Aktien / Beteiligungen",
       allocation: 50,
-      expectedReturn: 7.0,
-      volatility: 16.0,
-      costs: 0.5,
-      taxDrag: 0.8,
-      netReturn: 5.7,
+      expectedReturn: eqGross,
+      volatility: 18.0,
+      costs: eqCost,
+      taxDrag: +eqTax.toFixed(2),
+      netReturn: +(eqGross - eqCost - eqTax).toFixed(2),
     },
   ],
   correlationMatrix: [
-    [1.0, 0.2, 0.05],
-    [0.2, 1.0, 0.3],
-    [0.05, 0.3, 1.0],
+    [1.0, 0.2, -0.05],
+    [0.2, 1.0, 0.25],
+    [-0.05, 0.25, 1.0],
   ],
   rebalancingFrequency: "annually",
   rebalancingThreshold: 5,
+  cashYearsTarget: 2,
+  kestRate: KEST_DEFAULT,
 };
 
 export const defaultSettings: SimulationSettings = {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAppState } from "@/lib/store";
+import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { generateExcelReport } from "@/lib/export/excel";
@@ -10,6 +11,7 @@ import { generatePowerPointReport } from "@/lib/export/powerpoint";
 export function ExportPanel() {
   const { state } = useAppState();
   const { client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents } = state;
+  const { t } = useI18n();
   const [exporting, setExporting] = useState<string | null>(null);
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -58,9 +60,9 @@ export function ExportPanel() {
   return (
     <div className="space-y-6" data-design-id="export-panel-section">
       <div data-design-id="export-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="export-title">Bericht-Export</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="export-title">{t("export.title")}</h2>
         <p className="text-slate-500 mt-1" data-design-id="export-subtitle">
-          Erstellen Sie professionelle Berichte für Kunden und Berater.
+          {t("export.subtitle")}
         </p>
       </div>
 
@@ -68,7 +70,7 @@ export function ExportPanel() {
         <Card className="border-amber-200 bg-amber-50" data-design-id="export-warning">
           <CardContent className="pt-6 text-center">
             <p className="text-amber-700 font-medium">
-              Führen Sie zuerst eine Simulation durch, um Exporte zu aktivieren.
+              {t("export.noResults")}
             </p>
           </CardContent>
         </Card>
@@ -84,16 +86,16 @@ export function ExportPanel() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-slate-600 space-y-1.5" data-design-id="excel-sheets-list">
-              <p className="font-medium text-slate-800">Enthaltene Tabellenblätter:</p>
+              <p className="font-medium text-slate-800">{t("export.excelSheets")}</p>
               <ul className="list-none space-y-1">
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Eingaben & Annahmen</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Portfoliostruktur (3 Töpfe)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Monte-Carlo-Zusammenfassung</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Simulationspfade (Perzentile)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Entnahmeanalyse</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Historische Backtest-Ergebnisse</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Einzelpfad-Beispiel (Renditen & Umschichtungen)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />Kennzahlen-Zusammenfassung</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />{t("export.excelSheet1")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />{t("export.excelSheet2")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />{t("export.excelSheet3")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />{t("export.excelSheet4")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />{t("export.excelSheet5")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />{t("export.excelSheet6")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />{t("export.excelSheet7")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#8FB687]" />{t("export.excelSheet8")}</li>
               </ul>
             </div>
             <Button
@@ -102,7 +104,7 @@ export function ExportPanel() {
               className="w-full bg-[#5a8a50] hover:bg-[#4a7640]"
               data-design-id="excel-download-button"
             >
-              {exporting === "excel" ? "Wird erstellt..." : "📊 Excel-Bericht herunterladen"}
+              {exporting === "excel" ? t("export.excelExporting") : t("export.excelDownload")}
             </Button>
           </CardContent>
         </Card>
@@ -116,21 +118,21 @@ export function ExportPanel() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-slate-600 space-y-1.5" data-design-id="pptx-slides-list">
-              <p className="font-medium text-slate-800">Enthaltene Folien:</p>
+              <p className="font-medium text-slate-800">{t("export.pptxSlides")}</p>
               <ul className="list-none space-y-1">
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Titelfolie (Kunde & Datum)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Finanzielle Übersicht</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Drei-Topf-Portfoliomodell</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Annahmen & Kennzahlen</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Monte-Carlo-Ergebnisse</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Erfolgswahrscheinlichkeit erklärt</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Entnahmerate & 4%-Regel</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Risikoanalyse & SoR-Risiko</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Einzelpfad-Beispiel (Renditen & Umschichtungen)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Historische Backtest-Ergebnisse</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Wissenswertes (MPT, Risiken)</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Empfehlungen</li>
-                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />Anhang (Methodik)</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide1")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide2")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide3")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide4")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide5")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide6")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide7")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide8")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.excelSheet7")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.excelSheet6")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide11")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide12")}</li>
+                <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#D31220]" />{t("export.pptxSlide13")}</li>
               </ul>
             </div>
             <Button
@@ -139,7 +141,7 @@ export function ExportPanel() {
               className="w-full bg-[#D31220] hover:bg-[#a80e19]"
               data-design-id="pptx-download-button"
             >
-              {exporting === "pptx" ? "Wird erstellt..." : "📝 PowerPoint-Präsentation herunterladen"}
+              {exporting === "pptx" ? t("export.pptxExporting") : t("export.pptxDownload")}
             </Button>
           </CardContent>
         </Card>
@@ -147,13 +149,13 @@ export function ExportPanel() {
 
       <Card className="bg-slate-50" data-design-id="export-notes-card">
         <CardContent className="pt-6">
-          <h3 className="font-semibold text-slate-800 mb-2" data-design-id="export-notes-title">Hinweise zum Export</h3>
+          <h3 className="font-semibold text-slate-800 mb-2" data-design-id="export-notes-title">{t("export.notesTitle")}</h3>
           <ul className="text-sm text-slate-600 space-y-1.5">
-            <li>• Excel-Berichte enthalten formatierte Datentabellen mit klarer Struktur für Finanzberater</li>
-            <li>• PowerPoint-Präsentationen beinhalten Erklärungen zu Monte Carlo, SoR-Risiko und der 4%-Regel</li>
-            <li>• Alle Werte verwenden EUR-Formatierung entsprechend dem DACH-Markt</li>
-            <li>• Berichte enthalten sowohl Simulationsergebnisse als auch historische Backtest-Daten</li>
-            <li>• Der Anhang erläutert die vollständige Methodik für regulatorische und Compliance-Anforderungen</li>
+            <li>• {t("export.note1")}</li>
+            <li>• {t("export.note2")}</li>
+            <li>• {t("export.note3")}</li>
+            <li>• {t("export.note4")}</li>
+            <li>• {t("export.note5")}</li>
           </ul>
         </CardContent>
       </Card>

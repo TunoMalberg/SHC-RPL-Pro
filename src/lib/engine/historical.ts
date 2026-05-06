@@ -86,6 +86,7 @@ export function runHistoricalBacktest(
   const totalYears = accumulationYears + withdrawalYears;
   const weights = portfolio.buckets.map((b) => b.allocation / 100);
   const costs = portfolio.buckets.map((b) => b.costs / 100 + b.taxDrag / 100);
+  const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
 
   const scenarios: HistoricalResult[] = [];
 
@@ -95,6 +96,7 @@ export function runHistoricalBacktest(
     startIdx++
   ) {
     const startYear = historicalData[startIdx].year;
+    let buckets = weights.map((w) => w * inputs.initialCapital);
     let capital = inputs.initialCapital;
     const path: number[] = [capital];
     let success = true;
@@ -124,10 +126,25 @@ export function runHistoricalBacktest(
 
       const isAccumulation = y < accumulationYears;
 
+      buckets[0] *= 1 + returns[0];
+      buckets[1] *= 1 + returns[1];
+      buckets[2] *= 1 + returns[2];
+
       if (isAccumulation) {
         const inflationFactor = Math.pow(1 + data.inflation / 100, y);
         const savings = inputs.monthlySavings * 12 * (inputs.useRealValues ? inflationFactor : 1);
-        capital = capital * (1 + portfolioReturn) + savings;
+        for (let i = 0; i < 3; i++) {
+          buckets[i] += weights[i] * savings;
+        }
+
+        const total = buckets.reduce((a, b) => a + b, 0);
+        const currentWeights = buckets.map((v) => v / total);
+        const needsRebalance = currentWeights.some(
+          (w, i) => Math.abs(w - weights[i]) > portfolio.rebalancingThreshold / 100
+        );
+        if (needsRebalance && portfolio.rebalancingFrequency !== "none") {
+          buckets = weights.map((w) => w * total);
+        }
       } else {
         const withdrawalYear = y - accumulationYears;
         const inflationFactor = Math.pow(
@@ -138,24 +155,76 @@ export function runHistoricalBacktest(
           ? inputs.desiredMonthlyWithdrawal * 12 * inflationFactor
           : inputs.desiredMonthlyWithdrawal * 12;
 
-        const currentAge = client.currentAge + y;
+        const ageNow = client.currentAge + y;
         const pension =
-          currentAge >= inputs.pensionStartAge
+          ageNow >= inputs.pensionStartAge
             ? inputs.useRealValues
               ? inputs.monthlyPension * 12 * inflationFactor
               : inputs.monthlyPension * 12
             : 0;
 
         const netWithdrawal = Math.max(0, withdrawal - pension);
-        capital = capital * (1 + portfolioReturn) - netWithdrawal;
+
+        const totalPortfolio = buckets.reduce((a, b) => a + b, 0);
+        if (totalPortfolio > 0) {
+          if (buckets[0] >= netWithdrawal) {
+            buckets[0] -= netWithdrawal;
+          } else {
+            const remaining = netWithdrawal - buckets[0];
+            buckets[0] = 0;
+            const restTotal = buckets[1] + buckets[2];
+            if (restTotal > 0) {
+              const ratio = Math.min(1, remaining / restTotal);
+              buckets[1] *= 1 - ratio;
+              buckets[2] *= 1 - ratio;
+            }
+          }
+        }
+
+        if (portfolio.rebalancingFrequency !== "none") {
+          const targetCash = netWithdrawal * cashYearsTarget;
+          const deficit = targetCash - buckets[0];
+          if (deficit > 0) {
+            if (returns[2] > 0) {
+              const transferFromEquities = Math.min(deficit, buckets[2]);
+              buckets[2] -= transferFromEquities;
+              buckets[0] += transferFromEquities;
+              const stillNeeded = deficit - transferFromEquities;
+              if (stillNeeded > 0 && buckets[1] > 0) {
+                const transferFromBonds = Math.min(stillNeeded, buckets[1]);
+                buckets[1] -= transferFromBonds;
+                buckets[0] += transferFromBonds;
+              }
+            } else {
+              const transferFromBonds = Math.min(deficit, buckets[1]);
+              buckets[1] -= transferFromBonds;
+              buckets[0] += transferFromBonds;
+            }
+          }
+        }
       }
 
       const ageAtStep = client.currentAge + y;
       for (const le of liquidityEvents) {
         if (le.age === ageAtStep) {
-          capital += le.amount;
+          if (le.amount > 0) {
+            for (let i = 0; i < 3; i++) {
+              buckets[i] += weights[i] * le.amount;
+            }
+          } else {
+            const tp = buckets.reduce((a, b) => a + b, 0);
+            if (tp > 0) {
+              const wr = Math.min(1, Math.abs(le.amount) / tp);
+              for (let i = 0; i < 3; i++) {
+                buckets[i] *= 1 - wr;
+              }
+            }
+          }
         }
       }
+
+      capital = Math.max(0, buckets.reduce((a, b) => a + b, 0));
+      buckets = buckets.map((b) => Math.max(0, b));
 
       if (capital > maxVal) maxVal = capital;
       const dd = maxVal > 0 ? (maxVal - capital) / maxVal : 0;
@@ -164,6 +233,7 @@ export function runHistoricalBacktest(
       if (capital <= 0) {
         success = false;
         capital = 0;
+        buckets = [0, 0, 0];
       }
       path.push(capital);
     }

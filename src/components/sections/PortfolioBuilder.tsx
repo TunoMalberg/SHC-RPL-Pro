@@ -1,23 +1,14 @@
 "use client";
 
 import { useAppState } from "@/lib/store";
+import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AssetBucket, PortfolioConfig } from "@/lib/types";
-import {
-  computePortfolioReturn,
-  computePortfolioVolatility,
-  computeSharpeRatio,
-} from "@/lib/engine/portfolio";
+import { computePortfolioReturn, computePortfolioVolatility, computeSharpeRatio } from "@/lib/engine/portfolio";
 import { fmtPct } from "@/lib/format";
 
 const BUCKET_COLORS = [
@@ -29,40 +20,58 @@ const BUCKET_COLORS = [
 export function PortfolioBuilderSection() {
   const { state, dispatch } = useAppState();
   const { portfolio } = state;
+  const { t } = useI18n();
 
   const updateBucket = (index: number, field: keyof AssetBucket, value: number | string) => {
     const newBuckets = [...portfolio.buckets] as PortfolioConfig["buckets"];
     const bucket = { ...newBuckets[index] };
-
     if (field === "name" || field === "label") {
       (bucket as Record<string, unknown>)[field] = value;
     } else {
       (bucket as Record<string, unknown>)[field] = typeof value === "string" ? parseFloat(value) || 0 : value;
     }
-
-    bucket.netReturn = bucket.expectedReturn - bucket.costs - bucket.taxDrag;
+    // When gross return or costs change, auto-recalculate taxDrag as
+    //   taxDrag = max(0, (expectedReturn − costs) × kestRate / 100)
+    // Direct taxDrag edits are respected and override this default.
+    if (field === "expectedReturn" || field === "costs") {
+      const kest = portfolio.kestRate ?? 27.5;
+      const base = bucket.expectedReturn - bucket.costs;
+      bucket.taxDrag = +Math.max(0, base * (kest / 100)).toFixed(2);
+    }
+    bucket.netReturn = +(bucket.expectedReturn - bucket.costs - bucket.taxDrag).toFixed(2);
     newBuckets[index] = bucket;
     dispatch({ type: "SET_PORTFOLIO", payload: { buckets: newBuckets } });
+  };
+
+  const updateKestRate = (newRate: number) => {
+    // Recompute taxDrag for all buckets with the new KESt rate
+    const newBuckets = portfolio.buckets.map((b) => {
+      const base = b.expectedReturn - b.costs;
+      const taxDrag = +Math.max(0, base * (newRate / 100)).toFixed(2);
+      return {
+        ...b,
+        taxDrag,
+        netReturn: +(b.expectedReturn - b.costs - taxDrag).toFixed(2),
+      };
+    }) as PortfolioConfig["buckets"];
+    dispatch({
+      type: "SET_PORTFOLIO",
+      payload: { kestRate: newRate, buckets: newBuckets },
+    });
   };
 
   const updateAllocation = (index: number, newValue: number) => {
     const newBuckets = [...portfolio.buckets] as PortfolioConfig["buckets"];
     const diff = newValue - newBuckets[index].allocation;
     newBuckets[index] = { ...newBuckets[index], allocation: newValue };
-
     const otherIndices = [0, 1, 2].filter((i) => i !== index);
     const otherTotal = otherIndices.reduce((s, i) => s + newBuckets[i].allocation, 0);
-
     if (otherTotal > 0) {
       for (const i of otherIndices) {
         const ratio = newBuckets[i].allocation / otherTotal;
-        newBuckets[i] = {
-          ...newBuckets[i],
-          allocation: Math.max(0, Math.round(newBuckets[i].allocation - diff * ratio)),
-        };
+        newBuckets[i] = { ...newBuckets[i], allocation: Math.max(0, Math.round(newBuckets[i].allocation - diff * ratio)) };
       }
     }
-
     const total = newBuckets.reduce((s, b) => s + b.allocation, 0);
     if (total !== 100) {
       const adjust = 100 - total;
@@ -73,7 +82,6 @@ export function PortfolioBuilderSection() {
         }
       }
     }
-
     dispatch({ type: "SET_PORTFOLIO", payload: { buckets: newBuckets } });
   };
 
@@ -89,33 +97,27 @@ export function PortfolioBuilderSection() {
   const riskFree = portfolio.buckets[0].netReturn / 100;
   const sharpe = computeSharpeRatio(portReturn / 100, portVol / 100, riskFree);
 
+  const bucketLabelKeys = ["portfolio.cash", "portfolio.bonds", "portfolio.equities"];
+
   return (
     <div className="space-y-6" data-design-id="portfolio-builder-section">
       <div data-design-id="portfolio-builder-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="portfolio-builder-title">Portfolio-Konfigurator</h2>
-        <p className="text-slate-500 mt-1" data-design-id="portfolio-builder-subtitle">
-          Konfigurieren Sie das Drei-Topf-Portfoliomodell mit Allokation, Renditen und Risikoparametern.
-        </p>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="portfolio-builder-title">{t("portfolio.title")}</h2>
+        <p className="text-slate-500 mt-1" data-design-id="portfolio-builder-subtitle">{t("portfolio.subtitle")}</p>
       </div>
 
       <Card className="border-slate-200" data-design-id="allocation-bar-card">
         <CardContent className="pt-6">
           <div className="flex h-8 rounded-lg overflow-hidden mb-3" data-design-id="allocation-bar">
             {portfolio.buckets.map((b, i) => (
-              <div
-                key={b.name}
-                className={`${BUCKET_COLORS[i].fill} flex items-center justify-center text-white text-xs font-bold transition-all`}
-                style={{ width: `${b.allocation}%` }}
-              >
+              <div key={b.name} className={`${BUCKET_COLORS[i].fill} flex items-center justify-center text-white text-xs font-bold transition-all`} style={{ width: `${b.allocation}%` }}>
                 {b.allocation > 8 && `${b.allocation}%`}
               </div>
             ))}
           </div>
           <div className="flex justify-between text-xs text-slate-500">
             {portfolio.buckets.map((b, i) => (
-              <span key={b.name} className={BUCKET_COLORS[i].accent}>
-                {b.label}: {b.allocation}%
-              </span>
+              <span key={b.name} className={BUCKET_COLORS[i].accent}>{t(bucketLabelKeys[i])}: {b.allocation}%</span>
             ))}
           </div>
         </CardContent>
@@ -123,76 +125,42 @@ export function PortfolioBuilderSection() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {portfolio.buckets.map((bucket, index) => (
-          <Card
-            key={bucket.name}
-            className={`${BUCKET_COLORS[index].border} ${BUCKET_COLORS[index].bg}`}
-            data-design-id={`bucket-card-${index}`}
-          >
+          <Card key={bucket.name} className={`${BUCKET_COLORS[index].border} ${BUCKET_COLORS[index].bg}`} data-design-id={`bucket-card-${index}`}>
             <CardHeader className="pb-3">
               <CardTitle className={`text-base ${BUCKET_COLORS[index].accent}`} data-design-id={`bucket-title-${index}`}>
-                Topf {index + 1}: {bucket.label}
+                {t("portfolio.bucket")} {index + 1}: {t(bucketLabelKeys[index])}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div data-design-id={`bucket-allocation-${index}`}>
-                <Label className="text-xs">Allokation (%)</Label>
-                <Slider
-                  value={[bucket.allocation]}
-                  onValueChange={([val]) => updateAllocation(index, val)}
-                  max={100}
-                  min={0}
-                  step={1}
-                  className="my-2"
-                />
+                <Label className="text-xs">{t("portfolio.allocation")}</Label>
+                <Slider value={[bucket.allocation]} onValueChange={([val]) => updateAllocation(index, val)} max={100} min={0} step={1} className="my-2" />
                 <div className="text-right text-sm font-bold">{bucket.allocation}%</div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div data-design-id={`bucket-return-${index}`}>
-                  <Label className="text-xs">Erwartete Rendite (%)</Label>
-                  <Input
-                    type="number"
-                    value={bucket.expectedReturn}
-                    onChange={(e) => updateBucket(index, "expectedReturn", e.target.value)}
-                    step={0.1}
-                    className="h-8 text-sm"
-                  />
+                  <Label className="text-xs">{t("portfolio.expectedReturn")}</Label>
+                  <Input type="number" value={bucket.expectedReturn} onChange={(e) => updateBucket(index, "expectedReturn", e.target.value)} step={0.1} className="h-8 text-sm" />
                 </div>
                 <div data-design-id={`bucket-vol-${index}`}>
-                  <Label className="text-xs">Volatilität (%)</Label>
-                  <Input
-                    type="number"
-                    value={bucket.volatility}
-                    onChange={(e) => updateBucket(index, "volatility", e.target.value)}
-                    step={0.5}
-                    className="h-8 text-sm"
-                  />
+                  <Label className="text-xs">{t("portfolio.volatility")}</Label>
+                  <Input type="number" value={bucket.volatility} onChange={(e) => updateBucket(index, "volatility", e.target.value)} step={0.5} className="h-8 text-sm" />
                 </div>
                 <div data-design-id={`bucket-costs-${index}`}>
-                  <Label className="text-xs">Kosten (%)</Label>
-                  <Input
-                    type="number"
-                    value={bucket.costs}
-                    onChange={(e) => updateBucket(index, "costs", e.target.value)}
-                    step={0.1}
-                    className="h-8 text-sm"
-                  />
+                  <Label className="text-xs">{t("portfolio.costs")}</Label>
+                  <Input type="number" value={bucket.costs} onChange={(e) => updateBucket(index, "costs", e.target.value)} step={0.1} className="h-8 text-sm" />
                 </div>
                 <div data-design-id={`bucket-tax-${index}`}>
-                  <Label className="text-xs">Steuerbelastung (%)</Label>
-                  <Input
-                    type="number"
-                    value={bucket.taxDrag}
-                    onChange={(e) => updateBucket(index, "taxDrag", e.target.value)}
-                    step={0.1}
-                    className="h-8 text-sm"
-                  />
+                  <Label className="text-xs flex items-center gap-1" title={t("portfolio.taxDragAutoHint")}>
+                    {t("portfolio.taxDrag")}
+                    <span className="text-[9px] text-slate-400">({t("portfolio.auto")})</span>
+                  </Label>
+                  <Input type="number" value={bucket.taxDrag} onChange={(e) => updateBucket(index, "taxDrag", e.target.value)} step={0.1} className="h-8 text-sm" />
                 </div>
               </div>
               <div className={`text-center py-2 rounded ${BUCKET_COLORS[index].border} bg-white/60`} data-design-id={`bucket-net-return-${index}`}>
-                <div className="text-xs text-slate-500">Nettorendite</div>
-                <div className={`text-lg font-bold ${BUCKET_COLORS[index].accent}`}>
-                  {fmtPct(bucket.netReturn)}
-                </div>
+                <div className="text-xs text-slate-500">{t("portfolio.netReturn")}</div>
+                <div className={`text-lg font-bold ${BUCKET_COLORS[index].accent}`}>{fmtPct(bucket.netReturn)}</div>
               </div>
             </CardContent>
           </Card>
@@ -202,7 +170,7 @@ export function PortfolioBuilderSection() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-design-id="correlation-matrix-card">
           <CardHeader>
-            <CardTitle className="text-lg" data-design-id="correlation-title">Korrelationsmatrix</CardTitle>
+            <CardTitle className="text-lg" data-design-id="correlation-title">{t("portfolio.correlationTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -210,37 +178,23 @@ export function PortfolioBuilderSection() {
                 <thead>
                   <tr>
                     <th className="text-left py-2 pr-3 text-slate-500 font-medium"></th>
-                    <th className="py-2 px-2 text-center text-[#5a8a50] font-medium">Bargeld</th>
-                    <th className="py-2 px-2 text-center text-[#4D4A47] font-medium">Anleihen</th>
-                    <th className="py-2 px-2 text-center text-[#D31220] font-medium">Aktien</th>
+                    <th className="py-2 px-2 text-center text-[#5a8a50] font-medium">{t("portfolio.cash")}</th>
+                    <th className="py-2 px-2 text-center text-[#4D4A47] font-medium">{t("portfolio.bonds")}</th>
+                    <th className="py-2 px-2 text-center text-[#D31220] font-medium">{t("portfolio.equities")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {["Bargeld", "Anleihen", "Aktien"].map((label, i) => (
+                  {[t("portfolio.cash"), t("portfolio.bonds"), t("portfolio.equities")].map((label, i) => (
                     <tr key={label}>
                       <td className="py-2 pr-3 font-medium text-slate-700">{label}</td>
                       {[0, 1, 2].map((j) => (
                         <td key={j} className="py-1 px-1">
                           {i === j ? (
-                            <div className="text-center font-bold text-slate-400 bg-slate-50 rounded px-2 py-1">
-                              1.00
-                            </div>
+                            <div className="text-center font-bold text-slate-400 bg-slate-50 rounded px-2 py-1">1.00</div>
                           ) : i < j ? (
-                            <Input
-                              type="number"
-                              value={portfolio.correlationMatrix[i][j]}
-                              onChange={(e) =>
-                                updateCorrelation(i, j, parseFloat(e.target.value) || 0)
-                              }
-                              step={0.05}
-                              min={-1}
-                              max={1}
-                              className="h-8 text-sm text-center"
-                            />
+                            <Input type="number" value={portfolio.correlationMatrix[i][j]} onChange={(e) => updateCorrelation(i, j, parseFloat(e.target.value) || 0)} step={0.05} min={-1} max={1} className="h-8 text-sm text-center" />
                           ) : (
-                            <div className="text-center text-slate-400 bg-slate-50 rounded px-2 py-1">
-                              {portfolio.correlationMatrix[i][j].toFixed(2)}
-                            </div>
+                            <div className="text-center text-slate-400 bg-slate-50 rounded px-2 py-1">{portfolio.correlationMatrix[i][j].toFixed(2)}</div>
                           )}
                         </td>
                       ))}
@@ -254,59 +208,76 @@ export function PortfolioBuilderSection() {
 
         <Card data-design-id="rebalancing-card">
           <CardHeader>
-            <CardTitle className="text-lg" data-design-id="rebalancing-title">Rebalancing & Portfolio-Kennzahlen</CardTitle>
+            <CardTitle className="text-lg" data-design-id="rebalancing-title">{t("portfolio.rebalancingTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm" data-design-id="three-bucket-info">
+              <div className="font-semibold text-amber-800 mb-1">{t("portfolio.strategyTitle")}</div>
+              <div className="text-amber-700 text-xs space-y-1">
+                <p><strong>{t("portfolio.strategyAccumulation")}</strong> {t("portfolio.strategyAccumulationDesc")}</p>
+                <p><strong>{t("portfolio.strategyWithdrawal")}</strong> {t("portfolio.cash")} {portfolio.cashYearsTarget} {t("portfolio.strategyWithdrawalDesc")}</p>
+                <p><strong>{t("portfolio.strategyRefill")}</strong> {t("portfolio.strategyRefillDesc")}</p>
+              </div>
+            </div>
+
+            <div data-design-id="cash-years-target-field">
+              <Label>{t("portfolio.cashYearsLabel")}</Label>
+              <Slider value={[portfolio.cashYearsTarget]} onValueChange={([val]) => dispatch({ type: "SET_PORTFOLIO", payload: { cashYearsTarget: val } })} max={5} min={1} step={1} />
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>{t("portfolio.cashYearsOffensive")}</span>
+                <span className="font-bold text-[#5a8a50]">{portfolio.cashYearsTarget} {portfolio.cashYearsTarget === 1 ? t("portfolio.year") : t("portfolio.yearsPlural")}</span>
+                <span>{t("portfolio.cashYearsConservative")}</span>
+              </div>
+            </div>
+
             <div data-design-id="rebalancing-frequency-field">
-              <Label>Rebalancing-Häufigkeit</Label>
-              <Select
-                value={portfolio.rebalancingFrequency}
-                onValueChange={(v) =>
-                  dispatch({
-                    type: "SET_PORTFOLIO",
-                    payload: { rebalancingFrequency: v as PortfolioConfig["rebalancingFrequency"] },
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+              <Label>{t("portfolio.rebalFreq")}</Label>
+              <Select value={portfolio.rebalancingFrequency} onValueChange={(v) => dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingFrequency: v as PortfolioConfig["rebalancingFrequency"] } })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="monthly">Monatlich</SelectItem>
-                  <SelectItem value="quarterly">Vierteljährlich</SelectItem>
-                  <SelectItem value="annually">Jährlich</SelectItem>
-                  <SelectItem value="none">Kein Rebalancing</SelectItem>
+                  <SelectItem value="monthly">{t("portfolio.rebalMonthly")}</SelectItem>
+                  <SelectItem value="quarterly">{t("portfolio.rebalQuarterly")}</SelectItem>
+                  <SelectItem value="annually">{t("portfolio.rebalAnnually")}</SelectItem>
+                  <SelectItem value="none">{t("portfolio.rebalNone")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div data-design-id="rebalancing-threshold-field">
-              <Label>Rebalancing-Schwellenwert (%)</Label>
-              <Slider
-                value={[portfolio.rebalancingThreshold]}
-                onValueChange={([val]) =>
-                  dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingThreshold: val } })
-                }
-                max={20}
-                min={1}
-                step={1}
+              <Label>{t("portfolio.rebalThreshold")}</Label>
+              <Slider value={[portfolio.rebalancingThreshold]} onValueChange={([val]) => dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingThreshold: val } })} max={20} min={1} step={1} />
+              <div className="text-right text-sm text-slate-500">{t("portfolio.rebalThresholdHint")} {portfolio.rebalancingThreshold}%</div>
+            </div>
+
+            <div className="border-t pt-3" data-design-id="kest-rate-field">
+              <Label htmlFor="kestRate" className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded bg-[#D31220]/10 text-[#D31220] flex items-center justify-center text-[10px] font-bold">€st</span>
+                {t("portfolio.kestLabel")}
+              </Label>
+              <Input
+                id="kestRate"
+                type="number"
+                value={portfolio.kestRate ?? 27.5}
+                onChange={(e) => updateKestRate(parseFloat(e.target.value) || 0)}
+                step={0.5}
+                min={0}
+                max={100}
+                className="mt-1"
               />
-              <div className="text-right text-sm text-slate-500">
-                Auslösung bei Abweichung über {portfolio.rebalancingThreshold}%
-              </div>
+              <p className="text-xs text-slate-500 mt-1">{t("portfolio.kestHint")}</p>
             </div>
 
             <div className="grid grid-cols-3 gap-3 pt-3 border-t" data-design-id="portfolio-metrics">
               <div className="text-center" data-design-id="metric-return">
                 <div className="text-lg font-bold text-[#5a8a50]">{fmtPct(portReturn)}</div>
-                <div className="text-xs text-slate-500">Erwartete Rendite</div>
+                <div className="text-xs text-slate-500">{t("portfolio.metricReturn")}</div>
               </div>
               <div className="text-center" data-design-id="metric-volatility">
                 <div className="text-lg font-bold text-rose-600">{fmtPct(portVol)}</div>
-                <div className="text-xs text-slate-500">Volatilität</div>
+                <div className="text-xs text-slate-500">{t("portfolio.metricVol")}</div>
               </div>
               <div className="text-center" data-design-id="metric-sharpe">
                 <div className="text-lg font-bold text-[#4D4A47]">{sharpe.toFixed(2)}</div>
-                <div className="text-xs text-slate-500">Sharpe Ratio</div>
+                <div className="text-xs text-slate-500">{t("portfolio.metricSharpe")}</div>
               </div>
             </div>
           </CardContent>

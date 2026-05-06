@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppState } from "@/lib/store";
+import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtEur, fmtPct } from "@/lib/format";
 import {
@@ -21,14 +22,15 @@ import { Badge } from "@/components/ui/badge";
 export function HistoricalAnalysisSection() {
   const { state } = useAppState();
   const { historicalResult } = state;
+  const { t } = useI18n();
 
   if (!historicalResult) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-400" data-design-id="no-historical">
         <div className="text-center">
           <p className="text-4xl mb-3">📈</p>
-          <p className="text-lg font-medium">Noch keine historischen Daten</p>
-          <p className="text-sm">Führen Sie eine Simulation durch, um historische Backtest-Ergebnisse zu sehen.</p>
+          <p className="text-lg font-medium">{t("hist.noData")}</p>
+          <p className="text-sm">{t("hist.noDataHint")}</p>
         </div>
       </div>
     );
@@ -56,9 +58,9 @@ export function HistoricalAnalysisSection() {
   return (
     <div className="space-y-6" data-design-id="historical-analysis-section">
       <div data-design-id="historical-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="historical-title">Historischer Backtest</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="historical-title">{t("hist.title")}</h2>
         <p className="text-slate-500 mt-1" data-design-id="historical-subtitle">
-          Rollierende Ruhestandsszenarien mit realen Marktdaten (1970–2024): MSCI World (EUR), europäische Staatsanleihen, AT/EUR-Geldmarkt.
+          {t("hist.subtitle")}
         </p>
       </div>
 
@@ -68,19 +70,19 @@ export function HistoricalAnalysisSection() {
             <div className={`text-3xl font-bold ${successColor}`}>
               {fmtPct(overallSuccessRate)}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Historische Erfolgsquote</div>
+            <div className="text-xs text-slate-500 mt-1">{t("hist.successRate")}</div>
           </CardContent>
         </Card>
         <Card data-design-id="hist-kpi-scenarios">
           <CardContent className="pt-4 pb-4 text-center">
             <div className="text-3xl font-bold text-[#4D4A47]">{scenarios.length}</div>
-            <div className="text-xs text-slate-500 mt-1">Getestete Szenarien</div>
+            <div className="text-xs text-slate-500 mt-1">{t("hist.scenariosTested")}</div>
           </CardContent>
         </Card>
         <Card data-design-id="hist-kpi-avg-wealth">
           <CardContent className="pt-4 pb-4 text-center">
             <div className="text-2xl font-bold text-[#D31220]">{fmtEur(averageFinalWealth)}</div>
-            <div className="text-xs text-slate-500 mt-1">Ø Endvermögen</div>
+            <div className="text-xs text-slate-500 mt-1">{t("hist.avgWealth")}</div>
           </CardContent>
         </Card>
         <Card data-design-id="hist-kpi-worst">
@@ -88,14 +90,14 @@ export function HistoricalAnalysisSection() {
             <div className="text-2xl font-bold text-rose-600">
               {worstScenario ? worstScenario.startYear : "k. A."}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Schlechtestes Startjahr</div>
+            <div className="text-xs text-slate-500 mt-1">{t("hist.worstStart")}</div>
           </CardContent>
         </Card>
       </div>
 
       <Card data-design-id="hist-wealth-chart-card">
         <CardHeader>
-          <CardTitle data-design-id="hist-wealth-chart-title">Endvermögen nach Startjahr</CardTitle>
+          <CardTitle data-design-id="hist-wealth-chart-title">{t("hist.wealthByStart")}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
@@ -104,7 +106,7 @@ export function HistoricalAnalysisSection() {
               <XAxis
                 dataKey="startYear"
                 tick={{ fontSize: 10 }}
-                label={{ value: "Startjahr der Pension", position: "insideBottom", offset: -5, fontSize: 12 }}
+                label={{ value: t("hist.startYear"), position: "insideBottom", offset: -5, fontSize: 12 }}
               />
               <YAxis
                 tick={{ fontSize: 11 }}
@@ -112,11 +114,11 @@ export function HistoricalAnalysisSection() {
               />
               <Tooltip
                 formatter={(value: number) => fmtEur(value)}
-                labelFormatter={(l) => `Start: ${l}`}
+                labelFormatter={(l) => `${t("hist.start")}: ${l}`}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
               <ReferenceLine y={0} stroke="#D31220" strokeWidth={2} />
-              <Bar dataKey="finalWealth" name="Endvermögen" radius={[2, 2, 0, 0]}>
+              <Bar dataKey="finalWealth" name={t("hist.finalWealth")} radius={[2, 2, 0, 0]}>
                 {scenarioBarData.map((entry, idx) => (
                   <Cell
                     key={idx}
@@ -131,7 +133,7 @@ export function HistoricalAnalysisSection() {
 
       <Card data-design-id="hist-drawdown-chart-card">
         <CardHeader>
-          <CardTitle data-design-id="hist-drawdown-chart-title">Maximaler Drawdown nach Startjahr</CardTitle>
+          <CardTitle data-design-id="hist-drawdown-chart-title">{t("hist.drawdownByStart")}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>
@@ -156,7 +158,7 @@ export function HistoricalAnalysisSection() {
                 stroke="#D31220"
                 strokeWidth={2}
                 dot={{ r: 3, fill: "#D31220" }}
-                name="Max. Drawdown"
+                name={t("hist.maxDD")}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -165,20 +167,20 @@ export function HistoricalAnalysisSection() {
 
       <Card data-design-id="hist-detail-table-card">
         <CardHeader>
-          <CardTitle data-design-id="hist-detail-table-title">Szenario-Details</CardTitle>
+          <CardTitle data-design-id="hist-detail-table-title">{t("hist.scenarioDetails")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto max-h-96">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white">
                 <tr className="border-b-2 border-slate-200">
-                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Start</th>
-                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Ende</th>
-                  <th className="text-center py-2 px-3 font-semibold text-slate-600">Ergebnis</th>
-                  <th className="text-right py-2 px-3 font-semibold text-slate-600">Endvermögen</th>
-                  <th className="text-right py-2 px-3 font-semibold text-slate-600">Max. DD</th>
-                  <th className="text-right py-2 px-3 font-semibold text-slate-600">Schlecht. Jahr</th>
-                  <th className="text-right py-2 px-3 font-semibold text-slate-600">Schlecht. Rendite</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">{t("hist.start")}</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">{t("hist.end")}</th>
+                  <th className="text-center py-2 px-3 font-semibold text-slate-600">{t("hist.result")}</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.finalWealth")}</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.maxDD")}</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.worstYear")}</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.worstReturn")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,7 +190,7 @@ export function HistoricalAnalysisSection() {
                     <td className="py-1.5 px-3">{s.endYear}</td>
                     <td className="py-1.5 px-3 text-center">
                       <Badge variant={s.success ? "default" : "destructive"} className="text-xs">
-                        {s.success ? "✓ Bestanden" : "✗ Gescheitert"}
+                        {s.success ? t("hist.passed") : t("hist.failed")}
                       </Badge>
                     </td>
                     <td className="py-1.5 px-3 text-right font-medium">{fmtEur(s.finalWealth)}</td>

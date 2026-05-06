@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppState } from "@/lib/store";
+import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtEur, fmtPct } from "@/lib/format";
 import {
@@ -20,14 +21,15 @@ import {
 export function ResultsDashboard() {
   const { state } = useAppState();
   const { result, client, inputs, liquidityEvents } = state;
+  const { t } = useI18n();
 
   if (!result) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-400" data-design-id="no-results">
         <div className="text-center">
           <p className="text-4xl mb-3">📊</p>
-          <p className="text-lg font-medium">Noch keine Simulationsergebnisse</p>
-          <p className="text-sm">Starten Sie eine Simulation im Tab „Simulation", um hier Ergebnisse zu sehen.</p>
+          <p className="text-lg font-medium">{t("results.noResults")}</p>
+          <p className="text-sm">{t("results.noResultsHint")}</p>
         </div>
       </div>
     );
@@ -79,9 +81,9 @@ export function ResultsDashboard() {
   return (
     <div className="space-y-6" data-design-id="results-dashboard">
       <div data-design-id="results-header">
-        <h2 className="text-2xl font-bold text-slate-900" data-design-id="results-title">Simulationsergebnisse</h2>
+        <h2 className="text-2xl font-bold text-slate-900" data-design-id="results-title">{t("results.title")}</h2>
         <p className="text-slate-500 mt-1" data-design-id="results-subtitle">
-          Monte-Carlo-Analyse mit {result.yearLabels.length > 0 ? Math.round(result.yearLabels[result.yearLabels.length - 1] - result.yearLabels[0]) : 0} Jahren Horizont.
+          {t("results.subtitle")} {result.yearLabels.length > 0 ? Math.round(result.yearLabels[result.yearLabels.length - 1] - result.yearLabels[0]) : 0} {t("results.subtitleSuffix")}
         </p>
       </div>
 
@@ -91,7 +93,7 @@ export function ResultsDashboard() {
             <div className={`text-3xl font-bold ${successColor}`}>
               {fmtPct(result.successRate)}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Erfolgsquote</div>
+            <div className="text-xs text-slate-500 mt-1">{t("results.successRate")}</div>
           </CardContent>
         </Card>
         <Card data-design-id="kpi-median-wealth">
@@ -99,7 +101,7 @@ export function ResultsDashboard() {
             <div className="text-2xl font-bold text-[#4D4A47]">
               {fmtEur(result.medianFinalWealth)}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Median Endvermögen</div>
+            <div className="text-xs text-slate-500 mt-1">{t("results.medianWealth")}</div>
           </CardContent>
         </Card>
         <Card data-design-id="kpi-withdrawal-rate">
@@ -107,7 +109,7 @@ export function ResultsDashboard() {
             <div className={`text-2xl font-bold ${withdrawalRate <= 4 ? "text-[#5a8a50]" : "text-rose-600"}`}>
               {fmtPct(withdrawalRate)}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Entnahmerate</div>
+            <div className="text-xs text-slate-500 mt-1">{t("results.withdrawalRate")}</div>
           </CardContent>
         </Card>
         <Card data-design-id="kpi-max-drawdown">
@@ -115,7 +117,7 @@ export function ResultsDashboard() {
             <div className="text-2xl font-bold text-rose-600">
               {fmtPct(result.maxDrawdown)}
             </div>
-            <div className="text-xs text-slate-500 mt-1">Max. Drawdown</div>
+            <div className="text-xs text-slate-500 mt-1">{t("results.maxDrawdown")}</div>
           </CardContent>
         </Card>
       </div>
@@ -125,11 +127,11 @@ export function ResultsDashboard() {
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-slate-500">Nachhaltige monatliche Entnahme (95% Konfidenz)</div>
+                <div className="text-sm text-slate-500">{t("results.sustainableMonthly")}</div>
                 <div className="text-3xl font-bold text-[#5a8a50]">{fmtEur(result.sustainableWithdrawal)}</div>
               </div>
               <div className="text-right">
-                <div className="text-sm text-slate-500">Jährlich</div>
+                <div className="text-sm text-slate-500">{t("results.annualy")}</div>
                 <div className="text-xl font-bold text-[#5a8a50]">{fmtEur(result.sustainableWithdrawal * 12)}</div>
               </div>
             </div>
@@ -140,7 +142,7 @@ export function ResultsDashboard() {
       {result.requiredCapital !== undefined && (
         <Card className="border-neutral-200 bg-neutral-50/50" data-design-id="required-capital-card">
           <CardContent className="pt-4 pb-4">
-            <div className="text-sm text-slate-500">Erforderliches Kapital (95% Konfidenz)</div>
+            <div className="text-sm text-slate-500">{t("results.requiredCapital")}</div>
             <div className="text-3xl font-bold text-[#4D4A47]">{fmtEur(result.requiredCapital)}</div>
           </CardContent>
         </Card>
@@ -149,7 +151,7 @@ export function ResultsDashboard() {
       {result.requiredSavings !== undefined && (
         <Card className="border-red-200 bg-red-50/50" data-design-id="required-savings-card">
           <CardContent className="pt-4 pb-4">
-            <div className="text-sm text-slate-500">Erforderliche monatliche Sparrate (95% Konfidenz)</div>
+            <div className="text-sm text-slate-500">{t("results.requiredSavings")}</div>
             <div className="text-3xl font-bold text-[#D31220]">{fmtEur(result.requiredSavings)}</div>
           </CardContent>
         </Card>
@@ -157,7 +159,7 @@ export function ResultsDashboard() {
 
       <Card data-design-id="fan-chart-card">
         <CardHeader>
-          <CardTitle data-design-id="fan-chart-title">Portfolio-Projektion — Monte-Carlo-Fächerdiagramm</CardTitle>
+          <CardTitle data-design-id="fan-chart-title">{t("results.fanChartTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={420}>
@@ -166,23 +168,23 @@ export function ResultsDashboard() {
               <XAxis
                 dataKey="age"
                 tick={{ fontSize: 11 }}
-                label={{ value: "Alter", position: "insideBottom", offset: -5, fontSize: 12 }}
+                label={{ value: t("results.ageAxis"), position: "insideBottom", offset: -5, fontSize: 12 }}
               />
               <YAxis
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
-                label={{ value: "Portfoliowert (€)", angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
+                label={{ value: t("results.portfolioValue"), angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
               />
               <Tooltip
                 formatter={(value: number) => fmtEur(value)}
-                labelFormatter={(l) => `Alter ${l}`}
+                labelFormatter={(l) => `${t("results.ageAxis")} ${l}`}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
               <ReferenceLine
                 x={client.retirementAge}
                 stroke="#D31220"
                 strokeDasharray="5 5"
-                label={{ value: "Pension", fontSize: 10, fill: "#D31220" }}
+                label={{ value: t("results.pension"), fontSize: 10, fill: "#D31220" }}
               />
               {liquidityEvents.map((ev) => (
                 <ReferenceLine
@@ -199,12 +201,12 @@ export function ResultsDashboard() {
                   }}
                 />
               ))}
-              <Area type="monotone" dataKey="p90" stackId="1" stroke="none" fill="#F7D8CD" name="90. Perzentil" />
-              <Area type="monotone" dataKey="p75" stackId="2" stroke="none" fill="#EDAC98" name="75. Perzentil" />
-              <Area type="monotone" dataKey="median" stackId="3" stroke="#D31220" strokeWidth={2} fill="#E37E67" name="Median" />
-              <Area type="monotone" dataKey="p25" stackId="4" stroke="none" fill="#EDAC98" name="25. Perzentil" />
-              <Area type="monotone" dataKey="p10" stackId="5" stroke="none" fill="#F7D8CD" name="10. Perzentil" />
-              <Area type="monotone" dataKey="worst" stroke="#D31220" strokeWidth={1} fill="none" strokeDasharray="4 4" name="Schlechtester Fall" />
+              <Area type="monotone" dataKey="p90" stackId="1" stroke="none" fill="#F7D8CD" name={t("results.percentile90")} />
+              <Area type="monotone" dataKey="p75" stackId="2" stroke="none" fill="#EDAC98" name={t("results.percentile75")} />
+              <Area type="monotone" dataKey="median" stackId="3" stroke="#D31220" strokeWidth={2} fill="#E37E67" name={t("results.median")} />
+              <Area type="monotone" dataKey="p25" stackId="4" stroke="none" fill="#EDAC98" name={t("results.percentile25")} />
+              <Area type="monotone" dataKey="p10" stackId="5" stroke="none" fill="#F7D8CD" name={t("results.percentile10")} />
+              <Area type="monotone" dataKey="worst" stroke="#D31220" strokeWidth={1} fill="none" strokeDasharray="4 4" name={t("results.worstCase")} />
             </AreaChart>
           </ResponsiveContainer>
         </CardContent>
@@ -213,18 +215,18 @@ export function ResultsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-design-id="percentile-table-card">
           <CardHeader>
-            <CardTitle data-design-id="percentile-table-title">Endvermögen nach Perzentilen</CardTitle>
+            <CardTitle data-design-id="percentile-table-title">{t("results.endWealthPercentiles")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {[
-                { label: "95. Perzentil", value: result.percentiles.p95, color: "bg-neutral-100 text-[#20201E]" },
-                { label: "90. Perzentil", value: result.percentiles.p90, color: "bg-neutral-100 text-[#20201E]" },
-                { label: "75. Perzentil", value: result.percentiles.p75, color: "bg-sky-100 text-sky-700" },
-                { label: "50. (Median)", value: result.percentiles.p50, color: "bg-red-50 text-[#D31220]" },
-                { label: "25. Perzentil", value: result.percentiles.p25, color: "bg-amber-100 text-amber-700" },
-                { label: "10. Perzentil", value: result.percentiles.p10, color: "bg-orange-100 text-orange-700" },
-                { label: "5. Perzentil", value: result.percentiles.p5, color: "bg-rose-100 text-rose-700" },
+                { label: t("results.percentile95"), value: result.percentiles.p95, color: "bg-neutral-100 text-[#20201E]" },
+                { label: t("results.percentile90"), value: result.percentiles.p90, color: "bg-neutral-100 text-[#20201E]" },
+                { label: t("results.percentile75"), value: result.percentiles.p75, color: "bg-sky-100 text-sky-700" },
+                { label: t("results.percentile50"), value: result.percentiles.p50, color: "bg-red-50 text-[#D31220]" },
+                { label: t("results.percentile25"), value: result.percentiles.p25, color: "bg-amber-100 text-amber-700" },
+                { label: t("results.percentile10"), value: result.percentiles.p10, color: "bg-orange-100 text-orange-700" },
+                { label: t("results.percentile5"), value: result.percentiles.p5, color: "bg-rose-100 text-rose-700" },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-slate-50">
                   <span className="text-sm text-slate-600">{row.label}</span>
@@ -239,17 +241,17 @@ export function ResultsDashboard() {
 
         <Card data-design-id="portfolio-metrics-card">
           <CardHeader>
-            <CardTitle data-design-id="portfolio-metrics-title">Portfolio- & Risikokennzahlen</CardTitle>
+            <CardTitle data-design-id="portfolio-metrics-title">{t("results.portfolioMetrics")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {[
-                { label: "Erwartete Rendite (p.a.)", value: fmtPct(result.portfolioReturn) },
-                { label: "Volatilität (p.a.)", value: fmtPct(result.portfolioVolatility) },
-                { label: "Sharpe Ratio", value: result.sharpeRatio.toFixed(2) },
-                { label: "Max. Drawdown (Median)", value: fmtPct(result.maxDrawdown) },
-                { label: "Kapital bei Pensionierung (Median)", value: fmtEur(capitalAtRet) },
-                { label: "Anfängliche Entnahmerate", value: fmtPct(withdrawalRate) },
+                { label: t("results.expectedReturnPA"), value: fmtPct(result.portfolioReturn) },
+                { label: t("results.volatilityPA"), value: fmtPct(result.portfolioVolatility) },
+                { label: t("results.sharpeRatio"), value: result.sharpeRatio.toFixed(2) },
+                { label: t("results.maxDrawdownMedian"), value: fmtPct(result.maxDrawdown) },
+                { label: t("results.capitalAtRetirement"), value: fmtEur(capitalAtRet) },
+                { label: t("results.initialWithdrawalRate"), value: fmtPct(withdrawalRate) },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
                   <span className="text-sm text-slate-500">{row.label}</span>
@@ -259,13 +261,13 @@ export function ResultsDashboard() {
 
               {result.failureYear && (
                 <div className="mt-3 p-3 bg-rose-50 rounded-lg border border-rose-200">
-                  <div className="text-xs text-rose-500">Frühestes Versagensalter</div>
+                  <div className="text-xs text-rose-500">{t("results.earliestFailure")}</div>
                   <div className="text-lg font-bold text-rose-600">
                     {Math.round(result.failureYear)}
                   </div>
                   {result.medianFailureYear && (
                     <div className="text-xs text-rose-400 mt-1">
-                      Medianes Versagensalter: {Math.round(result.medianFailureYear)}
+                      {t("results.medianFailure")}: {Math.round(result.medianFailureYear)}
                     </div>
                   )}
                 </div>
@@ -278,7 +280,7 @@ export function ResultsDashboard() {
       {heatmapData.length > 0 && (
         <Card data-design-id="heatmap-card">
           <CardHeader>
-            <CardTitle data-design-id="heatmap-title">Entnahme vs. Erfolgsquote</CardTitle>
+            <CardTitle data-design-id="heatmap-title">{t("results.heatmapTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -288,13 +290,13 @@ export function ResultsDashboard() {
                   dataKey="withdrawal"
                   tick={{ fontSize: 10 }}
                   tickFormatter={(v) => `€${(v / 1000).toFixed(1)}k`}
-                  label={{ value: "Monatliche Entnahme (€)", position: "insideBottom", offset: -5, fontSize: 12 }}
+                  label={{ value: t("results.monthlyWithdrawal"), position: "insideBottom", offset: -5, fontSize: 12 }}
                 />
                 <YAxis
                   tick={{ fontSize: 11 }}
                   domain={[0, 100]}
                   tickFormatter={(v) => `${v}%`}
-                  label={{ value: "Erfolgsquote", angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
+                  label={{ value: t("results.successRate"), angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
                 />
                 <Tooltip
                   formatter={(value: number) => `${value.toFixed(1)}%`}
@@ -302,7 +304,7 @@ export function ResultsDashboard() {
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />
                 <ReferenceLine y={95} stroke="#5a8a50" strokeDasharray="3 3" label={{ value: "95%", fontSize: 10 }} />
-                <Bar dataKey="successRate" name="Erfolgsquote" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="successRate" name={t("results.successRate")} radius={[4, 4, 0, 0]}>
                   {heatmapData.map((entry, idx) => (
                     <Cell
                       key={idx}
