@@ -3,28 +3,15 @@
 /*
  * Security headers for intranet / bank deployment.
  * Addresses audit finding F-02 (CWE-693 / CWE-1021, OWASP A05:2021,
- * ASVS V14.4). Rolled out enforcing (not report-only) because the app has
- *   - no inline <script> blocks (F-04 fix removed the last one) and
- *   - no third-party JS at runtime.
- * Tailwind requires `style-src 'unsafe-inline'` for its generated <style>
- * elements; this is accepted trade-off per Next.js defaults.
+ * ASVS V14.4).
+ *
+ * CSP note: the Content-Security-Policy header is set dynamically per
+ * request in `src/middleware.ts` (with a fresh nonce so that Next.js's
+ * inline hydration / RSC streaming <script> tags are allowed to execute
+ * while still blocking any other inline script). The remaining headers
+ * below are static and apply to every response.
  */
 const SECURITY_HEADERS = [
-  {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      "script-src 'self'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self' data:",
-      "connect-src 'self'",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "object-src 'none'",
-    ].join('; '),
-  },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

@@ -12,7 +12,7 @@ Composition Analysis, CVSS v4.0, OWASP Top 10 (2021), ASVS 4.0.3.
 | Finding | Severity | Status   | Umsetzung                                                                          |
 | ------- | -------- | -------- | ---------------------------------------------------------------------------------- |
 | F-01    | HIGH     | ✅ Behoben | `safeCell()` in Excel- und PowerPoint-Export (`src/lib/export/sanitize.ts`)        |
-| F-02    | MEDIUM   | ✅ Behoben | Produktions-Security-Header (CSP, HSTS, X-Frame-Options, …) in `next.config.js`    |
+| F-02    | MEDIUM   | ✅ Behoben | Produktions-Security-Header (CSP mit Nonce + `strict-dynamic` in `src/middleware.ts`, HSTS / X-Frame-Options / … in `next.config.js`) |
 | F-03    | MEDIUM   | ✅ Behoben | `mathjs` entfernt (`bun remove mathjs`)                                            |
 | F-04    | MEDIUM   | ✅ Behoben | Inline-`postMessage`-Script aus `src/app/layout.tsx` entfernt                      |
 | F-05    | MEDIUM   | ✅ Behoben | `ignoreBuildErrors` / `ignoreDuringBuilds` → `false`; TS- und Lint-Errors behoben  |
@@ -47,22 +47,42 @@ attacker-nicht-kontrollierten Transitive-Pfaden (exceljs › archiver).
 
 **CWE-693 / CWE-1021, OWASP A05:2021, ASVS V14.4.**
 
-In `next.config.js → async headers()` werden für Production folgende Header
-gesetzt:
+Für Production werden folgende Header gesetzt — die statischen Header in
+`next.config.js → async headers()`, die **CSP pro Request** mit frischem
+Nonce in `src/middleware.ts`:
 
-| Header                      | Wert                                                                                                                                                                                                                                     |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Content-Security-Policy`   | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'` |
-| `X-Frame-Options`           | `DENY`                                                                                                                                                                                                                                   |
-| `X-Content-Type-Options`    | `nosniff`                                                                                                                                                                                                                                |
-| `Referrer-Policy`           | `strict-origin-when-cross-origin`                                                                                                                                                                                                        |
-| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload`                                                                                                                                                                                           |
-| `Permissions-Policy`        | `camera=(), microphone=(), geolocation=(), payment=(), usb=()`                                                                                                                                                                           |
-| `X-DNS-Prefetch-Control`    | `off`                                                                                                                                                                                                                                    |
+| Header                      | Wert                                                                                                                                                                                                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Content-Security-Policy`   | `default-src 'self'; script-src 'self' 'nonce-<per-request>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'` |
+| `X-Frame-Options`           | `DENY`                                                                                                                                                                                                                                                                      |
+| `X-Content-Type-Options`    | `nosniff`                                                                                                                                                                                                                                                                   |
+| `Referrer-Policy`           | `strict-origin-when-cross-origin`                                                                                                                                                                                                                                           |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload`                                                                                                                                                                                                                              |
+| `Permissions-Policy`        | `camera=(), microphone=(), geolocation=(), payment=(), usb=()`                                                                                                                                                                                                              |
+| `X-DNS-Prefetch-Control`    | `off`                                                                                                                                                                                                                                                                       |
 
-CSP ist direkt im Enforce-Modus aktiv, da die App nach Entfernung des
-Inline-Scripts (F-04) keine `script-src 'unsafe-inline'` mehr benötigt
-und keine externe JavaScript-Ressourcen lädt.
+### Warum Nonce + `strict-dynamic`?
+
+Next.js 15 (App Router) emittiert für jedes Rendering eigene
+`<script>…self.__next_f.push([…])…</script>`-Blöcke, um die React-Server-
+Component-Payload und die Hydration-Instruktionen an den Client zu streamen.
+Eine reine `script-src 'self'`-CSP blockiert diese Inline-Blöcke → React
+hydriert nicht, die Seite bleibt leer.
+
+Die Middleware generiert deshalb pro Request ein kryptographisch zufälliges
+Nonce (16 Byte, Base64), setzt den Request-Header `x-nonce`, damit Next.js
+das Nonce an allen eigenen Inline-Scripts anbringt, und setzt gleichzeitig
+den Response-Header `Content-Security-Policy` mit
+`'nonce-<value>' 'strict-dynamic'`. Das bedeutet:
+
+- Nur Inline-Scripts mit dem korrekten Nonce laufen (also ausschließlich
+  die von Next.js selbst generierten).
+- `'strict-dynamic'` erlaubt dynamisch nachgeladene Chunks, die von einem
+  nonce-validen Script angefordert werden (Webpack-Runtime, App-Chunks),
+  ohne dass jeder Chunk-Hash einzeln whitelisted werden muss.
+- Alle anderen Inline-Scripts (z. B. von einem XSS-Payload eingeschleuste)
+  werden weiterhin blockiert.
+- Externe Hosts sind nach wie vor gesperrt — keine Third-Party-JS.
 
 `style-src 'unsafe-inline'` bleibt notwendig, weil Tailwind/Next.js
 generierte `<style>`-Blöcke einsetzt.
