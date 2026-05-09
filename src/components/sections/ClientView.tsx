@@ -13,7 +13,7 @@ import { AdvisorSettings } from "./AdvisorSettings";
 
 export function ClientView() {
   const { state } = useAppState();
-  const { client, advisor, inputs, portfolio, result, historicalResult, liquidityEvents } = state;
+  const { client, advisor, inputs, portfolio, result, historicalResult, liquidityEvents, scenarios, detailedTrace } = state;
   const { t } = useI18n();
 
   const [locale, setLocale] = useState<Locale>("de");
@@ -21,6 +21,9 @@ export function ClientView() {
   const [pin, setPin] = useState("");
   const [includeHistorical, setIncludeHistorical] = useState(true);
   const [includeScenarios, setIncludeScenarios] = useState(true);
+  const [includeSavedScenarios, setIncludeSavedScenarios] = useState(true);
+  const [includeDetailedPath, setIncludeDetailedPath] = useState(true);
+  const [includeMifid, setIncludeMifid] = useState(true);
   const [busy, setBusy] = useState<"html" | "pdf" | null>(null);
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -55,6 +58,11 @@ export function ClientView() {
           pin: pinEnabled ? pin : undefined,
           includeHistorical,
           includeLiquidityEvents: includeScenarios,
+          includeSavedScenarios,
+          includeDetailedPath,
+          includeMifid,
+          scenarios,
+          detailedTrace,
         },
       );
       const date = new Date().toISOString().slice(0, 10);
@@ -192,6 +200,42 @@ export function ClientView() {
                 disabled={liquidityEvents.length === 0}
               />
             </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="inc-mifid">
+                {locale === "de" ? "MiFID II Risikoprofil im Kundentext" : "MiFID II risk profile in client text"}
+              </Label>
+              <Switch
+                id="inc-mifid"
+                checked={includeMifid}
+                onCheckedChange={setIncludeMifid}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="inc-scen">
+                {locale === "de"
+                  ? `Gespeicherte Szenarien zeigen${scenarios.length > 0 ? ` (${scenarios.length})` : ""}`
+                  : `Show saved scenarios${scenarios.length > 0 ? ` (${scenarios.length})` : ""}`}
+              </Label>
+              <Switch
+                id="inc-scen"
+                checked={includeSavedScenarios}
+                onCheckedChange={setIncludeSavedScenarios}
+                disabled={scenarios.length === 0}
+              />
+            </div>
+            <div className="flex items-center justify-between md:col-span-2">
+              <Label htmlFor="inc-trace">
+                {locale === "de"
+                  ? "Generierten Einzelpfad zeigen (Jahr-für-Jahr-Tabelle)"
+                  : "Show generated individual path (year-by-year table)"}
+              </Label>
+              <Switch
+                id="inc-trace"
+                checked={includeDetailedPath}
+                onCheckedChange={setIncludeDetailedPath}
+                disabled={!detailedTrace}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -208,7 +252,8 @@ export function ClientView() {
           <CardContent className="space-y-4">
             <p className="text-sm text-slate-600">{t("clientview.downloadHtmlDesc")}</p>
             <ul className="text-xs text-slate-500 space-y-1">
-              <li>• {locale === "de" ? "Interaktive Charts (Hover-Tooltips)" : "Interactive charts (hover tooltips)"}</li>
+              <li>• {locale === "de" ? "Interaktive Charts mit Hover-Crosshair & Werte-Tooltip" : "Interactive charts with hover crosshair & value tooltips"}</li>
+              <li>• {locale === "de" ? "Gespeicherte Szenarien & Einzelpfad-Tabelle (optional)" : "Saved scenarios & individual-path table (optional)"}</li>
               <li>• {locale === "de" ? "Optionaler PIN-Schutz (SHA-256)" : "Optional PIN protection (SHA-256)"}</li>
               <li>• {locale === "de" ? "\"Details einblenden\" für Methodik und Portfolio-Tabelle" : "\"Show details\" for methodology and portfolio table"}</li>
               <li>• {locale === "de" ? "Druckbar (Browser-Druck)" : "Printable (browser print)"}</li>

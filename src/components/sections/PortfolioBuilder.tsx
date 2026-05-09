@@ -6,10 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { AssetBucket, PortfolioConfig } from "@/lib/types";
+import type { AssetBucket, PortfolioConfig, MifidProfile } from "@/lib/types";
 import { computePortfolioReturn, computePortfolioVolatility, computeSharpeRatio } from "@/lib/engine/portfolio";
 import { fmtPct } from "@/lib/format";
+
+// MiFID II presets: [cash%, bonds%, equities%]
+const MIFID_PRESETS: Record<MifidProfile, [number, number, number]> = {
+  conservative: [30, 55, 15],
+  balanced:     [15, 35, 50],
+  growth:       [10, 20, 70],
+  speculative:  [ 5, 15, 80],
+};
 
 const BUCKET_COLORS = [
   { bg: "bg-[#8FB687]/10", border: "border-[#8FB687]/40", accent: "text-[#5a8a50]", fill: "bg-[#8FB687]" },
@@ -92,12 +101,39 @@ export function PortfolioBuilderSection() {
     dispatch({ type: "SET_PORTFOLIO", payload: { correlationMatrix: newMatrix } });
   };
 
+  const applyMifidPreset = (profile: MifidProfile) => {
+    const [cashAlloc, bondsAlloc, eqAlloc] = MIFID_PRESETS[profile];
+    const newBuckets = portfolio.buckets.map((b, i) => {
+      const alloc = [cashAlloc, bondsAlloc, eqAlloc][i];
+      return { ...b, allocation: alloc };
+    }) as PortfolioConfig["buckets"];
+    dispatch({ type: "SET_PORTFOLIO", payload: { buckets: newBuckets, mifidProfile: profile } });
+  };
+
   const portReturn = computePortfolioReturn(portfolio) * 100;
   const portVol = computePortfolioVolatility(portfolio) * 100;
   const riskFree = portfolio.buckets[0].netReturn / 100;
   const sharpe = computeSharpeRatio(portReturn / 100, portVol / 100, riskFree);
 
+  // Fallback-Labels, falls der Nutzer den Topf-Namen leer lässt
   const bucketLabelKeys = ["portfolio.cash", "portfolio.bonds", "portfolio.equities"];
+  const bucketLabel = (i: number) =>
+    portfolio.buckets[i].label?.trim() ? portfolio.buckets[i].label : t(bucketLabelKeys[i]);
+
+  const resetBucketLabel = (index: number) => {
+    const newBuckets = [...portfolio.buckets] as PortfolioConfig["buckets"];
+    newBuckets[index] = { ...newBuckets[index], label: t(bucketLabelKeys[index]) };
+    dispatch({ type: "SET_PORTFOLIO", payload: { buckets: newBuckets } });
+  };
+
+  const mifidProfiles: MifidProfile[] = ["conservative", "balanced", "growth", "speculative"];
+  const mifidColors: Record<MifidProfile, string> = {
+    conservative: "border-[#8FB687] bg-[#8FB687]/10 text-[#5a8a50]",
+    balanced:     "border-[#87BBE6] bg-[#87BBE6]/10 text-[#3a7cb8]",
+    growth:       "border-amber-300 bg-amber-50 text-amber-700",
+    speculative:  "border-[#D31220]/40 bg-[#D31220]/5 text-[#D31220]",
+  };
+  const mifidActive = portfolio.mifidProfile;
 
   return (
     <div className="space-y-6" data-design-id="portfolio-builder-section">
@@ -105,6 +141,48 @@ export function PortfolioBuilderSection() {
         <h2 className="text-2xl font-bold text-slate-900" data-design-id="portfolio-builder-title">{t("portfolio.title")}</h2>
         <p className="text-slate-500 mt-1" data-design-id="portfolio-builder-subtitle">{t("portfolio.subtitle")}</p>
       </div>
+
+      {/* MiFID II Risk Profile Selector */}
+      <Card className="border-[#87BBE6]/40 bg-[#87BBE6]/5" data-design-id="mifid-selector-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2" data-design-id="mifid-title">
+            <span className="w-8 h-8 rounded-lg bg-[#87BBE6]/20 text-[#3a7cb8] flex items-center justify-center text-sm font-bold">§</span>
+            {t("portfolio.mifidTitle")}
+          </CardTitle>
+          <p className="text-xs text-slate-500 mt-1">{t("portfolio.mifidDesc")}</p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {mifidProfiles.map((profile) => (
+              <button
+                key={profile}
+                type="button"
+                onClick={() => applyMifidPreset(profile)}
+                className={`rounded-xl border-2 p-3 text-left transition-all hover:shadow-md ${
+                  mifidActive === profile
+                    ? `${mifidColors[profile]} shadow-md ring-2 ring-offset-1`
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <div className="text-sm font-bold mb-1">{t(`portfolio.mifid${profile.charAt(0).toUpperCase() + profile.slice(1)}`)}</div>
+                <div className="text-[10px] text-slate-500 leading-snug">{t(`portfolio.mifid${profile.charAt(0).toUpperCase() + profile.slice(1)}Desc`)}</div>
+                <div className="mt-2 flex gap-1">
+                  {MIFID_PRESETS[profile].map((alloc, i) => (
+                    <div
+                      key={i}
+                      className={`h-1.5 rounded-full ${["bg-[#8FB687]","bg-[#87BBE6]","bg-[#D31220]"][i]}`}
+                      style={{ width: `${alloc}%`, flex: "none" }}
+                    />
+                  ))}
+                </div>
+                <div className="text-[9px] text-slate-400 mt-1">
+                  {MIFID_PRESETS[profile][0]}% / {MIFID_PRESETS[profile][1]}% / {MIFID_PRESETS[profile][2]}%
+                </div>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-slate-200" data-design-id="allocation-bar-card">
         <CardContent className="pt-6">
@@ -117,7 +195,7 @@ export function PortfolioBuilderSection() {
           </div>
           <div className="flex justify-between text-xs text-slate-500">
             {portfolio.buckets.map((b, i) => (
-              <span key={b.name} className={BUCKET_COLORS[i].accent}>{t(bucketLabelKeys[i])}: {b.allocation}%</span>
+              <span key={b.name} className={BUCKET_COLORS[i].accent}>{bucketLabel(i)}: {b.allocation}%</span>
             ))}
           </div>
         </CardContent>
@@ -127,11 +205,34 @@ export function PortfolioBuilderSection() {
         {portfolio.buckets.map((bucket, index) => (
           <Card key={bucket.name} className={`${BUCKET_COLORS[index].border} ${BUCKET_COLORS[index].bg}`} data-design-id={`bucket-card-${index}`}>
             <CardHeader className="pb-3">
-              <CardTitle className={`text-base ${BUCKET_COLORS[index].accent}`} data-design-id={`bucket-title-${index}`}>
-                {t("portfolio.bucket")} {index + 1}: {t(bucketLabelKeys[index])}
+              <CardTitle className={`text-base ${BUCKET_COLORS[index].accent} flex items-center gap-2`} data-design-id={`bucket-title-${index}`}>
+                <span className="shrink-0 opacity-70">{t("portfolio.bucket")} {index + 1}:</span>
+                <span className="flex-1 truncate">{bucketLabel(index)}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div data-design-id={`bucket-label-${index}`}>
+                <Label className="text-xs flex items-center justify-between">
+                  <span>{t("portfolio.bucketLabelField")}</span>
+                  {bucket.label?.trim() && bucket.label !== t(bucketLabelKeys[index]) && (
+                    <button
+                      type="button"
+                      onClick={() => resetBucketLabel(index)}
+                      className="text-[10px] text-slate-400 hover:text-slate-600 underline"
+                    >
+                      {t("portfolio.bucketLabelReset")}
+                    </button>
+                  )}
+                </Label>
+                <Input
+                  type="text"
+                  value={bucket.label ?? ""}
+                  onChange={(e) => updateBucket(index, "label", e.target.value)}
+                  placeholder={t(bucketLabelKeys[index])}
+                  maxLength={40}
+                  className="h-8 text-sm font-medium"
+                />
+              </div>
               <div data-design-id={`bucket-allocation-${index}`}>
                 <Label className="text-xs">{t("portfolio.allocation")}</Label>
                 <Slider value={[bucket.allocation]} onValueChange={([val]) => updateAllocation(index, val)} max={100} min={0} step={1} className="my-2" />
@@ -178,13 +279,13 @@ export function PortfolioBuilderSection() {
                 <thead>
                   <tr>
                     <th className="text-left py-2 pr-3 text-slate-500 font-medium"></th>
-                    <th className="py-2 px-2 text-center text-[#5a8a50] font-medium">{t("portfolio.cash")}</th>
-                    <th className="py-2 px-2 text-center text-[#4D4A47] font-medium">{t("portfolio.bonds")}</th>
-                    <th className="py-2 px-2 text-center text-[#D31220] font-medium">{t("portfolio.equities")}</th>
+                    <th className="py-2 px-2 text-center text-[#5a8a50] font-medium">{bucketLabel(0)}</th>
+                    <th className="py-2 px-2 text-center text-[#4D4A47] font-medium">{bucketLabel(1)}</th>
+                    <th className="py-2 px-2 text-center text-[#D31220] font-medium">{bucketLabel(2)}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[t("portfolio.cash"), t("portfolio.bonds"), t("portfolio.equities")].map((label, i) => (
+                  {[bucketLabel(0), bucketLabel(1), bucketLabel(2)].map((label, i) => (
                     <tr key={label}>
                       <td className="py-2 pr-3 font-medium text-slate-700">{label}</td>
                       {[0, 1, 2].map((j) => (
@@ -211,11 +312,38 @@ export function PortfolioBuilderSection() {
             <CardTitle className="text-lg" data-design-id="rebalancing-title">{t("portfolio.rebalancingTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm" data-design-id="three-bucket-info">
-              <div className="font-semibold text-amber-800 mb-1">{t("portfolio.strategyTitle")}</div>
-              <div className="text-amber-700 text-xs space-y-1">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm space-y-3" data-design-id="three-bucket-info">
+              <div className="font-semibold text-amber-800">{t("portfolio.strategyTitle")}</div>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex gap-2 items-start">
+                  <span className="text-base">🟢</span>
+                  <div>
+                    <div className="font-semibold text-amber-800 text-xs">{bucketLabel(0)} — {t("portfolio.threeBucketCash")}</div>
+                    <div className="text-amber-700 text-[11px]">{t("portfolio.threeBucketCashDesc")}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2 items-start">
+                  <span className="text-base">🔵</span>
+                  <div>
+                    <div className="font-semibold text-amber-800 text-xs">{bucketLabel(1)} — {t("portfolio.threeBucketBonds")}</div>
+                    <div className="text-amber-700 text-[11px]">{t("portfolio.threeBucketBondsDesc")}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2 items-start">
+                  <span className="text-base">🔴</span>
+                  <div>
+                    <div className="font-semibold text-amber-800 text-xs">{bucketLabel(2)} — {t("portfolio.threeBucketEquities")}</div>
+                    <div className="text-amber-700 text-[11px]">{t("portfolio.threeBucketEquitiesDesc")}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-amber-200 pt-2">
+                <div className="font-semibold text-amber-800 text-[11px] mb-1">{t("portfolio.threeBucketDeepTitle")}</div>
+                <p className="text-amber-700 text-[11px] leading-relaxed">{t("portfolio.threeBucketDeepBody")}</p>
+              </div>
+              <div className="text-amber-700 text-xs space-y-0.5 border-t border-amber-200 pt-2">
                 <p><strong>{t("portfolio.strategyAccumulation")}</strong> {t("portfolio.strategyAccumulationDesc")}</p>
-                <p><strong>{t("portfolio.strategyWithdrawal")}</strong> {t("portfolio.cash")} {portfolio.cashYearsTarget} {t("portfolio.strategyWithdrawalDesc")}</p>
+                <p><strong>{t("portfolio.strategyWithdrawal")}</strong> {portfolio.cashYearsTarget} {t("portfolio.strategyWithdrawalDesc")}</p>
                 <p><strong>{t("portfolio.strategyRefill")}</strong> {t("portfolio.strategyRefillDesc")}</p>
               </div>
             </div>

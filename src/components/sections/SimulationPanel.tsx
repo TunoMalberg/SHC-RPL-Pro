@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -31,58 +32,70 @@ export function SimulationPanel() {
   const { settings, client, inputs, portfolio, liquidityEvents } = state;
   const { t } = useI18n();
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState("");
+  const [progressPct, setProgressPct] = useState(0);
+  const [progressStep, setProgressStep] = useState("");
+  const [progressDone, setProgressDone] = useState("");
 
   const runSimulation = useCallback(async () => {
     setRunning(true);
-    setProgress(t("sim.progressMC"));
+    setProgressDone("");
+    setProgressPct(5);
+    setProgressStep(t("sim.progressStep1"));
 
     await new Promise((r) => setTimeout(r, 50));
 
     try {
       const result = runMonteCarloSimulation(client, inputs, portfolio, settings, liquidityEvents);
+      setProgressPct(40);
 
       if (settings.mode === "sustainable_withdrawal") {
-        setProgress(t("sim.progressSustainable"));
+        setProgressStep(t("sim.progressStep2"));
         await new Promise((r) => setTimeout(r, 20));
         result.sustainableWithdrawal = findSustainableWithdrawal(
           client, inputs, portfolio, settings, 95, liquidityEvents
         );
+        setProgressPct(55);
       }
 
       if (settings.mode === "required_capital") {
-        setProgress(t("sim.progressCapital"));
+        setProgressStep(t("sim.progressStep3"));
         await new Promise((r) => setTimeout(r, 20));
         result.requiredCapital = findRequiredCapital(
           client, inputs, portfolio, settings, 95, liquidityEvents
         );
+        setProgressPct(55);
       }
 
       if (settings.mode === "required_savings") {
-        setProgress(t("sim.progressSavings"));
+        setProgressStep(t("sim.progressStep4"));
         await new Promise((r) => setTimeout(r, 20));
         result.requiredSavings = findRequiredSavingsRate(
           client, inputs, portfolio, settings, 95, liquidityEvents
         );
+        setProgressPct(55);
       }
 
-      setProgress(t("sim.progressHeatmap"));
+      setProgressStep(t("sim.progressStep5"));
+      setProgressPct(65);
       await new Promise((r) => setTimeout(r, 20));
       result.withdrawalHeatmap = generateWithdrawalHeatmap(
         client, inputs, portfolio, settings, liquidityEvents
       );
+      setProgressPct(80);
 
       dispatch({ type: "SET_RESULT", payload: result });
 
-      setProgress(t("sim.progressHistorical"));
+      setProgressStep(t("sim.progressStep6"));
       await new Promise((r) => setTimeout(r, 20));
       const historicalResult = runHistoricalBacktest(client, inputs, portfolio, liquidityEvents);
       dispatch({ type: "SET_HISTORICAL", payload: historicalResult });
 
-      setProgress(t("sim.progressDone"));
+      setProgressPct(100);
+      setProgressStep("");
+      setProgressDone(t("sim.progressDone"));
       dispatch({ type: "SET_TAB", payload: "results" });
     } catch (err) {
-      setProgress(`${t("sim.progressError")}: ${err instanceof Error ? err.message : t("sim.unknownError")}`);
+      setProgressStep(`${t("sim.progressError")}: ${err instanceof Error ? err.message : t("sim.unknownError")}`);
     } finally {
       setRunning(false);
     }
@@ -267,17 +280,42 @@ export function SimulationPanel() {
             >
               {running ? (
                 <span className="flex items-center gap-2">
-                  <span className="animate-spin">⟳</span>
-                  {progress}
+                  <span className="animate-spin inline-block">⟳</span>
+                  {t("sim.progressLabel").replace("{n}", settings.numSimulations.toLocaleString())}
                 </span>
               ) : (
                 t("sim.runButton")
               )}
             </Button>
 
-            {!running && progress && (
+            {running && (
+              <div className="space-y-2" data-design-id="sim-progress">
+                <Progress value={progressPct} className="h-3" />
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span className="font-medium text-[#D31220]">{progressStep}</span>
+                  <span className="font-bold">{progressPct}%</span>
+                </div>
+                <div className="grid grid-cols-6 gap-1">
+                  {[
+                    { label: "MC", pct: 40 },
+                    { label: "SWR", pct: 55 },
+                    { label: "Cap", pct: 60 },
+                    { label: "Sav", pct: 65 },
+                    { label: "Heat", pct: 80 },
+                    { label: "Hist", pct: 100 },
+                  ].map((step) => (
+                    <div
+                      key={step.label}
+                      className={`h-1.5 rounded-full transition-colors ${progressPct >= step.pct ? "bg-[#D31220]" : "bg-slate-200"}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!running && progressDone && (
               <p className="text-sm text-center text-[#5a8a50] font-medium" data-design-id="sim-status">
-                {progress}
+                ✓ {progressDone}
               </p>
             )}
           </CardContent>

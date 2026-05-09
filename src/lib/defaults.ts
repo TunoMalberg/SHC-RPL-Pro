@@ -14,6 +14,12 @@ export const defaultClient: ClientProfile = {
   lifeExpectancy: 90,
   currency: "EUR",
   notes: "",
+  advisoryDate: new Date().toISOString().split("T")[0],
+  advisoryMeetingType: "in_person",
+  advisoryNotes: "",
+  advisoryNextSteps: "",
+  advisoryRiskDisclosed: false,
+  advisoryMifidConfirmed: false,
 };
 
 export const defaultInputs: FinancialInputs = {

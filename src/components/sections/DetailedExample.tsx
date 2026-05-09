@@ -41,18 +41,25 @@ export function DetailedExampleSection() {
     dispatch({ type: "SET_DETAILED_TRACE", payload: trace });
   };
 
+  // Nutzer-definierte Topf-Bezeichnungen (fällt auf Übersetzung zurück)
+  const bucketName = (i: 0 | 1 | 2, fallbackKey: string) =>
+    portfolio.buckets[i]?.label?.trim() ? portfolio.buckets[i].label : t(fallbackKey);
+  const cashLabel = bucketName(0, "detailed.cash");
+  const bondsLabel = bucketName(1, "detailed.bonds");
+  const equitiesLabel = bucketName(2, "detailed.equities");
+
   const chartData = useMemo(() => {
     if (!detailedTrace) return [];
     return detailedTrace.rows.map((r) => ({
       age: r.age,
       year: r.year,
-      [t("detailed.cash")]: Math.round(r.endCash),
-      [t("detailed.bonds")]: Math.round(r.endBonds),
-      [t("detailed.equities")]: Math.round(r.endEquities),
+      [cashLabel]: Math.round(r.endCash),
+      [bondsLabel]: Math.round(r.endBonds),
+      [equitiesLabel]: Math.round(r.endEquities),
       [t("detailed.total")]: Math.round(r.endTotal),
       liquidityEvent: r.liquidityEvent || 0,
     }));
-  }, [detailedTrace]);
+  }, [detailedTrace, cashLabel, bondsLabel, equitiesLabel, t]);
 
   const liquidityEventYears = useMemo(() => {
     if (!detailedTrace) return [];
@@ -202,7 +209,7 @@ export function DetailedExampleSection() {
                   ))}
                   <Area
                     type="monotone"
-                    dataKey={t("detailed.cash")}
+                    dataKey={cashLabel}
                     stackId="1"
                     fill={COLORS.cash}
                     stroke={COLORS.cash}
@@ -210,7 +217,7 @@ export function DetailedExampleSection() {
                   />
                   <Area
                     type="monotone"
-                    dataKey={t("detailed.bonds")}
+                    dataKey={bondsLabel}
                     stackId="1"
                     fill={COLORS.bonds}
                     stroke={COLORS.bonds}
@@ -218,7 +225,7 @@ export function DetailedExampleSection() {
                   />
                   <Area
                     type="monotone"
-                    dataKey={t("detailed.equities")}
+                    dataKey={equitiesLabel}
                     stackId="1"
                     fill={COLORS.equities}
                     stroke={COLORS.equities}
@@ -261,13 +268,13 @@ export function DetailedExampleSection() {
                       <th className="py-2 px-2 text-center font-semibold">{t("detailed.colPhase")}</th>
                       <th className="py-2 px-2 text-right font-semibold" colSpan={1}>{t("detailed.colStartTotal")}</th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#5a8a50]/20" style={{ color: "#d4edda" }}>
-                        {t("detailed.colCash")}
+                        {cashLabel}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#1a6eb0]/20" style={{ color: "#cce5ff" }}>
-                        {t("detailed.colBonds")}
+                        {bondsLabel}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#D31220]/20" style={{ color: "#f8d7da" }}>
-                        {t("detailed.colEquities")}
+                        {equitiesLabel}
                       </th>
                       <th className="py-2 px-2 text-right font-semibold bg-[#5a8a50]/20" style={{ color: "#d4edda" }}>
                         {t("detailed.colReturnPct")}
@@ -398,13 +405,13 @@ export function DetailedExampleSection() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
                 <div>
                   <p><span className="inline-block w-3 h-3 rounded-sm bg-[#8FB687] mr-2" />
-                    <strong>{t("detailed.cash")}</strong> — {t("detailed.legendCash").split(" — ")[1]}
+                    <strong>{cashLabel}</strong> — {t("detailed.legendCash").split(" — ")[1]}
                   </p>
                   <p><span className="inline-block w-3 h-3 rounded-sm bg-[#87BBE6] mr-2" />
-                    <strong>{t("detailed.bonds")}</strong> — {t("detailed.legendBonds").split(" — ")[1]}
+                    <strong>{bondsLabel}</strong> — {t("detailed.legendBonds").split(" — ")[1]}
                   </p>
                   <p><span className="inline-block w-3 h-3 rounded-sm bg-[#D31220] mr-2" />
-                    <strong>{t("detailed.equities")}</strong> — {t("detailed.legendEquities").split(" — ")[1]}
+                    <strong>{equitiesLabel}</strong> — {t("detailed.legendEquities").split(" — ")[1]}
                   </p>
                 </div>
                 <div>

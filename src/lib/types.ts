@@ -13,6 +13,12 @@ export interface ClientProfile {
   lifeExpectancy: number;
   currency: string;
   notes: string;
+  advisoryDate: string;
+  advisoryMeetingType: string;
+  advisoryNotes: string;
+  advisoryNextSteps: string;
+  advisoryRiskDisclosed: boolean;
+  advisoryMifidConfirmed: boolean;
 }
 
 export interface FinancialInputs {
@@ -37,6 +43,8 @@ export interface AssetBucket {
   netReturn: number;
 }
 
+export type MifidProfile = 'conservative' | 'balanced' | 'growth' | 'speculative';
+
 export interface PortfolioConfig {
   buckets: [AssetBucket, AssetBucket, AssetBucket];
   correlationMatrix: number[][];
@@ -44,6 +52,7 @@ export interface PortfolioConfig {
   rebalancingThreshold: number;
   cashYearsTarget: number; // 1-3 years of withdrawals held as cash in withdrawal phase
   kestRate: number; // Austrian KESt / capital gains tax rate in percent (default 27.5)
+  mifidProfile?: MifidProfile;
 }
 
 export interface SimulationSettings {

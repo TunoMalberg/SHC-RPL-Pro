@@ -6,13 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function ClientProfileSection() {
   const { state, dispatch } = useAppState();
   const { client } = state;
   const { t } = useI18n();
 
-  const update = (field: string, value: string | number) => {
+  const update = (field: string, value: string | number | boolean) => {
     dispatch({ type: "SET_CLIENT", payload: { [field]: value } });
   };
 
@@ -80,6 +82,91 @@ export function ClientProfileSection() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Beratungsprotokoll */}
+      <Card className="border-slate-200" data-design-id="advisory-protocol-card">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2" data-design-id="advisory-title">
+            <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-sm font-bold">📋</span>
+            {t("client.advisoryTitle")}
+          </CardTitle>
+          <p className="text-xs text-slate-500">{t("client.advisorySubtitle")}</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div data-design-id="advisory-date-field">
+              <Label htmlFor="advisoryDate">{t("client.advisoryDate")}</Label>
+              <Input
+                id="advisoryDate"
+                type="date"
+                value={client.advisoryDate ?? ""}
+                onChange={(e) => update("advisoryDate", e.target.value)}
+              />
+            </div>
+            <div data-design-id="advisory-meeting-type-field">
+              <Label>{t("client.advisoryMeetingType")}</Label>
+              <Select
+                value={client.advisoryMeetingType ?? "in_person"}
+                onValueChange={(v) => update("advisoryMeetingType", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_person">👤 {t("client.advisoryMeetingInPerson")}</SelectItem>
+                  <SelectItem value="phone">📞 {t("client.advisoryMeetingPhone")}</SelectItem>
+                  <SelectItem value="video">💻 {t("client.advisoryMeetingVideo")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div data-design-id="advisory-notes-field">
+            <Label htmlFor="advisoryNotes">{t("client.advisoryNotes")}</Label>
+            <Textarea
+              id="advisoryNotes"
+              value={client.advisoryNotes ?? ""}
+              onChange={(e) => update("advisoryNotes", e.target.value)}
+              placeholder={t("client.advisoryNotesPlaceholder")}
+              rows={4}
+            />
+          </div>
+
+          <div data-design-id="advisory-next-steps-field">
+            <Label htmlFor="advisoryNextSteps">{t("client.advisoryNextSteps")}</Label>
+            <Textarea
+              id="advisoryNextSteps"
+              value={client.advisoryNextSteps ?? ""}
+              onChange={(e) => update("advisoryNextSteps", e.target.value)}
+              placeholder={t("client.advisoryNextStepsPlaceholder")}
+              rows={2}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-2" data-design-id="advisory-risk-checkbox">
+              <Checkbox
+                id="riskDisclosed"
+                checked={client.advisoryRiskDisclosed ?? false}
+                onCheckedChange={(checked) => update("advisoryRiskDisclosed", checked as boolean)}
+              />
+              <Label htmlFor="riskDisclosed" className="text-sm cursor-pointer">
+                ✓ {t("client.advisoryRiskDisclosed")}
+              </Label>
+            </div>
+            <div className="flex items-center gap-2" data-design-id="advisory-mifid-checkbox">
+              <Checkbox
+                id="mifidConfirmed"
+                checked={client.advisoryMifidConfirmed ?? false}
+                onCheckedChange={(checked) => update("advisoryMifidConfirmed", checked as boolean)}
+              />
+              <Label htmlFor="mifidConfirmed" className="text-sm cursor-pointer">
+                § {t("client.advisoryMifidConfirmed")}
+              </Label>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-red-200 bg-red-50/30" data-design-id="client-summary-card">
         <CardContent className="pt-6">

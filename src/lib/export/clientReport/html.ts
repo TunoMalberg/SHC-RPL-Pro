@@ -17,19 +17,25 @@
 import type {
   AdvisorProfile,
   ClientProfile,
+  DetailedSimTrace,
   FinancialInputs,
   HistoricalAnalysis,
   LiquidityEvent,
+  MifidProfile,
   PortfolioConfig,
+  Scenario,
   SimulationResult,
 } from "../../types";
 import type { Locale } from "../../i18n";
 import { hashPin } from "./crypto";
 import {
   portfolioLegend,
+  renderDetailedPathSvg,
   renderHistoricalSvg,
   renderMonteCarloFanSvg,
   renderPortfolioDonutSvg,
+  renderScenariosComparisonSvg,
+  chartInteractionScript,
 } from "./chartSvg";
 
 /* HTML-escape. No external deps — deliberately minimal. */
@@ -57,9 +63,9 @@ const DE_STRINGS = {
   portfolio: "Ihr Portfolio",
   portfolioDesc: "Die Vermögensaufteilung bestimmt Rendite- und Risikoeigenschaften Ihres Plans.",
   simulation: "Vermögensverlauf (10.000 Simulationen)",
-  simulationDesc: "Die Bänder zeigen, in welcher Spanne sich Ihr Vermögen mit großer Wahrscheinlichkeit bewegen wird. Die schwarze Linie ist der mittlere Verlauf (Median).",
+  simulationDesc: "Die Bänder zeigen, in welcher Spanne sich Ihr Vermögen mit großer Wahrscheinlichkeit bewegen wird. Die schwarze Linie ist der mittlere Verlauf (Median). Bewegen Sie die Maus über den Chart für konkrete Werte je Alter.",
   historical: "Historischer Rückblick",
-  historicalDesc: "Wie hätte Ihr Plan unter den tatsächlichen Marktbedingungen der letzten Jahrzehnte abgeschnitten?",
+  historicalDesc: "Wie hätte Ihr Plan unter den tatsächlichen Marktbedingungen der letzten Jahrzehnte abgeschnitten? Bewegen Sie die Maus über einen Pfad für Details zum Startjahrgang.",
   histSuccessRate: "Erfolgsrate historisch",
   histWorst: "Schlechtester Startjahrgang",
   histBest: "Bester Startjahrgang",
@@ -100,6 +106,50 @@ const DE_STRINGS = {
   descHeader: "Beschreibung",
   amtHeader: "Betrag",
   contact: "Kontakt",
+  /* Scenarios */
+  scenariosTitle: "Ihre verglichenen Szenarien",
+  scenariosDesc: "Diese Szenarien haben wir gemeinsam in der Beratung festgehalten. Jede Linie zeigt den medianen Vermögensverlauf einer Variante — bewegen Sie die Maus über das Diagramm, um Werte für jedes Alter zu sehen.",
+  scenariosTableScenario: "Szenario",
+  scenariosTableSuccess: "Erfolgsrate",
+  scenariosTableMedian: "Median Endvermögen",
+  scenariosTableP10: "P10 (konservativ)",
+  scenariosTableP90: "P90 (optimistisch)",
+  scenariosTableWithdraw: "Entnahme/Monat",
+  scenariosTableCapital: "Startkapital",
+  /* Individual path */
+  detailedTitle: "Möglicher Einzelverlauf (Beispielpfad)",
+  detailedDesc: "Ein einzelner, zufällig gezogener Verlauf aus der Simulation — zeigt, wie Ihr Vermögen Jahr für Jahr aus den drei Töpfen zusammengesetzt sein könnte. Bewegen Sie die Maus über die Flächen für Werte je Alter.",
+  detailedFinalWealth: "Endvermögen in diesem Pfad",
+  detailedStatus: "Ergebnis",
+  detailedSuccess: "Entnahmeziel erreicht",
+  detailedDepleted: "Kapital vor Alter {age} erschöpft",
+  detailedTableToggle: "Jahr-für-Jahr-Tabelle einblenden",
+  detailedTableHideToggle: "Jahr-für-Jahr-Tabelle ausblenden",
+  detailedColYear: "Jahr",
+  detailedColAge: "Alter",
+  detailedColPhase: "Phase",
+  detailedColStart: "Start Total",
+  detailedColCashflow: "Cashflow",
+  detailedColRebal: "Rebal.",
+  detailedColEnd: "End Total",
+  phaseAccum: "Ansparen",
+  phaseWithdraw: "Entnahme",
+  /* MiFID */
+  mifidTitle: "Ihr Anlegerprofil (MiFID II)",
+  mifidIntro: "Auf Basis des gemeinsam ausgefüllten Eignungstests haben wir Ihre Anlagestrategie auf folgendes Profil abgestimmt:",
+  mifidSelected: "Zugewiesenes Risikoprofil",
+  mifidAllocation: "Zielallokation",
+  mifidConfirmedYes: "Eignungstest abgeschlossen und Risikohinweise erläutert.",
+  mifidConfirmedNo: "Bitte schließen Sie gemeinsam mit Ihrer Beraterin / Ihrem Berater den Eignungstest ab.",
+  mifidWhyMatters: "Was bedeutet das für Sie?",
+  mifidConservativeName: "Konservativ",
+  mifidConservativeDesc: "Kapitalerhalt steht vor Wertzuwachs. Geringe Schwankungen, überschaubares Verlustrisiko — geeignet, wenn Sicherheit und Planbarkeit wichtiger sind als hohe Renditen.",
+  mifidBalancedName: "Ausgewogen",
+  mifidBalancedDesc: "Ausgewogenes Verhältnis von Sicherheit und Wachstum. Zwischenzeitliche Schwankungen werden in Kauf genommen, weil langfristig höhere Erträge angestrebt werden — typische Wahl für Altersvorsorge.",
+  mifidGrowthName: "Wachstum",
+  mifidGrowthDesc: "Langfristiger Vermögensaufbau steht im Vordergrund. Höhere Schwankungen sind möglich; ein längerer Anlagehorizont und ein ruhiger Umgang mit Kursrückgängen werden vorausgesetzt.",
+  mifidSpeculativeName: "Spekulativ",
+  mifidSpeculativeDesc: "Maximale Renditechancen, mit entsprechend höheren Risiken. Auch stärkere Wertrückgänge sollten Sie aushalten können, ohne Ihre Anlagestrategie zu ändern.",
 };
 
 const EN_STRINGS: typeof DE_STRINGS = {
@@ -116,9 +166,9 @@ const EN_STRINGS: typeof DE_STRINGS = {
   portfolio: "Your portfolio",
   portfolioDesc: "Your asset allocation drives the return and risk profile of your plan.",
   simulation: "Wealth trajectory (10,000 simulations)",
-  simulationDesc: "The bands show the range your wealth is most likely to move within. The black line is the median path.",
+  simulationDesc: "The bands show the range your wealth is most likely to move within. The black line is the median path. Hover the chart to see concrete values for each age.",
   historical: "Historical lookback",
-  historicalDesc: "How would your plan have fared under the actual market conditions of recent decades?",
+  historicalDesc: "How would your plan have fared under the actual market conditions of recent decades? Hover a path for details about that starting year.",
   histSuccessRate: "Historical success rate",
   histWorst: "Worst starting year",
   histBest: "Best starting year",
@@ -159,6 +209,50 @@ const EN_STRINGS: typeof DE_STRINGS = {
   descHeader: "Description",
   amtHeader: "Amount",
   contact: "Contact",
+  /* Scenarios */
+  scenariosTitle: "Your compared scenarios",
+  scenariosDesc: "These are the scenarios we captured together during your advisory session. Each line is the median wealth path of a variant — hover the chart to see values for any age.",
+  scenariosTableScenario: "Scenario",
+  scenariosTableSuccess: "Success rate",
+  scenariosTableMedian: "Median final wealth",
+  scenariosTableP10: "P10 (conservative)",
+  scenariosTableP90: "P90 (optimistic)",
+  scenariosTableWithdraw: "Withdrawal/month",
+  scenariosTableCapital: "Initial capital",
+  /* Individual path */
+  detailedTitle: "One possible path (example trajectory)",
+  detailedDesc: "A single, randomly drawn path from the simulation — showing how your wealth could evolve year by year across the three buckets. Hover the areas to see values for any age.",
+  detailedFinalWealth: "Final wealth in this path",
+  detailedStatus: "Outcome",
+  detailedSuccess: "Withdrawal target achieved",
+  detailedDepleted: "Capital depleted before age {age}",
+  detailedTableToggle: "Show year-by-year table",
+  detailedTableHideToggle: "Hide year-by-year table",
+  detailedColYear: "Year",
+  detailedColAge: "Age",
+  detailedColPhase: "Phase",
+  detailedColStart: "Start total",
+  detailedColCashflow: "Cashflow",
+  detailedColRebal: "Rebal.",
+  detailedColEnd: "End total",
+  phaseAccum: "Accumulation",
+  phaseWithdraw: "Withdrawal",
+  /* MiFID */
+  mifidTitle: "Your investor profile (MiFID II)",
+  mifidIntro: "Based on the suitability test we completed together, we have aligned your investment strategy with the following profile:",
+  mifidSelected: "Assigned risk profile",
+  mifidAllocation: "Target allocation",
+  mifidConfirmedYes: "Suitability test completed and risk notices explained.",
+  mifidConfirmedNo: "Please complete the suitability test together with your advisor.",
+  mifidWhyMatters: "What does this mean for you?",
+  mifidConservativeName: "Conservative",
+  mifidConservativeDesc: "Capital preservation is prioritised over growth. Low volatility and a manageable loss risk — suitable if safety and predictability matter more to you than high returns.",
+  mifidBalancedName: "Balanced",
+  mifidBalancedDesc: "A balanced mix of safety and growth. Interim fluctuations are accepted in exchange for higher long-term returns — the typical choice for retirement planning.",
+  mifidGrowthName: "Growth",
+  mifidGrowthDesc: "Long-term wealth building is the priority. Higher fluctuations are possible; a longer investment horizon and a calm approach to market setbacks are required.",
+  mifidSpeculativeName: "Speculative",
+  mifidSpeculativeDesc: "Maximum return potential with correspondingly higher risks. You should be able to tolerate pronounced drawdowns without changing your investment strategy.",
 };
 
 const DISCLAIMER_DE = "Diese Unterlagen stellen eine Marketingmitteilung dar und wurden nicht im Einklang mit den Rechtsvorschriften zur Förderung der Unabhängigkeit von Anlageanalysen erstellt. Sie unterliegen nicht dem Verbot des Handels im Anschluss an die Verbreitung von Anlageanalysen. Die angeführten Simulationen basieren auf Annahmen, die im Zeitablauf von der tatsächlichen Entwicklung abweichen können. Vergangenheitsergebnisse sind kein verlässlicher Indikator für zukünftige Wertentwicklungen. Die dargestellten Informationen stellen weder eine individuelle Anlageberatung noch ein Angebot oder eine Aufforderung zum Kauf oder Verkauf von Finanzinstrumenten dar. Vor einer Anlageentscheidung sollten Sie die für Ihre persönliche Situation passende Anlageberatung in Anspruch nehmen.";
@@ -192,7 +286,21 @@ export interface ClientReportOptions {
   pin?: string;                /* optional 6-digit; empty / undef → no gate */
   includeHistorical?: boolean;
   includeLiquidityEvents?: boolean;
+  includeSavedScenarios?: boolean;
+  includeDetailedPath?: boolean;
+  includeMifid?: boolean;
+  scenarios?: Scenario[];
+  detailedTrace?: DetailedSimTrace | null;
 }
+
+/* MiFID profile default allocations (for customer-friendly display).
+   Kept in sync with PortfolioBuilder → MIFID_PRESETS. */
+const MIFID_ALLOC: Record<MifidProfile, [number, number, number]> = {
+  conservative: [30, 55, 15],
+  balanced:     [15, 35, 50],
+  growth:       [10, 20, 70],
+  speculative:  [ 5, 15, 80],
+};
 
 export async function generateClientHtmlReport(
   client: ClientProfile,
@@ -314,6 +422,35 @@ export async function generateClientHtmlReport(
     .footer-meta{margin-top:24px;font-size:11px;color:var(--muted);text-align:center;letter-spacing:0.08em;text-transform:uppercase}
     .liq-inflow{color:var(--ok);font-weight:600}
     .liq-outflow{color:var(--accent);font-weight:600}
+    /* MiFID card */
+    .mifid-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:8px}
+    .mifid-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .mifid-tag{display:inline-flex;align-items:center;padding:8px 16px;border-radius:999px;font-weight:700;font-size:15px;letter-spacing:0.01em}
+    .mifid-tag.tag-conservative{background:#eaf4e7;color:#3d6c38;border:1px solid #c9e0c4}
+    .mifid-tag.tag-balanced{background:#e6f1fa;color:#205782;border:1px solid #bfd7ec}
+    .mifid-tag.tag-growth{background:#fdf2e0;color:#8a5a11;border:1px solid #f2dfb7}
+    .mifid-tag.tag-speculative{background:#fbe4e6;color:#9a111d;border:1px solid #f0b9bf}
+    .mifid-tag.tag-none{background:var(--soft);color:var(--muted);border:1px dashed var(--border)}
+    .mifid-alloc{display:flex;gap:6px;align-items:center}
+    .mifid-alloc .alloc-pill{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;color:white;font-variant-numeric:tabular-nums}
+    .mifid-alloc .alloc-cash{background:#8FB687}
+    .mifid-alloc .alloc-bonds{background:#87BBE6;color:#1f4d78}
+    .mifid-alloc .alloc-equity{background:#D31220}
+    .mifid-desc{margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+    .mifid-desc .mifid-why{font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+    .mifid-desc p{margin:0;font-size:15px;line-height:1.55}
+    .mifid-confirm{margin-top:14px;padding:12px 14px;border-radius:8px;display:flex;align-items:center;gap:10px;font-size:13px}
+    .mifid-confirm.confirmed{background:#eaf4e7;color:#3d6c38}
+    .mifid-confirm.unconfirmed{background:#fdf2e0;color:#8a5a11}
+    .mifid-confirm .confirm-icon{font-weight:700;font-size:16px}
+    /* Trace (individual-path) extras */
+    .trace-summary{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+    @media(max-width:720px){.trace-summary{grid-template-columns:1fr}}
+    .trace-table{width:100%;border-collapse:collapse;font-size:13px}
+    .trace-table th,.trace-table td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+    .trace-table th{background:var(--soft);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);font-weight:600}
+    .trace-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+    .trace-table tbody tr:hover{background:rgba(211,18,32,0.03)}
     /* PIN gate */
     .pin-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000;padding:24px}
     .pin-box{max-width:420px;width:100%;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.12)}
@@ -365,6 +502,167 @@ export async function generateClientHtmlReport(
       <div class="chart-card">${histSvg}</div>
     </section>
   ` : "";
+
+  /* ───────── MiFID profile block (customer-friendly) ───────── */
+  let mifidBlock = "";
+  if (opts.includeMifid !== false) {
+    const profile = portfolio.mifidProfile;
+    // Name + description lookup — if no profile chosen we still show
+    // the guided block (confirmation state + reminder).
+    const profileName = profile ? S[`mifid${profile.charAt(0).toUpperCase() + profile.slice(1)}Name` as keyof typeof S] as string : null;
+    const profileDesc = profile ? S[`mifid${profile.charAt(0).toUpperCase() + profile.slice(1)}Desc` as keyof typeof S] as string : null;
+    const allocStr = profile ? MIFID_ALLOC[profile] : null;
+
+    const confirmed = client.advisoryMifidConfirmed;
+
+    mifidBlock = `
+      <section class="section">
+        <h2>${esc(S.mifidTitle)}</h2>
+        <p class="desc">${esc(S.mifidIntro)}</p>
+        <div class="mifid-card">
+          <div class="mifid-row">
+            <div class="mifid-tag ${profile ? `tag-${profile}` : "tag-none"}">
+              ${profile ? esc(profileName!) : (opts.locale === "de" ? "Noch nicht zugewiesen" : "Not yet assigned")}
+            </div>
+            ${allocStr ? `
+              <div class="mifid-alloc" title="${esc(S.mifidAllocation)}">
+                <span class="alloc-pill alloc-cash">${allocStr[0]}%</span>
+                <span class="alloc-pill alloc-bonds">${allocStr[1]}%</span>
+                <span class="alloc-pill alloc-equity">${allocStr[2]}%</span>
+              </div>
+            ` : ""}
+          </div>
+          ${profileDesc ? `
+            <div class="mifid-desc">
+              <div class="mifid-why">${esc(S.mifidWhyMatters)}</div>
+              <p>${esc(profileDesc)}</p>
+            </div>
+          ` : ""}
+          <div class="mifid-confirm ${confirmed ? "confirmed" : "unconfirmed"}">
+            <span class="confirm-icon">${confirmed ? "✓" : "ℹ"}</span>
+            <span>${esc(confirmed ? S.mifidConfirmedYes : S.mifidConfirmedNo)}</span>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  /* ───────── Saved scenarios block ───────── */
+  let scenariosBlock = "";
+  const scenarioList = opts.scenarios ?? [];
+  const scenariosWithResult = scenarioList.filter((s) => s.result);
+  if (opts.includeSavedScenarios !== false && scenariosWithResult.length > 0) {
+    const scenSvg = renderScenariosComparisonSvg(scenariosWithResult, client, S.axisAge, 760, 360);
+    scenariosBlock = `
+      <section class="section">
+        <h2>${esc(S.scenariosTitle)}</h2>
+        <p class="desc">${esc(S.scenariosDesc)}</p>
+        <div class="chart-card">${scenSvg}</div>
+        <div class="chart-card" style="padding:0;margin-top:16px">
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead><tr style="background:var(--soft)">
+              <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.scenariosTableScenario)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.scenariosTableCapital)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.scenariosTableWithdraw)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.scenariosTableSuccess)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.scenariosTableMedian)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.scenariosTableP10)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.scenariosTableP90)}</th>
+            </tr></thead>
+            <tbody>${scenariosWithResult.map((s, idx) => {
+              const colors = ["#D31220","#87BBE6","#8FB687","#FAC075","#8A83BE","#DA4D3E"];
+              const c = colors[idx % colors.length];
+              const r = s.result!;
+              return `<tr style="border-top:1px solid var(--border)">
+                <td style="padding:10px 12px;font-weight:600;color:${c}">${esc(s.name)}</td>
+                <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, s.inputs.initialCapital)}</td>
+                <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, s.inputs.desiredMonthlyWithdrawal)}</td>
+                <td style="padding:10px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:${r.successRate >= 90 ? "var(--ok)" : r.successRate >= 70 ? "#c58a1b" : "var(--accent)"}">${fmtPct(opts.locale, r.successRate)}</td>
+                <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, r.medianFinalWealth)}</td>
+                <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, r.percentiles?.p10 ?? 0)}</td>
+                <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, r.percentiles?.p90 ?? 0)}</td>
+              </tr>`;
+            }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `;
+  }
+
+  /* ───────── Individual-path block ───────── */
+  let detailedBlock = "";
+  if (opts.includeDetailedPath !== false && opts.detailedTrace && opts.detailedTrace.rows.length > 0) {
+    const trace = opts.detailedTrace;
+    const bLabels = {
+      cash:     portfolio.buckets[0]?.label?.trim() || (opts.locale === "de" ? "Bargeld" : "Cash"),
+      bonds:    portfolio.buckets[1]?.label?.trim() || (opts.locale === "de" ? "Anleihen" : "Bonds"),
+      equities: portfolio.buckets[2]?.label?.trim() || (opts.locale === "de" ? "Aktien" : "Equities"),
+    };
+    const traceSvg = renderDetailedPathSvg(trace, client, bLabels, S.axisAge, 760, 340);
+
+    // depletion age for status text
+    let depleteAge = client.lifeExpectancy;
+    if (!trace.success) {
+      const firstZero = trace.rows.find((r) => r.endTotal <= 0);
+      if (firstZero) depleteAge = firstZero.age;
+    }
+    const depletedMsg = S.detailedDepleted.replace("{age}", String(depleteAge));
+
+    // Year-by-year table (collapsed by default) — sampled at 2-year steps to keep HTML small
+    const rows = trace.rows.filter((_r, i) => i % 2 === 0 || i === trace.rows.length - 1);
+    const tableRows = rows.map((r) => `
+      <tr>
+        <td>${r.year}</td>
+        <td style="text-align:center">${r.age}</td>
+        <td>${r.phase === "Anspar" ? esc(S.phaseAccum) : esc(S.phaseWithdraw)}</td>
+        <td class="num">${fmtEur(opts.locale, r.startTotal)}</td>
+        <td class="num">${fmtEur(opts.locale, r.endCash)}</td>
+        <td class="num">${fmtEur(opts.locale, r.endBonds)}</td>
+        <td class="num">${fmtEur(opts.locale, r.endEquities)}</td>
+        <td class="num" style="color:${r.cashflow >= 0 ? "var(--ok)" : "var(--accent)"}">${r.cashflow >= 0 ? "+" : ""}${fmtEur(opts.locale, r.cashflow)}</td>
+        <td style="text-align:center">${r.rebalanced ? "●" : ""}</td>
+        <td class="num" style="font-weight:600">${fmtEur(opts.locale, r.endTotal)}</td>
+      </tr>
+    `).join("");
+
+    detailedBlock = `
+      <section class="section">
+        <h2>${esc(S.detailedTitle)}</h2>
+        <p class="desc">${esc(S.detailedDesc)}</p>
+        <div class="chart-card">${traceSvg}</div>
+        <div class="trace-summary">
+          <div class="kpi"><div class="label">${esc(S.detailedStatus)}</div>
+            <div class="value" style="color:${trace.success ? "var(--ok)" : "var(--accent)"};font-size:16px">
+              ${trace.success ? esc(S.detailedSuccess) : esc(depletedMsg)}
+            </div>
+          </div>
+          <div class="kpi"><div class="label">${esc(S.detailedFinalWealth)}</div><div class="value">${fmtEur(opts.locale, trace.finalWealth)}</div></div>
+        </div>
+        <button class="details-toggle" id="trace-btn" type="button"
+          data-show="${esc(S.detailedTableToggle)}" data-hide="${esc(S.detailedTableHideToggle)}">${esc(S.detailedTableToggle)} ▼</button>
+        <div class="details" id="trace-table">
+          <div class="chart-card" style="padding:0;overflow-x:auto">
+            <table class="trace-table">
+              <thead><tr>
+                <th>${esc(S.detailedColYear)}</th>
+                <th>${esc(S.detailedColAge)}</th>
+                <th>${esc(S.detailedColPhase)}</th>
+                <th class="num">${esc(S.detailedColStart)}</th>
+                <th class="num">${esc(bLabels.cash)}</th>
+                <th class="num">${esc(bLabels.bonds)}</th>
+                <th class="num">${esc(bLabels.equities)}</th>
+                <th class="num">${esc(S.detailedColCashflow)}</th>
+                <th>${esc(S.detailedColRebal)}</th>
+                <th class="num">${esc(S.detailedColEnd)}</th>
+              </tr></thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    `;
+  }
 
   /* liquidity events */
   const liqBlock = liqSorted.length > 0 ? `
@@ -480,15 +778,21 @@ export async function generateClientHtmlReport(
 
   const detailsScript = `
     (function(){
-      var btn=document.getElementById('details-btn');
-      var box=document.getElementById('details');
-      if(!btn||!box)return;
-      btn.addEventListener('click',function(){
-        var open=box.classList.toggle('open');
-        btn.textContent=(open?btn.dataset.hide:btn.dataset.show)+' '+(open?'▲':'▼');
-      });
+      function bind(btnId, boxId){
+        var btn=document.getElementById(btnId);
+        var box=document.getElementById(boxId);
+        if(!btn||!box)return;
+        btn.addEventListener('click',function(){
+          var open=box.classList.toggle('open');
+          btn.textContent=(open?btn.dataset.hide:btn.dataset.show)+' '+(open?'▲':'▼');
+        });
+      }
+      bind('details-btn','details');
+      bind('trace-btn','trace-table');
     })();
   `;
+
+  const interactionScript = chartInteractionScript();
 
   const html = `<!DOCTYPE html>
 <html lang="${opts.locale}">
@@ -557,6 +861,9 @@ ${pinGate}
       <div class="chart-card">${mcSvg}</div>
     </section>
 
+    ${mifidBlock}
+    ${scenariosBlock}
+    ${detailedBlock}
     ${historicalBlock}
     ${liqBlock}
 
@@ -573,7 +880,7 @@ ${pinGate}
     <div class="footer-meta">${esc(S.confidential)}</div>
   </div>
 </div>
-<script>${pinScript}${detailsScript}</script>
+<script>${pinScript}${detailsScript}${interactionScript}</script>
 </body></html>`;
 
   return new Blob([html], { type: "text/html;charset=utf-8" });
