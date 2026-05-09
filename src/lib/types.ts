@@ -162,8 +162,37 @@ export interface Scenario {
   result?: SimulationResult;
 }
 
+/**
+ * Advisor profile — used as letterhead / contact block on the client-facing
+ * report (HTML + PDF). Not persisted to localStorage per the audit's positive
+ * finding („Kein localStorage / sessionStorage / Cookie-Schreiben →
+ * keine PII-Persistenz im Browser"). The advisor re-enters once per session,
+ * or the bank can pre-fill via build-time env vars.
+ */
+export interface AdvisorProfile {
+  /** Full name incl. title, e.g. "Dr. Anna Berater" */
+  name: string;
+  /** Job title, e.g. "Senior Private Banker" */
+  title: string;
+  /** E-Mail for the "arrange appointment" button */
+  email: string;
+  /** Phone incl. country code */
+  phone: string;
+  /** Bank / institution legal name */
+  bankName: string;
+  /** Branch name, e.g. "Niederlassung Wien Innere Stadt" */
+  branch: string;
+  /** Postal address of the branch, multi-line (\n) */
+  address: string;
+  /** Optional website URL */
+  website: string;
+  /** Logo as data URL (PNG/SVG). Inlined so the HTML stays self-contained. */
+  logoDataUrl: string;
+}
+
 export interface AppState {
   client: ClientProfile;
+  advisor: AdvisorProfile;
   inputs: FinancialInputs;
   portfolio: PortfolioConfig;
   settings: SimulationSettings;

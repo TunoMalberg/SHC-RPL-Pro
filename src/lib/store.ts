@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from "react";
 import type {
+  AdvisorProfile,
   AppState,
   ClientProfile,
   FinancialInputs,
@@ -14,6 +15,7 @@ import type {
   LiquidityEvent,
 } from "./types";
 import {
+  defaultAdvisor,
   defaultClient,
   defaultInputs,
   defaultPortfolio,
@@ -22,6 +24,7 @@ import {
 
 export const initialState: AppState = {
   client: defaultClient,
+  advisor: defaultAdvisor,
   inputs: defaultInputs,
   portfolio: defaultPortfolio,
   settings: defaultSettings,
@@ -35,6 +38,7 @@ export const initialState: AppState = {
 
 export type Action =
   | { type: "SET_CLIENT"; payload: Partial<ClientProfile> }
+  | { type: "SET_ADVISOR"; payload: Partial<AdvisorProfile> }
   | { type: "SET_INPUTS"; payload: Partial<FinancialInputs> }
   | { type: "SET_PORTFOLIO"; payload: Partial<PortfolioConfig> }
   | { type: "SET_SETTINGS"; payload: Partial<SimulationSettings> }
@@ -53,6 +57,8 @@ export type Action =
 
 export function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case "SET_ADVISOR":
+      return { ...state, advisor: { ...state.advisor, ...action.payload } };
     case "SET_CLIENT":
       return { ...state, client: { ...state.client, ...action.payload } };
     case "SET_INPUTS":

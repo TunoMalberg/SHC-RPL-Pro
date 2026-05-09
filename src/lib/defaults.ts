@@ -1,4 +1,5 @@
 import type {
+  AdvisorProfile,
   ClientProfile,
   FinancialInputs,
   PortfolioConfig,
@@ -89,4 +90,16 @@ export const defaultSettings: SimulationSettings = {
   numSimulations: 5000,
   timeStepMonths: 12,
   mode: "fixed_withdrawal",
+};
+
+export const defaultAdvisor: AdvisorProfile = {
+  name: "",
+  title: "Private Banking",
+  email: "",
+  phone: "",
+  bankName: "Schelhammer Capital Bank AG",
+  branch: "",
+  address: "Goldschmiedgasse 3\n1010 Wien",
+  website: "https://www.schelhammer.at",
+  logoDataUrl: "",
 };
