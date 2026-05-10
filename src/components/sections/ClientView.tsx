@@ -24,7 +24,10 @@ export function ClientView() {
   const [includeSavedScenarios, setIncludeSavedScenarios] = useState(true);
   const [includeDetailedPath, setIncludeDetailedPath] = useState(true);
   const [includeMifid, setIncludeMifid] = useState(true);
+  const [includeMeetingNotes, setIncludeMeetingNotes] = useState(true);
   const [busy, setBusy] = useState<"html" | "pdf" | null>(null);
+
+  const hasMeetingNotes = !!(client.advisoryNotes?.trim() || client.advisoryNextSteps?.trim());
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -61,6 +64,7 @@ export function ClientView() {
           includeSavedScenarios,
           includeDetailedPath,
           includeMifid,
+          includeMeetingNotes,
           scenarios,
           detailedTrace,
         },
@@ -234,6 +238,26 @@ export function ClientView() {
                 checked={includeDetailedPath}
                 onCheckedChange={setIncludeDetailedPath}
                 disabled={!detailedTrace}
+              />
+            </div>
+            <div className="flex items-center justify-between md:col-span-2">
+              <Label htmlFor="inc-notes" className="flex-1 pr-4">
+                {locale === "de"
+                  ? "Gesprächsnotizen & nächste Schritte zeigen"
+                  : "Show meeting notes & next steps"}
+                {!hasMeetingNotes && (
+                  <span className="block text-xs text-slate-400 font-normal mt-0.5">
+                    {locale === "de"
+                      ? "(Kein Text eingetragen unter Kunde → Beratungsgespräch)"
+                      : "(No text entered under Client → Advisory meeting)"}
+                  </span>
+                )}
+              </Label>
+              <Switch
+                id="inc-notes"
+                checked={includeMeetingNotes}
+                onCheckedChange={setIncludeMeetingNotes}
+                disabled={!hasMeetingNotes}
               />
             </div>
           </div>

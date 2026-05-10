@@ -94,6 +94,9 @@ const DE_STRINGS = {
   kpiP90: "Optimistisch (90%)",
   disclaimerTitle: "Rechtlicher Hinweis — Marketingmitteilung",
   confidential: "Vertraulich — nur zur persönlichen Verwendung",
+  meetingNotesTitle: "Gesprächsnotizen",
+  meetingNotesDesc: "Von Ihrer Beraterin / Ihrem Berater festgehaltene Punkte aus dem persönlichen Gespräch.",
+  nextStepsFromMeeting: "Vereinbarte nächste Schritte",
   perMonth: "/Monat",
   returnRow: "Erwartete Bruttorendite",
   volatilityRow: "Volatilität",
@@ -197,6 +200,9 @@ const EN_STRINGS: typeof DE_STRINGS = {
   kpiP90: "Optimistic (90%)",
   disclaimerTitle: "Legal notice — Marketing communication",
   confidential: "Confidential — for personal use only",
+  meetingNotesTitle: "Meeting notes",
+  meetingNotesDesc: "Key points captured by your advisor during our in-person meeting.",
+  nextStepsFromMeeting: "Agreed next steps",
   perMonth: "/month",
   returnRow: "Expected gross return",
   volatilityRow: "Volatility",
@@ -289,6 +295,7 @@ export interface ClientReportOptions {
   includeSavedScenarios?: boolean;
   includeDetailedPath?: boolean;
   includeMifid?: boolean;
+  includeMeetingNotes?: boolean;
   scenarios?: Scenario[];
   detailedTrace?: DetailedSimTrace | null;
 }
@@ -406,6 +413,16 @@ export async function generateClientHtmlReport(
     .contact-card .name{font-weight:700;font-size:18px}
     .contact-card .role{color:var(--muted);font-size:14px}
     .contact-card a{color:var(--text)}
+    .notes-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:4px}
+    @media(max-width:720px){.notes-grid{grid-template-columns:1fr}}
+    .notes-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 22px;
+      box-shadow:0 1px 2px rgba(0,0,0,0.03)}
+    .notes-card-accent{border-left:4px solid var(--accent);background:var(--accent-soft)}
+    .notes-card-label{font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);
+      font-weight:600;margin-bottom:10px}
+    .notes-card-body{font-size:15px;line-height:1.6;color:var(--text)}
+    .next-steps-list{margin:0;padding-left:22px}
+    .next-steps-list li{margin:6px 0;line-height:1.55}
     .details-toggle{background:transparent;border:1px solid var(--border);color:var(--text);
       padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;margin-top:24px;font-weight:500}
     .details-toggle:hover{background:var(--soft)}
@@ -687,6 +704,43 @@ export async function generateClientHtmlReport(
     </section>
   ` : "";
 
+  /* ───────── Meeting notes & next-steps block ───────── */
+  const rawMeetingNotes = (client.advisoryNotes ?? "").trim();
+  const rawNextSteps    = (client.advisoryNextSteps ?? "").trim();
+  const showMeetingNotes = opts.includeMeetingNotes !== false && (rawMeetingNotes.length > 0 || rawNextSteps.length > 0);
+
+  /* Render next-steps body: a proper list if lines start with "-" / "*" / "1." / "•",
+     otherwise an escaped paragraph preserving line breaks. */
+  function renderNextStepsBody(raw: string): string {
+    const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+    const bulletRe = /^\s*(?:[-*•·]|\d+[.)])\s*/;
+    const looksLikeList = lines.length >= 2 && lines.every((l) => bulletRe.test(l));
+    if (looksLikeList) {
+      const items = lines.map((l) => `<li>${esc(l.replace(bulletRe, ""))}</li>`).join("");
+      return `<ol class="next-steps-list">${items}</ol>`;
+    }
+    return `<p style="white-space:pre-line;margin:0">${esc(raw)}</p>`;
+  }
+
+  const meetingNotesBlock = showMeetingNotes ? `
+    <section class="section">
+      <h2>${esc(S.meetingNotesTitle)}</h2>
+      <p class="desc">${esc(S.meetingNotesDesc)}</p>
+      <div class="notes-grid">
+        ${rawMeetingNotes.length > 0 ? `
+          <div class="notes-card">
+            <div class="notes-card-label">${esc(S.meetingNotesTitle)}</div>
+            <div class="notes-card-body" style="white-space:pre-line">${esc(rawMeetingNotes)}</div>
+          </div>` : ""}
+        ${rawNextSteps.length > 0 ? `
+          <div class="notes-card notes-card-accent">
+            <div class="notes-card-label">${esc(S.nextStepsFromMeeting)}</div>
+            <div class="notes-card-body">${renderNextStepsBody(rawNextSteps)}</div>
+          </div>` : ""}
+      </div>
+    </section>
+  ` : "";
+
   /* details section (collapsed by default) */
   const methodologyText = opts.locale === "de"
     ? `Die Simulation verwendet 10.000 Monte-Carlo-Pfade auf Basis korrelierter log-normaler Renditen. Kosten und die österreichische Kapitalertragsteuer von ${portfolio.kestRate}% werden auf Netto-Renditen abgezogen. Inflationsanpassungen (${inputs.inflationRate}% p.a.) gelten für Entnahmen und Pensionen.`
@@ -866,6 +920,7 @@ ${pinGate}
     ${detailedBlock}
     ${historicalBlock}
     ${liqBlock}
+    ${meetingNotesBlock}
 
     <section class="section">
       <h2>${esc(S.nextSteps)}</h2>
