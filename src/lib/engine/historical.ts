@@ -15,8 +15,10 @@ import type {
 //   Quellen: Bundesbank, OECD, Credit Suisse Global Investment Returns Yearbook
 // Cash: Österreichische Geldmarktzinsen (OeNB Diskontrate 1970-1998, EURIBOR/EZB ab 1999)
 //   Quellen: OeNB, EZB, FRED
-// Inflation: Österreichischer VPI (Verbraucherpreisindex)
-//   Quellen: Statistik Austria, Weltbank, macrotrends.net
+// Inflation: Österreichischer VPI (Verbraucherpreisindex, Statistik Austria Basis 2020/Kettenindex)
+//   Quellen: Statistik Austria VPI-Jahreswerte 1970–2024
+//   Diese Jahresinflationsraten werden im Backtest kumulativ verkettet
+//   (Produkt über alle Jahre) und nicht mehr als Einzelwert potenziert.
 export const historicalData: HistoricalData[] = [
   { year: 1970, equityReturn: -9.1, bondReturn: 1.2, cashReturn: 5.0, inflation: 4.4 },
   { year: 1971, equityReturn: 14.0, bondReturn: 5.8, cashReturn: 5.0, inflation: 4.7 },
@@ -75,6 +77,24 @@ export const historicalData: HistoricalData[] = [
   { year: 2024, equityReturn: 26.6, bondReturn: 2.6, cashReturn: 3.6, inflation: 2.9 },
 ];
 
+/**
+ * Historischer Backtest mit rollierenden Ruhestandsszenarien.
+ *
+ * Steuer- und Kostenmodell (seit 2025-11-11):
+ *  • Kosten werden jedes Jahr vom Bruttoertrag abgezogen (Fondskosten, TER).
+ *  • Die österreichische KESt (portfolio.kestRate, Default 27,5 %) wird
+ *    AUSSCHLIESSLICH dann realisiert, wenn das Portfolio einen neuen
+ *    Höchststand (High-Watermark) überschreitet. Nur der Zuwachs über dem
+ *    letzten Höchststand wird besteuert; Verluste und Erholungen bis zum
+ *    vorherigen Hoch bleiben steuerfrei.
+ *  • Einzahlungen (Sparraten, positive Liquiditätsereignisse) erhöhen den
+ *    Höchststand 1:1 (kein Steuerereignis). Entnahmen senken ihn 1:1.
+ *
+ * Inflation:
+ *  • Die Sparraten und Entnahmen werden mit dem KUMULATIVEN Produkt der
+ *    historischen österreichischen VPI-Jahresraten des jeweiligen Zeit-
+ *    fensters skaliert (vorher: Einzeljahres-Inflation hoch y — falsch).
+ */
 export function runHistoricalBacktest(
   client: ClientProfile,
   inputs: FinancialInputs,
@@ -85,7 +105,9 @@ export function runHistoricalBacktest(
   const accumulationYears = client.retirementAge - client.currentAge;
   const totalYears = accumulationYears + withdrawalYears;
   const weights = portfolio.buckets.map((b) => b.allocation / 100);
-  const costs = portfolio.buckets.map((b) => b.costs / 100 + b.taxDrag / 100);
+  // KORREKTUR: Nur Kosten (TER) als laufender Drag — KESt läuft separat über Watermark.
+  const costs = portfolio.buckets.map((b) => b.costs / 100);
+  const kestRate = (portfolio.kestRate ?? 27.5) / 100;
   const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
 
   const scenarios: HistoricalResult[] = [];
@@ -98,6 +120,10 @@ export function runHistoricalBacktest(
     const startYear = historicalData[startIdx].year;
     let buckets = weights.map((w) => w * inputs.initialCapital);
     let capital = inputs.initialCapital;
+    // FIX B: Steuerlicher Höchststand (High-Watermark) — initial = Startkapital.
+    let highWatermark = inputs.initialCapital;
+    // FIX A: Kumulative Inflation als Produkt der tatsächlichen VPI-Jahresraten.
+    let cumulativeInflation = 1;
     const path: number[] = [capital];
     let success = true;
     let maxVal = capital;
@@ -130,12 +156,22 @@ export function runHistoricalBacktest(
       buckets[1] *= 1 + returns[1];
       buckets[2] *= 1 + returns[2];
 
+      // FIX A: VPI-Rate dieses Jahres in den kumulativen Index multiplizieren.
+      // Damit skalieren Sparraten/Entnahmen mit dem echten historischen
+      // Preisniveau des jeweiligen Zeitfensters (z. B. 1970–2015 mit
+      // Ölkrisen-Hochs Anfang der 1970er).
+      cumulativeInflation *= 1 + data.inflation / 100;
+
       if (isAccumulation) {
-        const inflationFactor = Math.pow(1 + data.inflation / 100, y);
-        const savings = inputs.monthlySavings * 12 * (inputs.useRealValues ? inflationFactor : 1);
+        const savings =
+          inputs.monthlySavings *
+          12 *
+          (inputs.useRealValues ? cumulativeInflation : 1);
         for (let i = 0; i < 3; i++) {
           buckets[i] += weights[i] * savings;
         }
+        // Einzahlung hebt den Höchststand 1:1 (kein Steuerereignis).
+        highWatermark += savings;
 
         const total = buckets.reduce((a, b) => a + b, 0);
         const currentWeights = buckets.map((v) => v / total);
@@ -146,20 +182,15 @@ export function runHistoricalBacktest(
           buckets = weights.map((w) => w * total);
         }
       } else {
-        const withdrawalYear = y - accumulationYears;
-        const inflationFactor = Math.pow(
-          1 + inputs.inflationRate / 100,
-          withdrawalYear
-        );
         const withdrawal = inputs.useRealValues
-          ? inputs.desiredMonthlyWithdrawal * 12 * inflationFactor
+          ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
           : inputs.desiredMonthlyWithdrawal * 12;
 
         const ageNow = client.currentAge + y;
         const pension =
           ageNow >= inputs.pensionStartAge
             ? inputs.useRealValues
-              ? inputs.monthlyPension * 12 * inflationFactor
+              ? inputs.monthlyPension * 12 * cumulativeInflation
               : inputs.monthlyPension * 12
             : 0;
 
@@ -180,6 +211,10 @@ export function runHistoricalBacktest(
             }
           }
         }
+        // Entnahme senkt den steuerlichen Höchststand 1:1 (vereinfachte
+        // Durchschnittsbetrachtung — der im Entnahmebetrag enthaltene
+        // Gewinn­anteil wurde bereits über Watermark-Events besteuert).
+        highWatermark = Math.max(0, highWatermark - netWithdrawal);
 
         if (portfolio.rebalancingFrequency !== "none") {
           const targetCash = netWithdrawal * cashYearsTarget;
@@ -211,6 +246,7 @@ export function runHistoricalBacktest(
             for (let i = 0; i < 3; i++) {
               buckets[i] += weights[i] * le.amount;
             }
+            highWatermark += le.amount;
           } else {
             const tp = buckets.reduce((a, b) => a + b, 0);
             if (tp > 0) {
@@ -219,8 +255,23 @@ export function runHistoricalBacktest(
                 buckets[i] *= 1 - wr;
               }
             }
+            highWatermark = Math.max(0, highWatermark - Math.abs(le.amount));
           }
         }
+      }
+
+      // FIX B: High-Watermark-KESt — NUR wenn ein neuer Höchststand erreicht wird,
+      // wird der Zuwachs über dem bisherigen Höchststand mit KESt versteuert.
+      // Verlustjahre und Erholungen unter dem letzten Hoch lösen keine Steuer aus.
+      const endTotal = buckets.reduce((a, b) => a + b, 0);
+      if (endTotal > highWatermark && endTotal > 0) {
+        const taxableGain = endTotal - highWatermark;
+        const tax = taxableGain * kestRate;
+        const factor = (endTotal - tax) / endTotal;
+        buckets[0] *= factor;
+        buckets[1] *= factor;
+        buckets[2] *= factor;
+        highWatermark = endTotal - tax;
       }
 
       capital = Math.max(0, buckets.reduce((a, b) => a + b, 0));
@@ -255,6 +306,15 @@ export function runHistoricalBacktest(
     (a, b) => a.finalWealth - b.finalWealth
   );
 
+  const medianFinalWealth =
+    sortedByWealth.length > 0
+      ? sortedByWealth.length % 2 === 1
+        ? sortedByWealth[Math.floor(sortedByWealth.length / 2)].finalWealth
+        : (sortedByWealth[sortedByWealth.length / 2 - 1].finalWealth +
+            sortedByWealth[sortedByWealth.length / 2].finalWealth) /
+          2
+      : 0;
+
   return {
     scenarios,
     overallSuccessRate:
@@ -265,6 +325,7 @@ export function runHistoricalBacktest(
       scenarios.length > 0
         ? scenarios.reduce((s, sc) => s + sc.finalWealth, 0) / scenarios.length
         : 0,
+    medianFinalWealth,
     worstScenario: sortedByWealth[0],
     bestScenario: sortedByWealth[sortedByWealth.length - 1],
     drawdownDistribution: scenarios.map((s) => s.maxDrawdown * 100),

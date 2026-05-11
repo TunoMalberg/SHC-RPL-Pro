@@ -36,7 +36,7 @@ export function HistoricalAnalysisSection() {
     );
   }
 
-  const { scenarios, overallSuccessRate, averageFinalWealth, worstScenario, bestScenario } = historicalResult;
+  const { scenarios, overallSuccessRate, averageFinalWealth, medianFinalWealth, worstScenario, bestScenario } = historicalResult;
 
   const scenarioBarData = scenarios.map((s) => ({
     startYear: s.startYear,
@@ -64,7 +64,7 @@ export function HistoricalAnalysisSection() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card data-design-id="hist-kpi-success">
           <CardContent className="pt-4 pb-4 text-center">
             <div className={`text-3xl font-bold ${successColor}`}>
@@ -77,6 +77,12 @@ export function HistoricalAnalysisSection() {
           <CardContent className="pt-4 pb-4 text-center">
             <div className="text-3xl font-bold text-[#4D4A47]">{scenarios.length}</div>
             <div className="text-xs text-slate-500 mt-1">{t("hist.scenariosTested")}</div>
+          </CardContent>
+        </Card>
+        <Card data-design-id="hist-kpi-median-wealth">
+          <CardContent className="pt-4 pb-4 text-center">
+            <div className="text-2xl font-bold text-[#4D4A47]">{fmtEur(medianFinalWealth)}</div>
+            <div className="text-xs text-slate-500 mt-1">{t("hist.medianWealth")}</div>
           </CardContent>
         </Card>
         <Card data-design-id="hist-kpi-avg-wealth">

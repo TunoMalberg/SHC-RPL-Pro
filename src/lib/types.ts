@@ -120,6 +120,8 @@ export interface HistoricalAnalysis {
   scenarios: HistoricalResult[];
   overallSuccessRate: number;
   averageFinalWealth: number;
+  /** Median-Endvermögen über alle rollierenden Szenarien (für Vergleich mit MC-Median). */
+  medianFinalWealth: number;
   worstScenario: HistoricalResult;
   bestScenario: HistoricalResult;
   drawdownDistribution: number[];

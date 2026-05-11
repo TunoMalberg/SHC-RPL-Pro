@@ -76,7 +76,7 @@ function KpiTooltip({ content }: { content: string }) {
 
 export function ResultsDashboard() {
   const { state } = useAppState();
-  const { result, client, inputs, liquidityEvents } = state;
+  const { result, client, inputs, liquidityEvents, historicalResult, portfolio } = state;
   const { t } = useI18n();
   const [showLongevity, setShowLongevity] = useState(false);
 
@@ -206,6 +206,65 @@ export function ResultsDashboard() {
           </p>
         </CardContent>
       </Card>
+
+      {/* MC vs Historical side-by-side comparison – Fix D (2025-11-11) */}
+      {historicalResult && (
+        <Card data-design-id="mc-vs-hist-comparison-card" className="border-[#8FB687]/40">
+          <CardHeader>
+            <CardTitle data-design-id="mc-vs-hist-title" className="text-lg">
+              {t("compare.title")}
+            </CardTitle>
+            <p className="text-sm text-slate-500 mt-1">{t("compare.subtitle")}</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4" data-design-id="mc-vs-hist-mc">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                  {t("compare.mcLabel")}
+                </div>
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-xs text-slate-500">{t("compare.median")}</span>
+                  <span className="text-2xl font-bold text-[#4D4A47]">{fmtEur(result.medianFinalWealth)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-xs text-slate-500">{t("compare.success")}</span>
+                  <span className={`text-lg font-bold ${successColor}`}>{fmtPct(result.successRate)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs text-slate-500">{t("compare.scenarios")}</span>
+                  <span className="text-sm text-slate-700">{state.settings.numSimulations.toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-[#8FB687]/40 bg-[#8FB687]/10 p-4" data-design-id="mc-vs-hist-hist">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                  {t("compare.histLabel")}
+                </div>
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-xs text-slate-500">{t("compare.median")}</span>
+                  <span className="text-2xl font-bold text-[#4D4A47]">{fmtEur(historicalResult.medianFinalWealth)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-xs text-slate-500">{t("compare.success")}</span>
+                  <span className={`text-lg font-bold ${historicalResult.overallSuccessRate >= 90 ? "text-[#5a8a50]" : historicalResult.overallSuccessRate >= 70 ? "text-[#FAC075]" : "text-rose-600"}`}>
+                    {fmtPct(historicalResult.overallSuccessRate)}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs text-slate-500">{t("compare.scenarios")}</span>
+                  <span className="text-sm text-slate-700">{historicalResult.scenarios.length}</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+              {t("compare.note")
+                .replace("{n}", state.settings.numSimulations.toLocaleString())
+                .replace("{eq}", String(portfolio.buckets[2].expectedReturn))
+                .replace("{b}", String(portfolio.buckets[1].expectedReturn))
+                .replace("{c}", String(portfolio.buckets[0].expectedReturn))}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {result.sustainableWithdrawal !== undefined && (
         <Card className="border-[#8FB687]/40 bg-[#8FB687]/10/50" data-design-id="sustainable-withdrawal-card">

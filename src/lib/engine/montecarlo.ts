@@ -35,12 +35,16 @@ export function runMonteCarloSimulation(
   const totalSteps = Math.ceil(totalYears * stepsPerYear);
 
   const weights = portfolio.buckets.map((b) => b.allocation / 100);
+  // KORREKTUR (2025-11-11): Mittelwert = Brutto-Rendite abzüglich laufender Kosten.
+  // KESt wird NICHT mehr als kontinuierlicher Drag in den Mittelwert gezogen,
+  // sondern erst ausgelöst, wenn ein neuer Höchststand erreicht wird (siehe unten).
   const means = portfolio.buckets.map(
-    (b) => (b.netReturn / 100) / stepsPerYear
+    (b) => ((b.expectedReturn - b.costs) / 100) / stepsPerYear
   );
   const vols = portfolio.buckets.map(
     (b) => (b.volatility / 100) / Math.sqrt(stepsPerYear)
   );
+  const kestRate = (portfolio.kestRate ?? 27.5) / 100;
 
   const corrMatrix = portfolio.correlationMatrix;
   const cholesky = choleskyDecomposition(corrMatrix);
@@ -65,6 +69,9 @@ export function runMonteCarloSimulation(
     let failed = false;
     let failureStep = -1;
     let cumulativeInflation = 1;
+    // FIX B: Steuerlicher Höchststand (High-Watermark) — initial = Startkapital.
+    // KESt fällt NUR an, wenn das Portfolio diesen Höchststand überschreitet.
+    let highWatermark = inputs.initialCapital;
 
     for (let step = 0; step < totalSteps; step++) {
       const returns = generateCorrelatedReturns(rng, cholesky, means, vols);
@@ -85,6 +92,8 @@ export function runMonteCarloSimulation(
         for (let i = 0; i < 3; i++) {
           bucketValues[i] += weights[i] * adjustedSavings;
         }
+        // Einzahlung hebt den Höchststand 1:1 (kein Steuerereignis).
+        highWatermark += adjustedSavings;
       } else {
         const adjustedWithdrawal = inputs.useRealValues
           ? withdrawalPerStep * cumulativeInflation
@@ -122,6 +131,8 @@ export function runMonteCarloSimulation(
             }
           }
         }
+        // Entnahme senkt den Höchststand 1:1 (vereinfachte Durchschnittsbetrachtung).
+        highWatermark = Math.max(0, highWatermark - netWithdrawal);
       }
 
       const currentAgeAtStep = client.currentAge + step / stepsPerYear;
@@ -134,6 +145,7 @@ export function runMonteCarloSimulation(
             for (let i = 0; i < 3; i++) {
               bucketValues[i] += weights[i] * amount;
             }
+            highWatermark += amount;
           } else {
             const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
             if (totalPortfolio > 0) {
@@ -142,6 +154,7 @@ export function runMonteCarloSimulation(
                 bucketValues[i] *= 1 - withdrawRatio;
               }
             }
+            highWatermark = Math.max(0, highWatermark - Math.abs(amount));
           }
         }
       }
@@ -176,6 +189,17 @@ export function runMonteCarloSimulation(
           );
           bucketValues = result.values;
         }
+      }
+
+      // FIX B: High-Watermark-KESt — Steuer nur bei neuem Höchststand fällig.
+      // Verlustjahre und Erholungen bis zum letzten Hoch lösen keine Steuer aus.
+      const beforeTaxTotal = bucketValues.reduce((a, b) => a + b, 0);
+      if (beforeTaxTotal > highWatermark && beforeTaxTotal > 0) {
+        const taxableGain = beforeTaxTotal - highWatermark;
+        const tax = taxableGain * kestRate;
+        const factor = (beforeTaxTotal - tax) / beforeTaxTotal;
+        bucketValues = bucketValues.map((v) => v * factor);
+        highWatermark = beforeTaxTotal - tax;
       }
 
       const totalValue = Math.max(0, bucketValues.reduce((a, b) => a + b, 0));
@@ -413,9 +437,13 @@ export function runDetailedSingleSimulation(
   const totalYears = accumulationYears + withdrawalYears;
 
   const weights = portfolio.buckets.map((b) => b.allocation / 100);
-  const annualMeans = portfolio.buckets.map((b) => b.netReturn / 100);
+  // KORREKTUR (2025-11-11): Brutto minus Kosten — KESt läuft über Watermark.
+  const annualMeans = portfolio.buckets.map(
+    (b) => (b.expectedReturn - b.costs) / 100
+  );
   const annualVols = portfolio.buckets.map((b) => b.volatility / 100);
   const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
+  const kestRate = (portfolio.kestRate ?? 27.5) / 100;
 
   const corrMatrix = portfolio.correlationMatrix;
   const cholesky = choleskyDecomposition(corrMatrix);
@@ -425,6 +453,7 @@ export function runDetailedSingleSimulation(
 
   let bucketValues = weights.map((w) => w * inputs.initialCapital);
   let cumulativeInflation = 1;
+  let highWatermark = inputs.initialCapital;
   let failed = false;
 
   const rows: DetailedYearRow[] = [];
@@ -467,6 +496,7 @@ export function runDetailedSingleSimulation(
       for (let i = 0; i < 3; i++) {
         bucketValues[i] += weights[i] * adjustedSavings;
       }
+      highWatermark += adjustedSavings;
     } else {
       const annualWithdrawal = inputs.useRealValues
         ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
@@ -507,6 +537,7 @@ export function runDetailedSingleSimulation(
           }
         }
       }
+      highWatermark = Math.max(0, highWatermark - netWithdrawal);
     }
 
     let liquidityEventAmount = 0;
@@ -521,6 +552,7 @@ export function runDetailedSingleSimulation(
         for (let i = 0; i < 3; i++) {
           bucketValues[i] += weights[i] * liquidityEventAmount;
         }
+        highWatermark += liquidityEventAmount;
       } else if (liquidityEventAmount < 0) {
         const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
         if (totalPortfolio > 0) {
@@ -529,6 +561,7 @@ export function runDetailedSingleSimulation(
             bucketValues[i] *= 1 - withdrawRatio;
           }
         }
+        highWatermark = Math.max(0, highWatermark - Math.abs(liquidityEventAmount));
       }
     }
 
@@ -578,6 +611,16 @@ export function runDetailedSingleSimulation(
           bucketValues = result.values;
         }
       }
+    }
+
+    // FIX B: High-Watermark-KESt — Steuer nur bei neuem Höchststand fällig.
+    const preTaxTotal = bucketValues.reduce((a, b) => a + b, 0);
+    if (preTaxTotal > highWatermark && preTaxTotal > 0) {
+      const taxableGain = preTaxTotal - highWatermark;
+      const tax = taxableGain * kestRate;
+      const factor = (preTaxTotal - tax) / preTaxTotal;
+      bucketValues = bucketValues.map((v) => v * factor);
+      highWatermark = preTaxTotal - tax;
     }
 
     const endCash = Math.max(0, bucketValues[0]);
