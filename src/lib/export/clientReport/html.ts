@@ -931,6 +931,7 @@ ${pinGate}
     <div class="disclaimer">
       <h3>${esc(S.disclaimerTitle)}</h3>
       <p>${esc(disclaimer)} ${opts.locale === "de" ? "Ausgegeben von" : "Issued by"} ${esc(advisor.bankName)}.</p>
+      <p style="margin-top:10px;font-style:italic;"><strong>${opts.locale === "de" ? "Stand" : "As of"}:</strong> ${esc(fmtDate(opts.locale))}</p>
     </div>
     <div class="footer-meta">${esc(S.confidential)}</div>
   </div>

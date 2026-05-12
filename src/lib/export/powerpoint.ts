@@ -1490,7 +1490,7 @@ function addMarketingDisclaimerSlide(pptx: Pptx) {
       "der vorliegenden Marketingmitteilung übernommen. Irrtümer und Druckfehler vorbehalten. " +
       "Vergangene Wertentwicklungen sind kein verlässlicher Indikator für zukünftige Ergebnisse.",
     {
-      x: 0.75, y: 1.1, w: 11.5, h: 5.0,
+      x: 0.75, y: 1.1, w: 11.5, h: 4.7,
       fontSize: 13,
       fontFace: FONT_BODY,
       color: COLORS.text,
@@ -1499,6 +1499,21 @@ function addMarketingDisclaimerSlide(pptx: Pptx) {
       paraSpaceAfter: 6,
     }
   );
+
+  // "Stand: TT. Monat JJJJ" — verweist auf den Erstellungsstand der Simulation
+  const asOfDate = new Date().toLocaleDateString("de-AT", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  slide.addText(`Stand: ${asOfDate}`, {
+    x: 0.75, y: 6.15, w: 11.5, h: 0.3,
+    fontSize: 10,
+    fontFace: FONT_BODY,
+    color: COLORS.text,
+    italic: true,
+    bold: true,
+  });
 
   slide.addText(
     "Schelhammer Capital Bank AG · FN 58248i · Goldschmiedgasse 3, 1010 Wien · www.schelhammer.at",

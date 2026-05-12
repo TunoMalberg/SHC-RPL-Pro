@@ -82,6 +82,7 @@ const DE = {
   disclaimer: "Rechtlicher Hinweis — Marketingmitteilung",
   disclaimerText: "Diese Unterlagen stellen eine Marketingmitteilung dar und wurden nicht im Einklang mit den Rechtsvorschriften zur Förderung der Unabhängigkeit von Anlageanalysen erstellt. Sie unterliegen nicht dem Verbot des Handels im Anschluss an die Verbreitung von Anlageanalysen. Die angeführten Simulationen basieren auf Annahmen, die im Zeitablauf von der tatsächlichen Entwicklung abweichen können. Vergangenheitsergebnisse sind kein verlässlicher Indikator für zukünftige Wertentwicklungen. Die dargestellten Informationen stellen weder eine individuelle Anlageberatung noch ein Angebot oder eine Aufforderung zum Kauf oder Verkauf von Finanzinstrumenten dar.",
   issuedBy: "Ausgegeben von",
+  asOf: "Stand",
   pageOf: (a: number, b: number) => `Seite ${a} von ${b}`,
   confidential: "Vertraulich",
   perMonth: "/Monat",
@@ -130,6 +131,7 @@ const EN: typeof DE = {
   disclaimer: "Legal notice — Marketing communication",
   disclaimerText: "This document is a marketing communication and has not been prepared in accordance with legal requirements designed to promote the independence of investment research. It is not subject to any prohibition on dealing ahead of the dissemination of investment research. The simulations shown are based on assumptions that may diverge from actual developments over time. Past performance is not a reliable indicator of future performance. The information contained herein does not constitute personal investment advice, nor an offer or solicitation to buy or sell any financial instrument.",
   issuedBy: "Issued by",
+  asOf: "As of",
   pageOf: (a: number, b: number) => `Page ${a} of ${b}`,
   confidential: "Confidential",
   perMonth: "/month",
@@ -551,8 +553,19 @@ export async function generateClientPdfReport(
   const discY = 140;
   p5.drawLine({ start: { x: M, y: discY + 16 }, end: { x: W - M, y: discY + 16 }, color: C.border, thickness: 0.5 });
   drawText(p5, S.disclaimer.toUpperCase(), M, discY, { font: bold, size: 8, color: C.muted });
-  drawWrappedText(p5, `${S.disclaimerText} ${S.issuedBy} ${advisor.bankName}.`, M, discY - 14, CW, {
-    font: body, size: 7, color: C.muted, lineHeight: 1.5,
+  const discEndY = drawWrappedText(
+    p5,
+    `${S.disclaimerText} ${S.issuedBy} ${advisor.bankName}.`,
+    M,
+    discY - 14,
+    CW,
+    { font: body, size: 7, color: C.muted, lineHeight: 1.5 },
+  );
+  // "Stand: TT. Monat JJJJ" below disclaimer
+  drawText(p5, `${S.asOf}: ${fmtDate(locale)}`, M, discEndY - 6, {
+    font: italic,
+    size: 7,
+    color: C.muted,
   });
 
   footer(p5, { body }, S, 5, totalPages, true);
