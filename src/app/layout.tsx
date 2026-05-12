@@ -1,15 +1,29 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import localFont from "next/font/local";
 import "./globals.css";
 import ClientBody from "./ClientBody";
 
 /*
  * Skeena Corporate Typeface (SHC Markenstilhandbuch).
- * Self-hosted via @font-face in globals.css — no Google-Fonts CDN, no
- * external request from the browser. Required for the bank-intranet
- * deployment where egress to fonts.gstatic.com is blocked and the CSP
- * disallows third-party script/style origins.
+ * Self-hosted via next/font/local — no Google-Fonts CDN, no external
+ * request from the browser. Required for the bank-intranet deployment
+ * where egress to fonts.gstatic.com is blocked and the CSP disallows
+ * third-party script/style origins. The TTFs live in /public/fonts/
+ * (referenced by the PDF/HTML export pipeline via runtime fetch); the
+ * relative paths below let Next.js fingerprint and preload them for the
+ * browser without duplicating the bytes in src/.
  */
+const skeena = localFont({
+  variable: "--font-skeena",
+  display: "swap",
+  src: [
+    { path: "../../public/fonts/Skeena-Regular.ttf",    weight: "400", style: "normal" },
+    { path: "../../public/fonts/Skeena-Italic.ttf",     weight: "400", style: "italic" },
+    { path: "../../public/fonts/Skeena-Bold.ttf",       weight: "700", style: "normal" },
+    { path: "../../public/fonts/Skeena-BoldItalic.ttf", weight: "700", style: "italic" },
+  ],
+});
 
 export const metadata: Metadata = {
   title: "Ruhestandsplaner Pro — Planung & Simulation",
@@ -43,7 +57,7 @@ export default async function RootLayout({
   await headers();
 
   return (
-    <html lang="de">
+    <html lang="de" className={skeena.variable}>
       <body suppressHydrationWarning className="antialiased font-sans">
         <ClientBody>{children}</ClientBody>
       </body>
