@@ -28,6 +28,7 @@ import type {
 } from "../../types";
 import type { Locale } from "../../i18n";
 import { hashPin } from "./crypto";
+import { buildEmbeddedSkeenaCss } from "./fonts";
 import {
   portfolioLegend,
   renderDetailedPathSvg,
@@ -322,6 +323,9 @@ export async function generateClientHtmlReport(
   const S = opts.locale === "de" ? DE_STRINGS : EN_STRINGS;
   const disclaimer = opts.locale === "de" ? DISCLAIMER_DE : DISCLAIMER_EN;
 
+  /* Skeena font embedding (self-contained HTML, portable without /fonts/ path) */
+  const fontFaceCss = await buildEmbeddedSkeenaCss();
+
   /* PIN hashing */
   let pinHashStr = "";
   let pinSalt = "";
@@ -364,6 +368,7 @@ export async function generateClientHtmlReport(
     : `Retirement Plan — ${client.name || ""}`;
 
   const css = `
+    ${fontFaceCss}
     :root{
       --bg:#FAF8F5;--card:#FFFFFF;--text:#20201E;--muted:#6E6B68;--soft:#F5F3F0;
       --accent:#D31220;--accent-soft:rgba(211,18,32,0.08);--border:#E5E1DC;
@@ -371,8 +376,8 @@ export async function generateClientHtmlReport(
     }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;
-      -webkit-font-smoothing:antialiased;font-size:16px;line-height:1.5}
+      font-family:"Skeena",-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased;font-size:16px;line-height:1.5;font-feature-settings:"kern","liga","calt"}
     .container{max-width:960px;margin:0 auto;padding:32px 24px 120px}
     .header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:48px}
     .header h1{font-size:32px;line-height:1.15;font-weight:700;letter-spacing:-0.01em;margin:0 0 8px;color:var(--text)}

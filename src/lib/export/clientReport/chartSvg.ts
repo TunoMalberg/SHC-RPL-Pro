@@ -147,22 +147,22 @@ export function renderMonteCarloFanSvg(
   <rect x="0" y="0" width="${width}" height="${height}" fill="white"/>
   ${yTicks.map((v) => `
     <line x1="${m.l}" x2="${m.l + W}" y1="${sy(v).toFixed(1)}" y2="${sy(v).toFixed(1)}" stroke="${REPORT_COLORS.gridLine}" stroke-width="1"/>
-    <text x="${m.l - 8}" y="${(sy(v) + 4).toFixed(1)}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
+    <text x="${m.l - 8}" y="${(sy(v) + 4).toFixed(1)}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
   `).join("")}
   <path d="${toBand(p10Path, p90Path)}" fill="${REPORT_COLORS.band10_90}" stroke="none"/>
   <path d="${toBand(p25Path, p75Path)}" fill="${REPORT_COLORS.band25_75}" stroke="none"/>
   <path d="${toPath(medianPath)}" fill="none" stroke="${REPORT_COLORS.median}" stroke-width="2.2"/>
   ${xTicks.map((i) => `
-    <text x="${sx(i).toFixed(1)}" y="${m.t + H + 18}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
+    <text x="${sx(i).toFixed(1)}" y="${m.t + H + 18}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
   `).join("")}
-  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${labels.xAxis}</text>
+  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${labels.xAxis}</text>
   <g transform="translate(${m.l + 12}, ${m.t + 12})">
     <rect x="0" y="0" width="12" height="12" fill="${REPORT_COLORS.band10_90}"/>
-    <text x="18" y="10" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${labels.p10p90}</text>
+    <text x="18" y="10" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${labels.p10p90}</text>
     <rect x="0" y="20" width="12" height="12" fill="${REPORT_COLORS.band25_75}"/>
-    <text x="18" y="30" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${labels.p25p75}</text>
+    <text x="18" y="30" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${labels.p25p75}</text>
     <line x1="0" y1="46" x2="12" y2="46" stroke="${REPORT_COLORS.median}" stroke-width="2.2"/>
-    <text x="18" y="50" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${labels.median}</text>
+    <text x="18" y="50" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${labels.median}</text>
   </g>
   <!-- Hover layer (added by JS): crosshair + markers + tooltip -->
   <g class="hover-layer" style="pointer-events:none">
@@ -242,13 +242,13 @@ export function renderHistoricalSvg(
   <rect x="0" y="0" width="${width}" height="${height}" fill="white"/>
   ${yTicks.map((v) => `
     <line x1="${m.l}" x2="${m.l + W}" y1="${sy(v).toFixed(1)}" y2="${sy(v).toFixed(1)}" stroke="${REPORT_COLORS.gridLine}" stroke-width="1"/>
-    <text x="${m.l - 8}" y="${(sy(v) + 4).toFixed(1)}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
+    <text x="${m.l - 8}" y="${(sy(v) + 4).toFixed(1)}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
   `).join("")}
   ${paths}
   ${xTicks.map((i) => `
-    <text x="${sx(i).toFixed(1)}" y="${m.t + H + 18}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
+    <text x="${sx(i).toFixed(1)}" y="${m.t + H + 18}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
   `).join("")}
-  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${labels.xAxis}</text>
+  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${labels.xAxis}</text>
 </svg>`.trim();
 }
 
@@ -313,8 +313,8 @@ export function renderPortfolioDonutSvg(
   ${slices.map((s) => `<path d="${s.d}" fill="${s.color}" stroke="white" stroke-width="2" class="donut-slice"
     data-label="${escAttr(s.label)}" data-pct="${s.pct}" data-net="${s.netReturn.toFixed(2)}"
     data-default-color="${s.color}" style="cursor:pointer;transition:opacity .12s"/>`).join("")}
-  <text x="${cx}" y="${cy - 4}" text-anchor="middle" font-family="Inter, Helvetica, Arial, sans-serif" font-size="14" fill="${REPORT_COLORS.muted}" style="pointer-events:none">Portfolio</text>
-  <text x="${cx}" y="${cy + 16}" text-anchor="middle" font-family="Inter, Helvetica, Arial, sans-serif" font-size="18" font-weight="bold" fill="${REPORT_COLORS.text}" style="pointer-events:none">100%</text>
+  <text x="${cx}" y="${cy - 4}" text-anchor="middle" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="14" fill="${REPORT_COLORS.muted}" style="pointer-events:none">Portfolio</text>
+  <text x="${cx}" y="${cy + 16}" text-anchor="middle" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="18" font-weight="bold" fill="${REPORT_COLORS.text}" style="pointer-events:none">100%</text>
 </svg>`.trim();
 }
 
@@ -392,7 +392,7 @@ export function renderScenariosComparisonSvg(
     return `
       <g transform="translate(${lx}, ${ly})">
         <line x1="0" y1="6" x2="14" y2="6" stroke="${color}" stroke-width="2.6"/>
-        <text x="20" y="10" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${String(s.name).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
+        <text x="20" y="10" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${String(s.name).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
       </g>`;
   }).join("");
 
@@ -410,13 +410,13 @@ export function renderScenariosComparisonSvg(
   <rect x="0" y="0" width="${width}" height="${height}" fill="white"/>
   ${yTicks.map((v) => `
     <line x1="${m.l}" x2="${m.l + W}" y1="${sy(v).toFixed(1)}" y2="${sy(v).toFixed(1)}" stroke="${REPORT_COLORS.gridLine}" stroke-width="1"/>
-    <text x="${m.l - 8}" y="${(sy(v) + 4).toFixed(1)}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
+    <text x="${m.l - 8}" y="${(sy(v) + 4).toFixed(1)}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
   `).join("")}
   ${pathsSvg}
   ${xTicks.map((i) => `
-    <text x="${sx(i).toFixed(1)}" y="${m.t + H + 18}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
+    <text x="${sx(i).toFixed(1)}" y="${m.t + H + 18}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
   `).join("")}
-  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${axisLabel}</text>
+  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${axisLabel}</text>
   ${legendItems}
   <g class="hover-layer" style="pointer-events:none">
     <line class="crosshair" x1="0" y1="${m.t}" x2="0" y2="${m.t + H}" stroke="${REPORT_COLORS.muted}" stroke-width="1" stroke-dasharray="4 3" opacity="0"/>
@@ -496,22 +496,22 @@ export function renderDetailedPathSvg(
   <rect x="0" y="0" width="${width}" height="${height}" fill="white"/>
   ${yTicks.map((v) => `
     <line x1="${m.l}" x2="${m.l + W}" y1="${sy(v).toFixed(1)}" y2="${sy(v).toFixed(1)}" stroke="${REPORT_COLORS.gridLine}" stroke-width="1"/>
-    <text x="${m.l - 8}" y="${(sy(v) + 4).toFixed(1)}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
+    <text x="${m.l - 8}" y="${(sy(v) + 4).toFixed(1)}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
   `).join("")}
   <path d="${bandArea(floor, cashArr)}" fill="${REPORT_COLORS.cash}" opacity="0.8"/>
   <path d="${bandArea(cashArr, cashBondsArr)}" fill="${REPORT_COLORS.bonds}" opacity="0.8"/>
   <path d="${bandArea(cashBondsArr, totalArr)}" fill="${REPORT_COLORS.equity}" opacity="0.8"/>
   ${xTicks.map((i) => `
-    <text x="${sx(i).toFixed(1)}" y="${m.t + H + 18}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
+    <text x="${sx(i).toFixed(1)}" y="${m.t + H + 18}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
   `).join("")}
-  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${xAxisLabel}</text>
+  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${xAxisLabel}</text>
   <g transform="translate(${m.l + 12}, ${m.t + 12})">
     <rect x="0" y="0" width="12" height="12" fill="${REPORT_COLORS.cash}"/>
-    <text x="18" y="10" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${String(bucketLabels.cash).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
+    <text x="18" y="10" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${String(bucketLabels.cash).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
     <rect x="0" y="18" width="12" height="12" fill="${REPORT_COLORS.bonds}"/>
-    <text x="18" y="28" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${String(bucketLabels.bonds).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
+    <text x="18" y="28" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${String(bucketLabels.bonds).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
     <rect x="0" y="36" width="12" height="12" fill="${REPORT_COLORS.equity}"/>
-    <text x="18" y="46" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${String(bucketLabels.equities).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
+    <text x="18" y="46" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${String(bucketLabels.equities).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>
   </g>
   <g class="hover-layer" style="pointer-events:none">
     <line class="crosshair" x1="0" y1="${m.t}" x2="0" y2="${m.t + H}" stroke="${REPORT_COLORS.muted}" stroke-width="1" stroke-dasharray="4 3" opacity="0"/>
@@ -543,7 +543,7 @@ export function chartInteractionScript(): string {
     var tt = document.createElement('div');
     tt.className = 'chart-tt';
     tt.style.cssText = 'position:absolute;pointer-events:none;background:rgba(32,32,30,0.95);color:#fff;'+
-      'font-family:Inter,-apple-system,sans-serif;font-size:12px;line-height:1.4;padding:8px 10px;'+
+      'font-family:Skeena,-apple-system,sans-serif;font-size:12px;line-height:1.4;padding:8px 10px;'+
       'border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);opacity:0;transition:opacity .1s;'+
       'transform:translate(-50%,-100%);z-index:9999;white-space:nowrap';
     document.body.appendChild(tt);

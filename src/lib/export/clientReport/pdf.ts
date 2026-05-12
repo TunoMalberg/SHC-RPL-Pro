@@ -10,11 +10,14 @@
  *
  * Technik: pdf-lib für Struktur + Text, Charts werden aus dem SVG-Renderer
  * über ein offscreen <canvas> zu PNG gerendert und embedded.
- * Alle Fonts sind Standard-PDF-14-Fonts (Helvetica), keine externen Ressourcen
- * → CSP-konform und im Bank-Intranet ohne Internet lauffähig.
+ * Fonts: Skeena (Regular, Bold, Italic) wird aus /public/fonts/ geladen
+ * und via @pdf-lib/fontkit in das PDF embedded. Fällt bei fetch-Fehlern
+ * auf Standard-Helvetica zurück, damit der Export niemals bricht.
+ * Alle Assets liegen lokal → CSP-konform und im Bank-Intranet lauffähig.
  */
 
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont, RGB } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import type {
   AdvisorProfile,
   ClientProfile,
@@ -284,9 +287,28 @@ export async function generateClientPdfReport(
 ): Promise<Blob> {
   const S = locale === "de" ? DE : EN;
   const pdf = await PDFDocument.create();
-  const body = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const italic = await pdf.embedFont(StandardFonts.HelveticaOblique);
+  pdf.registerFontkit(fontkit);
+
+  /* Try to embed Skeena (Corporate Font). Fall back to Helvetica if the
+     /public/fonts/ files are unreachable — the export must never break. */
+  let body: PDFFont;
+  let bold: PDFFont;
+  let italic: PDFFont;
+  try {
+    const [reg, bld, it] = await Promise.all([
+      fetch("/fonts/Skeena-Regular.ttf").then((r) => r.arrayBuffer()),
+      fetch("/fonts/Skeena-Bold.ttf").then((r) => r.arrayBuffer()),
+      fetch("/fonts/Skeena-Italic.ttf").then((r) => r.arrayBuffer()),
+    ]);
+    body = await pdf.embedFont(reg, { subset: true });
+    bold = await pdf.embedFont(bld, { subset: true });
+    italic = await pdf.embedFont(it, { subset: true });
+  } catch (err) {
+    console.warn("[clientReport] Skeena embed failed, falling back to Helvetica", err);
+    body = await pdf.embedFont(StandardFonts.Helvetica);
+    bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    italic = await pdf.embedFont(StandardFonts.HelveticaOblique);
+  }
 
   // A4 portrait
   const W = 595.28;

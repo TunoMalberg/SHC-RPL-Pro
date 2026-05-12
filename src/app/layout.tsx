@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { DM_Sans } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import ClientBody from "./ClientBody";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
+/*
+ * Skeena Corporate Typeface (SHC Markenstilhandbuch).
+ * Self-hosted via @font-face in globals.css — no Google-Fonts CDN, no
+ * external request from the browser. Required for the bank-intranet
+ * deployment where egress to fonts.gstatic.com is blocked and the CSP
+ * disallows third-party script/style origins.
+ */
 
 export const metadata: Metadata = {
   title: "Ruhestandsplaner Pro — Planung & Simulation",
@@ -42,7 +43,7 @@ export default async function RootLayout({
   await headers();
 
   return (
-    <html lang="de" className={dmSans.variable}>
+    <html lang="de">
       <body suppressHydrationWarning className="antialiased font-sans">
         <ClientBody>{children}</ClientBody>
       </body>

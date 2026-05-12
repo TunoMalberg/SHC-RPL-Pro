@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Skeena Corporate Typeface (SHC Markenstilhandbuch 2021)
+ * Self-hosted from /public/fonts/ — no external CDN, CSP-compliant for
+ * bank-intranet deployment.
+ */
+@font-face {
+  font-family: "Skeena";
+  src: url("/fonts/Skeena-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Skeena";
+  src: url("/fonts/Skeena-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Skeena";
+  src: url("/fonts/Skeena-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Skeena";
+  src: url("/fonts/Skeena-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     /* SHC Corporate Design Colors */
@@ -81,5 +115,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Skeena", system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-feature-settings: "kern", "liga", "calt";
   }
 }
