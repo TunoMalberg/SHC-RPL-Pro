@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ruhestandsplaner-ingress
+  namespace: ruhestandsplaner
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  tls:
+    - secretName: prod-m222-local-tls
+      hosts:
+        - ruhestandsplaner.prod.m222.local
+  rules:
+    - host: ruhestandsplaner.prod.m222.local
+      http:
+        paths:
+          - path: "/"
+            pathType: Prefix
+            backend:
+              service:
+                name: ruhestandsplaner
+                port:
+                  number: 3000
