@@ -44,9 +44,10 @@ export function HistoricalAnalysisSection() {
     success: s.success,
   }));
 
+  // Drawdowns als negative Zahlen — ein Verlust ist konventionell < 0.
   const drawdownData = scenarios.map((s) => ({
     startYear: s.startYear,
-    maxDrawdown: Math.round(s.maxDrawdown * 100 * 10) / 10,
+    maxDrawdown: -Math.round(s.maxDrawdown * 100 * 10) / 10,
   }));
 
   const successColor = overallSuccessRate >= 90
@@ -152,8 +153,9 @@ export function HistoricalAnalysisSection() {
               <YAxis
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v) => `${v}%`}
-                domain={[0, "auto"]}
+                domain={["auto", 0]}
               />
+              <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
               <Tooltip
                 formatter={(value) => `${(Number(value) || 0).toFixed(1)}%`}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
@@ -200,7 +202,7 @@ export function HistoricalAnalysisSection() {
                       </Badge>
                     </td>
                     <td className="py-1.5 px-3 text-right font-medium">{fmtEur(s.finalWealth)}</td>
-                    <td className="py-1.5 px-3 text-right text-rose-600">{fmtPct(s.maxDrawdown * 100)}</td>
+                    <td className="py-1.5 px-3 text-right text-rose-600">{fmtPct(-s.maxDrawdown * 100)}</td>
                     <td className="py-1.5 px-3 text-right">{s.worstYear}</td>
                     <td className="py-1.5 px-3 text-right text-rose-600">{fmtPct(s.worstReturn)}</td>
                   </tr>
