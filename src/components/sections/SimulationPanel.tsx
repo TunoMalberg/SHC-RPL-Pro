@@ -24,8 +24,30 @@ import {
   generateWithdrawalHeatmap,
 } from "@/lib/engine/montecarlo";
 import { runHistoricalBacktest } from "@/lib/engine/historical";
-import type { SimulationMode } from "@/lib/types";
+import type { MifidProfile, PortfolioConfig, Scenario, SimulationMode } from "@/lib/types";
 import { fmtEur } from "@/lib/format";
+
+/** MiFID-II Risikoprofile als [Cash %, Bonds %, Equity %].
+ *  Spiegelt 1:1 die Vorgaben aus PortfolioBuilder.tsx → MIFID_PRESETS. */
+const MIFID_PRESETS: Record<MifidProfile, [number, number, number]> = {
+  conservative: [30, 55, 15],
+  balanced:     [15, 35, 50],
+  growth:       [10, 20, 70],
+  speculative:  [ 5, 15, 80],
+};
+
+const MIFID_ORDER: MifidProfile[] = ["conservative", "balanced", "growth", "speculative"];
+
+/** Erzeugt eine Portfolio-Variante mit MiFID-Allokation; alle übrigen
+ *  Bucket-Eigenschaften (Rendite, Vola, Kosten) bleiben gleich. */
+function withMifidAllocation(base: PortfolioConfig, profile: MifidProfile): PortfolioConfig {
+  const allocs = MIFID_PRESETS[profile];
+  const newBuckets = base.buckets.map((b, i) => ({
+    ...b,
+    allocation: allocs[i] ?? b.allocation,
+  })) as PortfolioConfig["buckets"];
+  return { ...base, buckets: newBuckets, mifidProfile: profile };
+}
 
 export function SimulationPanel() {
   const { state, dispatch } = useAppState();
@@ -45,6 +67,71 @@ export function SimulationPanel() {
     await new Promise((r) => setTimeout(r, 50));
 
     try {
+      /* ─────────────────────────────────────────────────────────────────
+         Modus „Szenariovergleich" — echter Multi-Run über alle vier
+         MiFID-Risikoprofile. Erzeugt für jedes Profil ein vollwertiges
+         Simulationsergebnis (Median + p10/p25/p75/p90) und legt sie als
+         Szenarien an. Springt am Ende automatisch in den Tab „Szenarien".
+         ─────────────────────────────────────────────────────────────── */
+      if (settings.mode === "scenario_comparison") {
+        const newScenarios: Scenario[] = [];
+        for (let i = 0; i < MIFID_ORDER.length; i++) {
+          const profile = MIFID_ORDER[i];
+          const profileLabel = t(`portfolio.mifid${profile.charAt(0).toUpperCase() + profile.slice(1)}`);
+          const allocs = MIFID_PRESETS[profile];
+          setProgressStep(
+            `${t("sim.multirunStep")} ${i + 1}/4: ${profileLabel} (${allocs[0]}/${allocs[1]}/${allocs[2]})`,
+          );
+          setProgressPct(10 + i * 22);
+          await new Promise((r) => setTimeout(r, 30));
+
+          const variantPortfolio = withMifidAllocation(portfolio, profile);
+          const variantResult = runMonteCarloSimulation(
+            client, inputs, variantPortfolio, settings, liquidityEvents,
+          );
+          variantResult.withdrawalHeatmap = generateWithdrawalHeatmap(
+            client, inputs, variantPortfolio, settings, liquidityEvents,
+          );
+
+          newScenarios.push({
+            id: `multirun-${profile}-${Date.now()}-${i}`,
+            name: profileLabel,
+            inputs: { ...inputs },
+            portfolio: { ...variantPortfolio, buckets: [...variantPortfolio.buckets] as typeof variantPortfolio.buckets },
+            result: variantResult,
+            source: "multirun",
+          });
+        }
+
+        // Hauptergebnis = das aktuell ausgewählte Profil (sonst „Ausgewogen"),
+        // damit die übrigen Tabs (Ergebnisse, Historie) sauber befüllt sind.
+        const activeProfile: MifidProfile = portfolio.mifidProfile ?? "balanced";
+        const mainScenario =
+          newScenarios.find((s) => s.portfolio.mifidProfile === activeProfile) ?? newScenarios[1];
+        if (mainScenario?.result) {
+          dispatch({ type: "SET_RESULT", payload: mainScenario.result });
+        }
+
+        setProgressStep(t("sim.progressStep6"));
+        setProgressPct(92);
+        await new Promise((r) => setTimeout(r, 20));
+        const histRes = runHistoricalBacktest(
+          client,
+          inputs,
+          mainScenario?.portfolio ?? portfolio,
+          liquidityEvents,
+        );
+        dispatch({ type: "SET_HISTORICAL", payload: histRes });
+
+        dispatch({ type: "REPLACE_MULTIRUN_SCENARIOS", payload: newScenarios });
+
+        setProgressPct(100);
+        setProgressStep("");
+        setProgressDone(t("sim.multirunDone").replace("{n}", String(newScenarios.length)));
+        dispatch({ type: "SET_TAB", payload: "scenarios" });
+        return;
+      }
+
       const result = runMonteCarloSimulation(client, inputs, portfolio, settings, liquidityEvents);
       setProgressPct(40);
 

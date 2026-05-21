@@ -26,6 +26,7 @@ const COLORS = {
   equities: "#D31220",
   total: "#20201E",
   rebalance: "#FAC075",
+  pe: "#8A83BE",
 };
 
 export function DetailedExampleSection() {
@@ -47,6 +48,13 @@ export function DetailedExampleSection() {
   const cashLabel = bucketName(0, "detailed.cash");
   const bondsLabel = bucketName(1, "detailed.bonds");
   const equitiesLabel = bucketName(2, "detailed.equities");
+  const peLabel = t("detailed.peChartLabel");
+
+  // Hat dieses Trace überhaupt PE-Daten? (peNav ist undefined wenn keine Fonds)
+  const hasPE = useMemo(
+    () => !!detailedTrace?.rows.some((r) => r.peNav !== undefined && r.peNav > 0),
+    [detailedTrace],
+  );
 
   const chartData = useMemo(() => {
     if (!detailedTrace) return [];
@@ -56,10 +64,11 @@ export function DetailedExampleSection() {
       [cashLabel]: Math.round(r.endCash),
       [bondsLabel]: Math.round(r.endBonds),
       [equitiesLabel]: Math.round(r.endEquities),
+      [peLabel]: Math.round(r.peNav ?? 0),
       [t("detailed.total")]: Math.round(r.endTotal),
       liquidityEvent: r.liquidityEvent || 0,
     }));
-  }, [detailedTrace, cashLabel, bondsLabel, equitiesLabel, t]);
+  }, [detailedTrace, cashLabel, bondsLabel, equitiesLabel, peLabel, t]);
 
   const liquidityEventYears = useMemo(() => {
     if (!detailedTrace) return [];
@@ -231,6 +240,16 @@ export function DetailedExampleSection() {
                     stroke={COLORS.equities}
                     fillOpacity={0.7}
                   />
+                  {hasPE && (
+                    <Area
+                      type="monotone"
+                      dataKey={peLabel}
+                      stackId="1"
+                      fill={COLORS.pe}
+                      stroke={COLORS.pe}
+                      fillOpacity={0.75}
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
               <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 justify-center flex-wrap">
@@ -298,6 +317,19 @@ export function DetailedExampleSection() {
                       <th className="py-2 px-2 text-right font-semibold bg-[#D31220]/20" style={{ color: "#f8d7da" }}>
                         {t("detailed.colRebalDelta")}
                       </th>
+                      {hasPE && (
+                        <>
+                          <th className="py-2 px-2 text-right font-semibold bg-[#8A83BE]/20" style={{ color: "#e0ddf5" }}>
+                            {t("detailed.colPECall")}
+                          </th>
+                          <th className="py-2 px-2 text-right font-semibold bg-[#8A83BE]/20" style={{ color: "#e0ddf5" }}>
+                            {t("detailed.colPEDistNet")}
+                          </th>
+                          <th className="py-2 px-2 text-right font-semibold bg-[#8A83BE]/20" style={{ color: "#e0ddf5" }}>
+                            {t("detailed.colPENav")}
+                          </th>
+                        </>
+                      )}
                       <th className="py-2 px-2 text-right font-semibold">{t("detailed.colEndTotal")}</th>
                     </tr>
                   </thead>
@@ -387,6 +419,19 @@ export function DetailedExampleSection() {
                           <td className={`py-1.5 px-2 text-right tabular-nums ${row.rebalEquitiesDelta > 0 ? "text-[#D31220]" : row.rebalEquitiesDelta < 0 ? "text-rose-500" : "text-slate-300"}`}>
                             {row.rebalanced ? (row.rebalEquitiesDelta >= 0 ? "+" : "") + fmtEur(row.rebalEquitiesDelta) : "—"}
                           </td>
+                          {hasPE && (
+                            <>
+                              <td className={`py-1.5 px-2 text-right tabular-nums ${(row.peCall ?? 0) > 0 ? "text-rose-600 bg-[#8A83BE]/5" : "text-slate-300"}`}>
+                                {(row.peCall ?? 0) > 0 ? "−" + fmtEur(row.peCall ?? 0) : "—"}
+                              </td>
+                              <td className={`py-1.5 px-2 text-right tabular-nums ${(row.peDistNet ?? 0) > 0 ? "text-[#5a8a50] bg-[#8A83BE]/5" : "text-slate-300"}`}>
+                                {(row.peDistNet ?? 0) > 0 ? "+" + fmtEur(row.peDistNet ?? 0) : "—"}
+                              </td>
+                              <td className={`py-1.5 px-2 text-right tabular-nums font-medium ${(row.peNav ?? 0) > 0 ? "text-[#8A83BE] bg-[#8A83BE]/5" : "text-slate-300"}`}>
+                                {(row.peNav ?? 0) > 0 ? fmtEur(row.peNav ?? 0) : "—"}
+                              </td>
+                            </>
+                          )}
                           <td className="py-1.5 px-2 text-right font-bold text-slate-900 tabular-nums">
                             {fmtEur(row.endTotal)}
                           </td>
@@ -422,6 +467,12 @@ export function DetailedExampleSection() {
                   <p><strong>{t("detailed.colRebalDelta")}</strong> — {t("detailed.legendRebal").split(" — ")[1]}</p>
                   <p><strong>{t("detailed.colSource")}</strong> — {t("detailed.legendSource").split(" — ")[1]}</p>
                   <p><strong>{t("detailed.phaseAccumulation")}</strong> vs. <strong>{t("detailed.phaseWithdrawal")}</strong> — {t("detailed.legendPhase").split(" — ")[1]}</p>
+                  {hasPE && (
+                    <p>
+                      <span className="inline-block w-3 h-3 rounded-sm bg-[#8A83BE] mr-2" />
+                      <strong>{peLabel}</strong> — {t("detailed.legendPE").split(" — ")[1]}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>

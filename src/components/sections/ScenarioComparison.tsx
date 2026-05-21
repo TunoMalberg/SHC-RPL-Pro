@@ -11,7 +11,8 @@ import { runMonteCarloSimulation, generateWithdrawalHeatmap } from "@/lib/engine
 import type { Scenario } from "@/lib/types";
 import { useState } from "react";
 import {
-  LineChart,
+  ComposedChart,
+  Area,
   Line,
   XAxis,
   YAxis,
@@ -36,6 +37,7 @@ export function ScenarioComparisonSection() {
       name,
       inputs: { ...inputs },
       portfolio: { ...portfolio, buckets: [...portfolio.buckets] as typeof portfolio.buckets },
+      source: "manual",
     };
 
     const result = runMonteCarloSimulation(client, scenario.inputs, scenario.portfolio, settings);
@@ -46,16 +48,33 @@ export function ScenarioComparisonSection() {
     setScenarioName("");
   };
 
-  const step = 5;
-  const comparisonData: Record<string, number | string>[] = [];
+  // FIX (2026-05-16): An exakten Jahresgrenzen samplen, damit das angezeigte
+  // Alter im Monatlich-Step nicht verschoben wird.
+  // Erweiterung (2026-05-22): pro Szenario zusätzlich zu Median (key = name)
+  // auch p25 (`p25_<name>`) und p75 (`p75_<name>`) sowie das Tupel
+  // `band_<name>` = [p25, p75] für die Recharts-Range-Area mitgeben.
+  const comparisonData: Record<string, number | string | [number, number]>[] = [];
 
   if (scenarios.length > 0) {
-    const maxLen = Math.max(...scenarios.filter(s => s.result).map(s => s.result!.medianPath.length));
-    for (let i = 0; i < maxLen; i += step) {
-      const point: Record<string, number | string> = { age: Math.round(client.currentAge + i) };
+    const totalYears = Math.max(1, client.lifeExpectancy - client.currentAge);
+    const maxLen = Math.max(
+      ...scenarios.filter((s) => s.result).map((s) => s.result!.medianPath.length),
+    );
+    const stepsPerYear = Math.max(1, Math.round((maxLen - 1) / totalYears));
+    for (let y = 0; y <= totalYears; y++) {
+      const i = Math.min(y * stepsPerYear, maxLen - 1);
+      const point: Record<string, number | string | [number, number]> = {
+        age: client.currentAge + y,
+      };
       for (const s of scenarios) {
         if (s.result && i < s.result.medianPath.length) {
-          point[s.name] = Math.round(s.result.medianPath[i]);
+          const med = Math.round(s.result.medianPath[i]);
+          const p25 = Math.round(s.result.p25Path?.[i] ?? med);
+          const p75 = Math.round(s.result.p75Path?.[i] ?? med);
+          point[s.name] = med;
+          point[`p25_${s.name}`] = p25;
+          point[`p75_${s.name}`] = p75;
+          point[`band_${s.name}`] = [p25, p75];
         }
       }
       comparisonData.push(point);
@@ -161,11 +180,14 @@ export function ScenarioComparisonSection() {
           {comparisonData.length > 0 && (
             <Card data-design-id="scenario-comparison-chart-card">
               <CardHeader>
-                <CardTitle data-design-id="scenario-comparison-chart-title">{t("scenarios.comparisonChart")}</CardTitle>
+                <CardTitle data-design-id="scenario-comparison-chart-title">
+                  {t("scenarios.comparisonChart")}
+                </CardTitle>
+                <p className="text-sm text-slate-500 mt-1">{t("scenarios.comparisonChartSub")}</p>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={comparisonData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
+                <ResponsiveContainer width="100%" height={420}>
+                  <ComposedChart data={comparisonData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey="age"
@@ -177,23 +199,52 @@ export function ScenarioComparisonSection() {
                       tickFormatter={(v) => `€${(Number(v) / 1000).toFixed(0)}k`}
                     />
                     <Tooltip
-                      formatter={(value) => fmtEur(Number(value) || 0)}
+                      formatter={(value, name) => {
+                        const label = String(name);
+                        if (label.startsWith("p25_") || label.startsWith("p75_") || label.startsWith("band_")) {
+                          // Range entries are surfaced as arrays — handled by range labels below.
+                          if (Array.isArray(value)) {
+                            const [lo, hi] = value as [number, number];
+                            return [`${fmtEur(lo)} – ${fmtEur(hi)}`, `25–75 % (${label.replace("band_", "")})`];
+                          }
+                          return [fmtEur(Number(value) || 0), label];
+                        }
+                        return [fmtEur(Number(value) || 0), `${t("scenarios.medianShort")} ${label}`];
+                      }}
                       labelFormatter={(l) => `${t("results.ageAxis")} ${l}`}
                       contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {/* 25/75 funnel per scenario — drawn first so the median lines sit on top */}
+                    {scenarios.map((s, idx) => (
+                      <Area
+                        key={`band-${s.id}`}
+                        type="monotone"
+                        dataKey={`band_${s.name}`}
+                        stroke="none"
+                        fill={SCENARIO_COLORS[idx % SCENARIO_COLORS.length]}
+                        fillOpacity={0.14}
+                        isAnimationActive={false}
+                        legendType="none"
+                        activeDot={false}
+                      />
+                    ))}
                     {scenarios.map((s, idx) => (
                       <Line
-                        key={s.id}
+                        key={`median-${s.id}`}
                         type="monotone"
                         dataKey={s.name}
                         stroke={SCENARIO_COLORS[idx % SCENARIO_COLORS.length]}
-                        strokeWidth={2}
+                        strokeWidth={2.2}
                         dot={false}
+                        isAnimationActive={false}
                       />
                     ))}
-                  </LineChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                  {t("scenarios.comparisonChartLegend")}
+                </p>
               </CardContent>
             </Card>
           )}

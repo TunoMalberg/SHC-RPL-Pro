@@ -6,6 +6,7 @@ import type {
   AppState,
   ClientProfile,
   FinancialInputs,
+  PEFund,
   PortfolioConfig,
   SimulationSettings,
   SimulationResult,
@@ -14,6 +15,7 @@ import type {
   Scenario,
   LiquidityEvent,
 } from "./types";
+import type { HoldingsState } from "./holdings/types";
 import {
   defaultAdvisor,
   defaultClient,
@@ -34,6 +36,7 @@ export const initialState: AppState = {
   detailedTrace: null,
   scenarios: [],
   activeTab: "profile",
+  holdings: { enabled: false, holdings: [], anonymized: false },
 };
 
 export type Action =
@@ -46,13 +49,20 @@ export type Action =
   | { type: "ADD_LIQUIDITY_EVENT"; payload: LiquidityEvent }
   | { type: "REMOVE_LIQUIDITY_EVENT"; payload: string }
   | { type: "UPDATE_LIQUIDITY_EVENT"; payload: LiquidityEvent }
+  | { type: "ADD_PE_FUND"; payload: PEFund }
+  | { type: "REMOVE_PE_FUND"; payload: string }
+  | { type: "UPDATE_PE_FUND"; payload: PEFund }
   | { type: "SET_RESULT"; payload: SimulationResult | null }
   | { type: "SET_HISTORICAL"; payload: HistoricalAnalysis | null }
   | { type: "SET_DETAILED_TRACE"; payload: DetailedSimTrace | null }
   | { type: "ADD_SCENARIO"; payload: Scenario }
   | { type: "REMOVE_SCENARIO"; payload: string }
   | { type: "UPDATE_SCENARIO"; payload: { id: string; result: SimulationResult } }
+  /** Ersetzt alle Multi-Run-Szenarien (source==="multirun") atomar.
+   *  Manuell gespeicherte Szenarien bleiben unangetastet. */
+  | { type: "REPLACE_MULTIRUN_SCENARIOS"; payload: Scenario[] }
   | { type: "SET_TAB"; payload: string }
+  | { type: "SET_HOLDINGS"; payload: Partial<HoldingsState> }
   | { type: "RESET" };
 
 export function appReducer(state: AppState, action: Action): AppState {
@@ -80,6 +90,34 @@ export function appReducer(state: AppState, action: Action): AppState {
           e.id === action.payload.id ? action.payload : e
         ),
       };
+    case "ADD_PE_FUND":
+      return {
+        ...state,
+        portfolio: {
+          ...state.portfolio,
+          peFunds: [...(state.portfolio.peFunds ?? []), action.payload],
+        },
+      };
+    case "REMOVE_PE_FUND":
+      return {
+        ...state,
+        portfolio: {
+          ...state.portfolio,
+          peFunds: (state.portfolio.peFunds ?? []).filter(
+            (f) => f.id !== action.payload,
+          ),
+        },
+      };
+    case "UPDATE_PE_FUND":
+      return {
+        ...state,
+        portfolio: {
+          ...state.portfolio,
+          peFunds: (state.portfolio.peFunds ?? []).map((f) =>
+            f.id === action.payload.id ? action.payload : f,
+          ),
+        },
+      };
     case "SET_RESULT":
       return { ...state, result: action.payload };
     case "SET_HISTORICAL":
@@ -102,8 +140,16 @@ export function appReducer(state: AppState, action: Action): AppState {
             : s
         ),
       };
+    case "REPLACE_MULTIRUN_SCENARIOS": {
+      const manual = state.scenarios.filter((s) => s.source !== "multirun");
+      return { ...state, scenarios: [...manual, ...action.payload] };
+    }
     case "SET_TAB":
       return { ...state, activeTab: action.payload };
+    case "SET_HOLDINGS": {
+      const cur = state.holdings ?? { enabled: false, holdings: [], anonymized: false };
+      return { ...state, holdings: { ...cur, ...action.payload } };
+    }
     case "RESET":
       return initialState;
     default:

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { AssetBucket, PortfolioConfig, MifidProfile } from "@/lib/types";
 import { computePortfolioReturn, computePortfolioVolatility, computeSharpeRatio } from "@/lib/engine/portfolio";
 import { fmtPct } from "@/lib/format";
+import { PrivateEquityBucket } from "./PrivateEquityBucket";
 
 // MiFID II presets: [cash%, bonds%, equities%]
 const MIFID_PRESETS: Record<MifidProfile, [number, number, number]> = {
@@ -201,7 +202,7 @@ export function PortfolioBuilderSection() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" data-design-id="three-bucket-grid">
         {portfolio.buckets.map((bucket, index) => (
           <Card key={bucket.name} className={`${BUCKET_COLORS[index].border} ${BUCKET_COLORS[index].bg}`} data-design-id={`bucket-card-${index}`}>
             <CardHeader className="pb-3">
@@ -267,6 +268,9 @@ export function PortfolioBuilderSection() {
           </Card>
         ))}
       </div>
+
+      {/* Topf 4: Private Equity (deterministisch, optional) */}
+      <PrivateEquityBucket />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-design-id="correlation-matrix-card">

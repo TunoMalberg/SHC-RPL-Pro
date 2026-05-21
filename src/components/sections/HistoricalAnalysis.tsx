@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 
 export function HistoricalAnalysisSection() {
   const { state } = useAppState();
-  const { historicalResult } = state;
+  const { historicalResult, client } = state;
   const { t } = useI18n();
 
   if (!historicalResult) {
@@ -55,6 +55,26 @@ export function HistoricalAnalysisSection() {
     : overallSuccessRate >= 70
       ? "text-[#FAC075]"
       : "text-rose-600";
+
+  /* ──────────────────────────────────────────
+     Path chart data — one row per age, one column per scenario.
+     Same visualisation as in the HTML client report ("Historischer Rückblick").
+     ────────────────────────────────────────── */
+  const worstYear = worstScenario?.startYear;
+  const bestYear = bestScenario?.startYear;
+  const pathLen = scenarios.length > 0 ? scenarios[0].path.length : 0;
+  const pathChartData = Array.from({ length: pathLen }, (_, i) => {
+    const row: Record<string, number> = { age: client.currentAge + i };
+    for (const s of scenarios) {
+      row[`y_${s.startYear}`] = Math.round(s.path[i] ?? 0);
+    }
+    return row;
+  });
+  const sortedScenarios = [...scenarios].sort((a, b) => {
+    // Render highlighted lines last so they sit on top.
+    const score = (sy: number) => (sy === worstYear ? 2 : sy === bestYear ? 1 : 0);
+    return score(a.startYear) - score(b.startYear);
+  });
 
   return (
     <div className="space-y-6" data-design-id="historical-analysis-section">
@@ -101,6 +121,92 @@ export function HistoricalAnalysisSection() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Path chart per starting cohort — same visualisation as HTML client report */}
+      {pathLen > 0 && (
+        <Card data-design-id="hist-paths-chart-card">
+          <CardHeader>
+            <CardTitle data-design-id="hist-paths-chart-title">{t("hist.pathsTitle")}</CardTitle>
+            <p className="text-sm text-slate-500 mt-1">{t("hist.pathsSubtitle")}</p>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={360}>
+              <LineChart
+                data={pathChartData}
+                margin={{ top: 10, right: 20, left: 20, bottom: 10 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="age"
+                  tick={{ fontSize: 11 }}
+                  label={{
+                    value: t("hist.axisAge"),
+                    position: "insideBottom",
+                    offset: -5,
+                    fontSize: 12,
+                  }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+                  label={{
+                    value: t("hist.axisWealth"),
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 0,
+                    fontSize: 12,
+                    style: { textAnchor: "middle" },
+                  }}
+                />
+                <Tooltip
+                  formatter={(value, name) => [fmtEur(Number(value) || 0), String(name).replace(/^y_/, "")]}
+                  labelFormatter={(l) => `${t("hist.axisAge")}: ${l}`}
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                />
+                {sortedScenarios.map((s) => {
+                  const isWorst = s.startYear === worstYear;
+                  const isBest = s.startYear === bestYear;
+                  const stroke = isWorst
+                    ? "#D31220"
+                    : isBest
+                      ? "#5a8a50"
+                      : s.success
+                        ? "rgba(143, 182, 135, 0.55)"
+                        : "rgba(211, 18, 32, 0.45)";
+                  return (
+                    <Line
+                      key={s.startYear}
+                      type="monotone"
+                      dataKey={`y_${s.startYear}`}
+                      name={String(s.startYear)}
+                      stroke={stroke}
+                      strokeWidth={isWorst || isBest ? 2.4 : 1}
+                      dot={false}
+                      isAnimationActive={false}
+                      opacity={isWorst || isBest ? 1 : 0.85}
+                    />
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+            {/* Static legend (Recharts auto-legend would clutter with ~50 entries) */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-600 mt-3 pl-2">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-0.5 bg-[#D31220]" />
+                {t("hist.legendWorst")} {worstYear ? `(${worstYear})` : ""}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-0.5 bg-[#5a8a50]" />
+                {t("hist.legendBest")} {bestYear ? `(${bestYear})` : ""}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-0.5" style={{ background: "rgba(143,182,135,0.55)" }} />
+                {t("hist.legendOther")}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-design-id="hist-wealth-chart-card">
         <CardHeader>

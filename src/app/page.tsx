@@ -13,6 +13,7 @@ import { ScenarioComparisonSection } from "@/components/sections/ScenarioCompari
 import { DetailedExampleSection } from "@/components/sections/DetailedExample";
 import { ExportPanel } from "@/components/sections/ExportPanel";
 import { ClientView } from "@/components/sections/ClientView";
+import { HoldingsBucket } from "@/components/sections/HoldingsBucket";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import Image from "next/image";
 
@@ -20,6 +21,7 @@ const TAB_IDS = [
   { id: "profile", labelKey: "tab.profile", icon: "/icons/rot/schild.png" },
   { id: "inputs", labelKey: "tab.inputs", icon: "/icons/rot/Scheckkarte.png" },
   { id: "portfolio", labelKey: "tab.portfolio", icon: "/icons/rot/Wagge.png" },
+  { id: "holdings", labelKey: "tab.holdings", icon: "/icons/rot/Scheckkarte.png" },
   { id: "simulation", labelKey: "tab.simulation", icon: "/icons/rot/Computer.png" },
   { id: "results", labelKey: "tab.results", icon: "/icons/rot/Ziel.png" },
   { id: "historical", labelKey: "tab.historical", icon: "/icons/rot/Uhr.png" },
@@ -74,7 +76,7 @@ export default function RetirementPlannerApp() {
           onValueChange={(tab) => dispatch({ type: "SET_TAB", payload: tab })}
           className="space-y-6"
         >
-          <TabsList className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-10 w-full h-auto p-1 bg-white border border-neutral-200 shadow-sm rounded-xl" data-design-id="tabs-list">
+          <TabsList className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-11 w-full h-auto p-1 bg-white border border-neutral-200 shadow-sm rounded-xl" data-design-id="tabs-list">
             {TAB_IDS.map((tab) => (
               <TabsTrigger
                 key={tab.id}
@@ -102,6 +104,9 @@ export default function RetirementPlannerApp() {
           </TabsContent>
           <TabsContent value="portfolio" data-design-id="tab-content-portfolio">
             <PortfolioBuilderSection />
+          </TabsContent>
+          <TabsContent value="holdings" data-design-id="tab-content-holdings">
+            <HoldingsBucket />
           </TabsContent>
           <TabsContent value="simulation" data-design-id="tab-content-simulation">
             <SimulationPanel />

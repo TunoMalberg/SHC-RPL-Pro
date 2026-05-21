@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fmtEur, fmtPct } from "@/lib/format";
+import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
+import { computePETimeline } from "@/lib/engine/privateEquity";
+import { computeHistoricalGrossReturns } from "@/lib/engine/historical";
 import {
   ComposedChart,
   AreaChart,
@@ -79,6 +81,45 @@ export function ResultsDashboard() {
   const { result, client, inputs, liquidityEvents, historicalResult, portfolio } = state;
   const { t } = useI18n();
   const [showLongevity, setShowLongevity] = useState(false);
+  const [showPENav, setShowPENav] = useState(true);
+
+  // PE-Aggregate (deterministisch oder Median über Stochastik) ─────────────
+  const peMode = portfolio.peModelingMode ?? "realistic";
+  const peSummary = useMemo(() => {
+    const peFunds = portfolio.peFunds ?? [];
+    if (peFunds.length === 0) return null;
+    const totalYears = Math.max(1, client.lifeExpectancy - client.currentAge);
+    const timeline = computePETimeline(
+      peFunds,
+      client.currentAge,
+      totalYears,
+      0.275,
+      peMode,
+    );
+    const totalCommitment = peFunds.reduce((s, f) => s + f.commitment, 0);
+    const totalCalled = timeline.reduce((s, e) => s + e.totalCall, 0);
+    const totalDistGross = timeline.reduce((s, e) => s + e.totalDistGross, 0);
+    const totalDistNet = timeline.reduce((s, e) => s + e.totalDistNet, 0);
+    const totalKestPaid = totalDistGross - totalDistNet;
+    const navAtLifeEnd = timeline.length > 0 ? timeline[timeline.length - 1].totalNav : 0;
+    const navPeak = timeline.reduce((m, e) => Math.max(m, e.totalNav), 0);
+    const activeFunds = peFunds.length;
+    const avgIRR = peFunds.reduce((s, f) => s + f.irr, 0) / peFunds.length;
+    const avgTVPI = peFunds.reduce((s, f) => s + f.tvpi, 0) / peFunds.length;
+    return {
+      totalCommitment,
+      totalCalled,
+      totalDistGross,
+      totalDistNet,
+      totalKestPaid,
+      navAtLifeEnd,
+      navPeak,
+      activeFunds,
+      avgIRR,
+      avgTVPI,
+      timeline,
+    };
+  }, [portfolio.peFunds, client.currentAge, client.lifeExpectancy, peMode]);
 
   if (!result) {
     return (
@@ -99,22 +140,61 @@ export function ResultsDashboard() {
     ? (inputs.desiredMonthlyWithdrawal * 12 / capitalAtRet) * 100
     : 0;
 
-  const step = Math.max(1, Math.floor(result.yearLabels.length / 80));
-  const fanData = result.yearLabels
-    .filter((_, i) => i % step === 0)
-    .map((age, idx) => {
-      const i = idx * step;
-      return {
-        age: Math.round(age),
-        worst: Math.round(result.worstPath[i]),
-        p10: Math.round(result.p10Path[i]),
-        p25: Math.round(result.p25Path[i]),
-        median: Math.round(result.medianPath[i]),
-        p75: Math.round(result.p75Path[i]),
-        p90: Math.round(result.p90Path[i]),
-        best: Math.round(result.bestPath[i]),
-      };
+  // Sampling exakt an Jahresgrenzen, damit Alter eindeutig ist (keine
+  // 0.5-Jahr-Rundungs-Doppelungen bei monatlichem Zeitschritt).
+  // FIX (2026-05-16): Vorher wurde mit step=Math.floor(N/80) sub-jährlich
+  // gesampled und das Alter via Math.round bestimmt — daraus entstanden
+  // Duplikate (z. B. 45.5 → "46" und 46.0 → "46") und der angezeigte
+  // Wert für "Alter 46" stammte teils aus Mitte-45.
+  const totalYears = Math.max(1, client.lifeExpectancy - client.currentAge);
+  const stepsPerYear = Math.max(
+    1,
+    Math.round((result.yearLabels.length - 1) / totalYears),
+  );
+  const fanData: Array<{
+    age: number;
+    worst: number;
+    p10: number;
+    p25: number;
+    median: number;
+    p75: number;
+    p90: number;
+    best: number;
+    peNav: number;
+    peNavP25?: number;
+    peNavP75?: number;
+    peBandLow: number;
+    peBandRange: number;
+  }> = [];
+  for (let y = 0; y <= totalYears; y++) {
+    const i = Math.min(y * stepsPerYear, result.yearLabels.length - 1);
+    const peNavMid = result.pePath ? Math.round(result.pePath[i] ?? 0) : 0;
+    const peNavP25 = result.pePathP25 ? Math.round(result.pePathP25[i] ?? 0) : undefined;
+    const peNavP75 = result.pePathP75 ? Math.round(result.pePathP75[i] ?? 0) : undefined;
+    fanData.push({
+      age: client.currentAge + y,
+      worst: Math.round(result.worstPath[i]),
+      p10: Math.round(result.p10Path[i]),
+      p25: Math.round(result.p25Path[i]),
+      median: Math.round(result.medianPath[i]),
+      p75: Math.round(result.p75Path[i]),
+      p90: Math.round(result.p90Path[i]),
+      best: Math.round(result.bestPath[i]),
+      peNav: peNavMid,
+      peNavP25,
+      peNavP75,
+      // Für Recharts Stacked-Area-Trick: Boden + Range-Höhe.
+      peBandLow: peNavP25 ?? 0,
+      peBandRange:
+        peNavP25 !== undefined && peNavP75 !== undefined
+          ? Math.max(0, peNavP75 - peNavP25)
+          : 0,
     });
+  }
+
+  const hasPE = peSummary !== null && (result.pePath?.length ?? 0) > 0;
+  const hasPEStoch =
+    hasPE && (result.pePathP25?.length ?? 0) > 0 && (result.pePathP75?.length ?? 0) > 0;
 
   const heatmapData = (result.withdrawalHeatmap ?? []).map((item) => ({
     withdrawal: item.withdrawal,
@@ -207,6 +287,244 @@ export function ResultsDashboard() {
         </CardContent>
       </Card>
 
+      {/* Private Equity Summary – 4th bucket contribution (deterministic) */}
+      {hasPE && peSummary && (
+        <Card
+          className="border-[#8A83BE]/40 bg-gradient-to-br from-[#8A83BE]/5 to-white"
+          data-design-id="pe-summary-card"
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2" data-design-id="pe-summary-title">
+                  <span className="inline-block w-3 h-3 rounded-full bg-[#8A83BE]" />
+                  {t("results.peCardTitle")}
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-1">{t("results.peCardSubtitle")}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`text-[10px] px-2.5 py-1 rounded-full font-semibold uppercase tracking-wide ${
+                    peMode === "full"
+                      ? "bg-[#5d568f] text-white"
+                      : peMode === "realistic"
+                        ? "bg-[#8A83BE]/30 text-[#3f3a66]"
+                        : "bg-slate-200 text-slate-600"
+                  }`}
+                  title={t(
+                    peMode === "full"
+                      ? "portfolio.peModeFullDesc"
+                      : peMode === "realistic"
+                        ? "portfolio.peModeRealisticDesc"
+                        : "portfolio.peModeSimpleDesc",
+                  )}
+                  data-design-id="pe-mode-badge"
+                >
+                  {t(
+                    peMode === "full"
+                      ? "portfolio.peModeFull"
+                      : peMode === "realistic"
+                        ? "portfolio.peModeRealistic"
+                        : "portfolio.peModeSimple",
+                  )}
+                </span>
+                <div className="text-xs px-2.5 py-1 rounded-full bg-[#8A83BE]/15 text-[#5d568f] font-semibold">
+                  {peSummary.activeFunds} {t("results.peKpiActiveFunds")}
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Commitments */}
+              <div className="rounded-lg bg-white border border-[#8A83BE]/20 p-3">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {t("results.peKpiCommitment")}
+                </div>
+                <div className="text-lg font-bold text-slate-800 mt-0.5 tabular-nums">
+                  {fmtEur(peSummary.totalCommitment)}
+                </div>
+              </div>
+              {/* Called Capital */}
+              <div className="rounded-lg bg-white border border-[#8A83BE]/20 p-3">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {t("results.peKpiCalled")}
+                </div>
+                <div className="text-lg font-bold text-rose-600 mt-0.5 tabular-nums">
+                  −{fmtEur(peSummary.totalCalled)}
+                </div>
+                <div className="text-[9px] text-slate-400 mt-0.5">
+                  {peSummary.totalCommitment > 0
+                    ? fmtPct((peSummary.totalCalled / peSummary.totalCommitment) * 100) + " of commit."
+                    : ""}
+                </div>
+              </div>
+              {/* Distributions Net */}
+              <div className="rounded-lg bg-white border border-[#8A83BE]/20 p-3">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {t("results.peKpiDistNet")}
+                </div>
+                <div className="text-lg font-bold text-[#5a8a50] mt-0.5 tabular-nums">
+                  +{fmtEur(peSummary.totalDistNet)}
+                </div>
+                <div className="text-[9px] text-slate-400 mt-0.5">
+                  {t("results.peKpiDistGross")}: {fmtEur(peSummary.totalDistGross)}
+                </div>
+              </div>
+              {/* NAV at Life End */}
+              <div className="rounded-lg bg-[#8A83BE]/10 border border-[#8A83BE]/40 p-3">
+                <div className="text-[10px] font-semibold text-[#5d568f] uppercase tracking-wide">
+                  {t("results.peKpiNavLifeEnd")}
+                </div>
+                <div className="text-lg font-bold text-[#5d568f] mt-0.5 tabular-nums">
+                  {fmtEur(peSummary.navAtLifeEnd)}
+                </div>
+                <div className="text-[9px] text-slate-500 mt-0.5">
+                  {t("results.peKpiNavLifeEndHint")}
+                </div>
+              </div>
+            </div>
+
+            {/* Sekundäre Kennzahlen */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {t("results.peKpiTaxesPaid")}
+                </div>
+                <div className="text-sm font-bold text-slate-700 mt-0.5 tabular-nums">
+                  {fmtEur(peSummary.totalKestPaid)}
+                </div>
+              </div>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                  Σ Net Cashflow
+                </div>
+                <div
+                  className={`text-sm font-bold mt-0.5 tabular-nums ${
+                    peSummary.totalDistNet - peSummary.totalCalled >= 0 ? "text-[#5a8a50]" : "text-rose-600"
+                  }`}
+                >
+                  {peSummary.totalDistNet - peSummary.totalCalled >= 0 ? "+" : ""}
+                  {fmtEur(peSummary.totalDistNet - peSummary.totalCalled)}
+                </div>
+              </div>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {t("results.peKpiAvgIrr")}
+                </div>
+                <div className="text-sm font-bold text-[#5a8a50] mt-0.5 tabular-nums">
+                  {fmtPct(peSummary.avgIRR)}
+                </div>
+              </div>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {t("results.peKpiAvgTvpi")}
+                </div>
+                <div className="text-sm font-bold text-slate-700 mt-0.5 tabular-nums">
+                  {fmtNum(peSummary.avgTVPI, 2)}×
+                </div>
+              </div>
+            </div>
+
+            {/* Stochastik-Stats — nur im Modus „Vollständig" */}
+            {peMode === "full" && result.peSuccessRate !== undefined && (
+              <div
+                className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 p-3 rounded-lg bg-[#8A83BE]/8 border border-[#8A83BE]/30"
+                data-design-id="pe-stoch-stats"
+              >
+                <div>
+                  <div className="text-[10px] font-semibold text-[#5d568f] uppercase tracking-wide">
+                    {t("portfolio.peEnsembleSuccess")}
+                  </div>
+                  <div
+                    className={`text-base font-bold mt-0.5 tabular-nums ${
+                      result.peSuccessRate >= 0.9
+                        ? "text-[#5a8a50]"
+                        : result.peSuccessRate >= 0.7
+                          ? "text-[#FAC075]"
+                          : "text-rose-600"
+                    }`}
+                  >
+                    {fmtPct(result.peSuccessRate * 100)}
+                  </div>
+                  <div className="text-[9px] text-slate-500 mt-0.5">
+                    {peSummary.activeFunds} {t("results.peKpiActiveFunds")}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold text-[#5d568f] uppercase tracking-wide">
+                    {t("portfolio.peEnsembleMedianIRR")}
+                  </div>
+                  <div className="text-base font-bold text-slate-800 mt-0.5 tabular-nums">
+                    {fmtPct(result.peMedianIRR ?? 0)}
+                  </div>
+                  <div className="text-[9px] text-slate-500 mt-0.5">
+                    Ziel: {fmtPct(peSummary.avgIRR)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold text-[#5d568f] uppercase tracking-wide">
+                    {t("portfolio.peEnsembleMedianTVPI")}
+                  </div>
+                  <div className="text-base font-bold text-slate-800 mt-0.5 tabular-nums">
+                    {fmtNum(result.peMedianTVPI ?? 0, 2)}×
+                  </div>
+                  <div className="text-[9px] text-slate-500 mt-0.5">
+                    Ziel: {fmtNum(peSummary.avgTVPI, 2)}×
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mini-Verlauf: PE-NAV-Kurve über Zeit */}
+            <div className="mt-4 rounded-lg bg-white border border-slate-100 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {t("results.peLegendTitle")} — {t("results.peOverlayLabel")}
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  Peak NAV: <span className="font-semibold text-[#8A83BE]">{fmtEur(peSummary.navPeak)}</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={160}>
+                <ComposedChart
+                  data={peSummary.timeline.map((e) => ({
+                    age: e.age,
+                    nav: Math.round(e.totalNav),
+                    call: -Math.round(e.totalCall),
+                    distNet: Math.round(e.totalDistNet),
+                  }))}
+                  margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f4" />
+                  <XAxis dataKey="age" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `€${(Number(v) / 1000).toFixed(0)}k`} />
+                  <Tooltip
+                    formatter={(value, name) => [fmtEur(Number(value) || 0), String(name)]}
+                    labelFormatter={(l) => `${t("results.ageAxis")} ${l}`}
+                    contentStyle={{ fontSize: 11, borderRadius: 6 }}
+                  />
+                  <ReferenceLine y={0} stroke="#cbd5e1" />
+                  <Bar dataKey="call" fill="#D31220" name={t("portfolio.peChartCalls")} opacity={0.55} />
+                  <Bar dataKey="distNet" fill="#5a8a50" name={t("portfolio.peChartDistNet")} opacity={0.7} />
+                  <Line
+                    type="monotone"
+                    dataKey="nav"
+                    stroke="#8A83BE"
+                    strokeWidth={2.2}
+                    dot={false}
+                    name={t("portfolio.peChartNav")}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <p className="text-[10px] text-slate-400 mt-1 text-center italic">
+                {t("results.peSuccessNote")}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* MC vs Historical side-by-side comparison – Fix D (2025-11-11) */}
       {historicalResult && (
         <Card data-design-id="mc-vs-hist-comparison-card" className="border-[#8FB687]/40">
@@ -262,6 +580,89 @@ export function ResultsDashboard() {
                 .replace("{b}", String(portfolio.buckets[1].expectedReturn))
                 .replace("{c}", String(portfolio.buckets[0].expectedReturn))}
             </p>
+
+            {/* Historical gross returns per bucket (1970–2024, geometric p.a.) */}
+            {(() => {
+              const hgr = computeHistoricalGrossReturns();
+              const rows = [
+                {
+                  key: "cash",
+                  label: portfolio.buckets[0]?.label ?? "Topf 1",
+                  assumed: portfolio.buckets[0]?.expectedReturn ?? 0,
+                  hist: hgr.cash,
+                },
+                {
+                  key: "bonds",
+                  label: portfolio.buckets[1]?.label ?? "Topf 2",
+                  assumed: portfolio.buckets[1]?.expectedReturn ?? 0,
+                  hist: hgr.bonds,
+                },
+                {
+                  key: "equities",
+                  label: portfolio.buckets[2]?.label ?? "Topf 3",
+                  assumed: portfolio.buckets[2]?.expectedReturn ?? 0,
+                  hist: hgr.equities,
+                },
+              ];
+              return (
+                <div className="mt-5 pt-4 border-t border-slate-200" data-design-id="hist-gross-returns-block">
+                  <div className="text-sm font-semibold text-slate-700 mb-1">
+                    {t("compare.histReturnsTitle")}
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                    {t("compare.histReturnsSubtitle")}
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                          <th className="text-left py-2 pr-3 font-semibold">{t("compare.colBucket")}</th>
+                          <th className="text-right py-2 px-3 font-semibold">{t("compare.colAssumed")}</th>
+                          <th className="text-right py-2 px-3 font-semibold">{t("compare.colHistorical")}</th>
+                          <th className="text-right py-2 pl-3 font-semibold">{t("compare.colDelta")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r) => {
+                          const delta = r.assumed - r.hist;
+                          const deltaColor =
+                            Math.abs(delta) < 0.25
+                              ? "text-slate-500"
+                              : delta > 0
+                                ? "text-rose-600"
+                                : "text-[#5a8a50]";
+                          return (
+                            <tr key={r.key} className="border-b border-slate-100">
+                              <td className="py-1.5 pr-3 text-slate-700">{r.label}</td>
+                              <td className="py-1.5 px-3 text-right font-medium tabular-nums">
+                                {r.assumed.toFixed(1).replace(".", ",")} %
+                              </td>
+                              <td className="py-1.5 px-3 text-right font-medium tabular-nums">
+                                {r.hist.toFixed(1).replace(".", ",")} %
+                              </td>
+                              <td className={`py-1.5 pl-3 text-right tabular-nums font-medium ${deltaColor}`}>
+                                {delta > 0 ? "+" : ""}
+                                {delta.toFixed(1).replace(".", ",")} pp
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        <tr className="text-xs text-slate-400">
+                          <td className="py-1.5 pr-3 italic">
+                            Inflation ({hgr.startYear}–{hgr.endYear})
+                          </td>
+                          <td className="py-1.5 px-3 text-right tabular-nums">—</td>
+                          <td className="py-1.5 px-3 text-right tabular-nums">
+                            {hgr.inflation.toFixed(1).replace(".", ",")} %
+                          </td>
+                          <td className="py-1.5 pl-3 text-right tabular-nums">—</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
@@ -373,18 +774,35 @@ export function ResultsDashboard() {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <CardTitle data-design-id="fan-chart-title">{t("results.fanChartTitle")}</CardTitle>
-            <button
-              type="button"
-              onClick={() => setShowLongevity((v) => !v)}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                showLongevity
-                  ? "bg-[#8A83BE]/20 border-[#8A83BE]/40 text-[#8A83BE] font-medium"
-                  : "border-slate-200 text-slate-500 hover:border-slate-300"
-              }`}
-            >
-              <span>{showLongevity ? "✓" : "○"}</span>
-              {t("results.longevityOverlay")}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {hasPE && (
+                <button
+                  type="button"
+                  onClick={() => setShowPENav((v) => !v)}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    showPENav
+                      ? "bg-[#8A83BE]/20 border-[#8A83BE]/40 text-[#5d568f] font-medium"
+                      : "border-slate-200 text-slate-500 hover:border-slate-300"
+                  }`}
+                  data-design-id="toggle-pe-overlay"
+                >
+                  <span>{showPENav ? "✓" : "○"}</span>
+                  {t("results.peOverlayToggle")}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowLongevity((v) => !v)}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  showLongevity
+                    ? "bg-[#8A83BE]/20 border-[#8A83BE]/40 text-[#8A83BE] font-medium"
+                    : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                <span>{showLongevity ? "✓" : "○"}</span>
+                {t("results.longevityOverlay")}
+              </button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -452,6 +870,41 @@ export function ResultsDashboard() {
               <Area yAxisId="left" type="monotone" dataKey="p25" stackId="4" stroke="none" fill="#EDAC98" name={t("results.percentile25")} />
               <Area yAxisId="left" type="monotone" dataKey="p10" stackId="5" stroke="none" fill="#F7D8CD" name={t("results.percentile10")} />
               <Area yAxisId="left" type="monotone" dataKey="worst" stroke="#D31220" strokeWidth={1} fill="none" strokeDasharray="4 4" name={t("results.worstCase")} />
+              {hasPE && showPENav && hasPEStoch && (
+                <>
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="peBandLow"
+                    stackId="peBand"
+                    stroke="none"
+                    fill="transparent"
+                    legendType="none"
+                    name="__pe_band_floor"
+                  />
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="peBandRange"
+                    stackId="peBand"
+                    stroke="none"
+                    fill="#8A83BE"
+                    fillOpacity={0.18}
+                    name={t("results.peBandLabel")}
+                  />
+                </>
+              )}
+              {hasPE && showPENav && (
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="peNav"
+                  stroke="#8A83BE"
+                  strokeWidth={2.5}
+                  dot={false}
+                  name={t("results.peOverlayLabel")}
+                />
+              )}
               {showLongevity && (
                 <Line
                   yAxisId="right"
@@ -491,6 +944,12 @@ export function ResultsDashboard() {
                 <div className="flex items-center gap-1.5">
                   <div className="h-0 w-8 border-t-2 border-dashed flex-shrink-0" style={{ borderColor: "#8A83BE" }} />
                   <span className="text-[10px] text-slate-600 leading-tight">{t("results.longevityLabel")}</span>
+                </div>
+              )}
+              {hasPE && showPENav && (
+                <div className="flex items-center gap-1.5">
+                  <div className="h-0 w-8 border-t-2 flex-shrink-0" style={{ borderColor: "#8A83BE" }} />
+                  <span className="text-[10px] text-slate-600 leading-tight">{t("results.peOverlayLabel")}</span>
                 </div>
               )}
             </div>

@@ -95,6 +95,44 @@ export const historicalData: HistoricalData[] = [
  *    historischen österreichischen VPI-Jahresraten des jeweiligen Zeit-
  *    fensters skaliert (vorher: Einzeljahres-Inflation hoch y — falsch).
  */
+/**
+ * Geometrische Mittelwerte (annualisierte Brutto-Renditen) pro Topf
+ * über den gesamten hinterlegten Datensatz (1970–2024).
+ *
+ * Wird im UI angezeigt, um die vom Berater eingegebenen Brutto-Renditen
+ * mit den tatsächlich realisierten Marktrenditen zu vergleichen.
+ */
+export interface HistoricalGrossReturns {
+  cash: number;       // % p.a.
+  bonds: number;      // % p.a.
+  equities: number;   // % p.a.
+  inflation: number;  // % p.a.
+  startYear: number;
+  endYear: number;
+  years: number;
+}
+
+export function computeHistoricalGrossReturns(
+  data: HistoricalData[] = historicalData,
+): HistoricalGrossReturns {
+  if (!data.length) {
+    return { cash: 0, bonds: 0, equities: 0, inflation: 0, startYear: 0, endYear: 0, years: 0 };
+  }
+  const geo = (rates: number[]): number => {
+    const product = rates.reduce((acc, r) => acc * (1 + r / 100), 1);
+    return (Math.pow(product, 1 / rates.length) - 1) * 100;
+  };
+  return {
+    cash: geo(data.map((d) => d.cashReturn)),
+    bonds: geo(data.map((d) => d.bondReturn)),
+    equities: geo(data.map((d) => d.equityReturn)),
+    inflation: geo(data.map((d) => d.inflation)),
+    startYear: data[0].year,
+    endYear: data[data.length - 1].year,
+    years: data.length,
+  };
+}
+
 export function runHistoricalBacktest(
   client: ClientProfile,
   inputs: FinancialInputs,

@@ -45,6 +45,61 @@ export interface AssetBucket {
 
 export type MifidProfile = 'conservative' | 'balanced' | 'growth' | 'speculative';
 
+/**
+ * Private-Equity-Fonds (Topf 4 — deterministisch).
+ *
+ * Eingaben werden im Portfolio-Bereich als 4. Topf gepflegt; die
+ * Engine berechnet Capital Calls (Yale-Ramp), Brutto-Distributions
+ * (kalibriert auf Ziel-IRR) und NAV (Compound-Balance) deterministisch.
+ *
+ * Steuerstatus: KESt-endbesteuert (27,5 %) auf den Gewinnanteil
+ * jeder Distribution, sobald die kumulierten Brutto-Distributions
+ * das tatsächlich abgerufene Kapital (= commitment × callRatio/100)
+ * übersteigen.
+ */
+export interface PEFund {
+  /** Stable id (uuid/random). */
+  id: string;
+  /** Anzeigename / Bezeichnung des Fonds. */
+  name: string;
+  /** Commitment in € (Zeichnungssumme). */
+  commitment: number;
+  /** Abrufquote in % (Default 80). */
+  callRatio: number;
+  /** Ziel-IRR in % (Default 10). */
+  irr: number;
+  /** Ziel-TVPI als Multiple (Default 1.7). */
+  tvpi: number;
+  /** Investitionsperiode in Jahren (Default 5). */
+  investmentPeriod: number;
+  /** Fondslaufzeit in Jahren (Default 14). */
+  fundDuration: number;
+  /** Investorenalter beim Fonds-Start. */
+  startAge: number;
+  // ---- J-Curve / Fee-Drag (für Modus „Realistisch" und „Vollständig") ----
+  /** Mgmt-Fee p.a. in % auf Commitment während der Investitionsperiode. Default 2.0. */
+  mgmtFeeRate?: number;
+  /** Mgmt-Fee p.a. in % auf NAV nach Investitionsperiode. Default 1.5. */
+  postPeriodFeeRate?: number;
+  /** Einmalige Set-up-Kosten in % auf Commitment im Jahr 0. Default 1.0. */
+  setupCostPct?: number;
+  // ---- Stochastik (nur Modus „Vollständig") ----
+  /** Standardabweichung der realisierten IRR in Prozentpunkten (1σ). Default 5. */
+  irrVolatility?: number;
+  /** Standardabweichung des realisierten TVPI als Multiple (1σ). Default 0.35. */
+  tvpiVolatility?: number;
+  /** Wahrscheinlichkeit eines Total-/Quasi-Loss pro Fonds (0–1). Default 0.03. */
+  lossProbability?: number;
+}
+
+/**
+ * PE-Modellierungs-Modus (drei Stufen):
+ * - 'simple'    : Compound-Balance NAV, deterministisch (Legacy).
+ * - 'realistic' : J-Curve über Fee-Drag, deterministisch (Default).
+ * - 'full'      : J-Curve + Stochastik (IRR/TVPI variieren je MC-Pfad).
+ */
+export type PEModelingMode = 'simple' | 'realistic' | 'full';
+
 export interface PortfolioConfig {
   buckets: [AssetBucket, AssetBucket, AssetBucket];
   correlationMatrix: number[][];
@@ -53,6 +108,10 @@ export interface PortfolioConfig {
   cashYearsTarget: number; // 1-3 years of withdrawals held as cash in withdrawal phase
   kestRate: number; // Austrian KESt / capital gains tax rate in percent (default 27.5)
   mifidProfile?: MifidProfile;
+  /** Liste der PE-Fonds (Topf 4). Leer = keine PE-Beteiligung. */
+  peFunds?: PEFund[];
+  /** PE-Modellierungs-Modus. Default 'realistic'. */
+  peModelingMode?: PEModelingMode;
 }
 
 export interface SimulationSettings {
@@ -95,6 +154,18 @@ export interface SimulationResult {
   annualWithdrawals: number[];
   annualPortfolioValues: number[];
   withdrawalHeatmap?: { withdrawal: number; successRate: number }[];
+  /** PE-NAV-Pfad (Median über Stochastik bzw. deterministisch). */
+  pePath?: number[];
+  /** PE-NAV-Pfad p25 (nur im stochastischen Modus). */
+  pePathP25?: number[];
+  /** PE-NAV-Pfad p75 (nur im stochastischen Modus). */
+  pePathP75?: number[];
+  /** Anteil PE-Pfade mit TVPI ≥ 1,0× (Erfolgsquote PE-Tranche). */
+  peSuccessRate?: number;
+  /** Median realisierte PE-IRR über alle Stochastik-Pfade (in %). */
+  peMedianIRR?: number;
+  /** Median realisierter PE-TVPI über alle Stochastik-Pfade. */
+  peMedianTVPI?: number;
 }
 
 export interface HistoricalData {
@@ -155,6 +226,14 @@ export interface DetailedYearRow {
   endEquities: number;
   endTotal: number;
   cumulativeInflation: number;
+  /** Capital Calls aus PE-Fonds in diesem Jahr (positiv, drainen Cash). */
+  peCall?: number;
+  /** Brutto-Distributions in diesem Jahr (positiv). */
+  peDistGross?: number;
+  /** Netto-Distributions nach KESt in diesem Jahr (positiv). */
+  peDistNet?: number;
+  /** Aggregierter NAV aller PE-Fonds am Ende des Jahres. */
+  peNav?: number;
 }
 
 export interface DetailedSimTrace {
@@ -171,6 +250,11 @@ export interface Scenario {
   inputs: FinancialInputs;
   portfolio: PortfolioConfig;
   result?: SimulationResult;
+  /** Quelle: "manual" = vom Berater gespeichert, "multirun" = automatisch
+   *  vom Modus „Szenariovergleich" erzeugt (4 MiFID-Profile). Wird verwendet,
+   *  damit Multi-Runs nur ihre eigenen Szenarien ersetzen, nicht die manuell
+   *  gespeicherten. */
+  source?: "manual" | "multirun";
 }
 
 /**
@@ -213,4 +297,6 @@ export interface AppState {
   detailedTrace: DetailedSimTrace | null;
   scenarios: Scenario[];
   activeTab: string;
+  /** Bestandsportfolio (Excel-Import + ISIN-Backtest). Optional. */
+  holdings?: import("./holdings/types").HoldingsState;
 }
