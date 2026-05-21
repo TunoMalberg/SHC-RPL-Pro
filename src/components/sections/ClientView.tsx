@@ -25,9 +25,11 @@ export function ClientView() {
   const [includeDetailedPath, setIncludeDetailedPath] = useState(true);
   const [includeMifid, setIncludeMifid] = useState(true);
   const [includeMeetingNotes, setIncludeMeetingNotes] = useState(true);
+  const [includePrivateEquity, setIncludePrivateEquity] = useState(true);
   const [busy, setBusy] = useState<"html" | "pdf" | null>(null);
 
   const hasMeetingNotes = !!(client.advisoryNotes?.trim() || client.advisoryNextSteps?.trim());
+  const hasPrivateEquity = (portfolio.peFunds?.length ?? 0) > 0;
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -65,6 +67,7 @@ export function ClientView() {
           includeDetailedPath,
           includeMifid,
           includeMeetingNotes,
+          includePrivateEquity,
           scenarios,
           detailedTrace,
         },
@@ -92,6 +95,7 @@ export function ClientView() {
         historicalResult,
         liquidityEvents,
         locale,
+        { includePrivateEquity },
       );
       const date = new Date().toISOString().slice(0, 10);
       downloadBlob(blob, `Ruhestandsplan_${safeFilename(client.name, "Kunde")}_${date}.pdf`);
@@ -225,6 +229,26 @@ export function ClientView() {
                 checked={includeSavedScenarios}
                 onCheckedChange={setIncludeSavedScenarios}
                 disabled={scenarios.length === 0}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="inc-pe" className="flex-1 pr-4">
+                {locale === "de"
+                  ? `Private Equity zeigen (Topf 4)${hasPrivateEquity ? ` · ${portfolio.peFunds?.length} Fonds` : ""}`
+                  : `Show Private Equity (bucket 4)${hasPrivateEquity ? ` · ${portfolio.peFunds?.length} fund(s)` : ""}`}
+                {!hasPrivateEquity && (
+                  <span className="block text-xs text-slate-400 font-normal mt-0.5">
+                    {locale === "de"
+                      ? "(Keine PE-Fonds im Portfolio gepflegt)"
+                      : "(No PE funds added to the portfolio)"}
+                  </span>
+                )}
+              </Label>
+              <Switch
+                id="inc-pe"
+                checked={includePrivateEquity}
+                onCheckedChange={setIncludePrivateEquity}
+                disabled={!hasPrivateEquity}
               />
             </div>
             <div className="flex items-center justify-between md:col-span-2">

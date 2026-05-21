@@ -32,7 +32,9 @@ import {
   renderHistoricalSvg,
   renderMonteCarloFanSvg,
   renderPortfolioDonutSvg,
+  renderPrivateEquitySvg,
 } from "./chartSvg";
+import { computePETimeline, buildStochasticEnsemble } from "../../engine/privateEquity";
 
 /* Corporate colours in pdf-lib RGB (0..1 floats) */
 const C = {
@@ -84,6 +86,26 @@ const DE = {
   nextStepsText: "Sprechen Sie uns an, wenn Sie Fragen zu Ihrem Plan haben oder Anpassungen vornehmen möchten.",
   disclaimer: "Rechtlicher Hinweis — Marketingmitteilung",
   disclaimerText: "Diese Unterlagen stellen eine Marketingmitteilung dar und wurden nicht im Einklang mit den Rechtsvorschriften zur Förderung der Unabhängigkeit von Anlageanalysen erstellt. Sie unterliegen nicht dem Verbot des Handels im Anschluss an die Verbreitung von Anlageanalysen. Die angeführten Simulationen basieren auf Annahmen, die im Zeitablauf von der tatsächlichen Entwicklung abweichen können. Vergangenheitsergebnisse sind kein verlässlicher Indikator für zukünftige Wertentwicklungen. Die dargestellten Informationen stellen weder eine individuelle Anlageberatung noch ein Angebot oder eine Aufforderung zum Kauf oder Verkauf von Finanzinstrumenten dar.",
+  disclaimerSeeFull: "Vollständige rechtliche Hinweise siehe Seite 6.",
+  /* Page 6 — full Schelhammer Capital marketing notice */
+  legalTitle: "Marketingmitteilung — Rechtliche Hinweise",
+  legalIntro:
+    "Bei dieser Unterlage handelt es sich um eine MARKETINGMITTEILUNG der Schelhammer Capital Bank AG („Schelhammer Capital“) FN 58248i (HG Wien), Goldschmiedgasse 3-5, 1010 Wien, https://schelhammer.at. Dies ist KEINE Finanzanalyse, die unter Einhaltung der Rechtsvorschriften zur Förderung der Unabhängigkeit von Finanzanalysen erstellt wurde und unterliegt daher auch nicht dem Verbot des Handels im Anschluss an die Verbreitung von Finanzanalysen (Art 36 f delegierte Verordnung (EU) 2017/565).",
+  legalBulletsLead: "Die in dieser Präsentation enthaltenen Informationen",
+  legalBullets: [
+    "dienen ausschließlich der unverbindlichen Information und basieren auf dem aktuellen Wissensstand und der Markteinschätzung der Schelhammer Capital.",
+    "sind nur zum Erstellungszeitpunkt gültig und können sich unter Umständen sehr rasch ändern.",
+    "stellen keine Empfehlung im Sinn des Art. 9 delegierte Verordnung (EU) 2017/565 der Europäischen Kommission dar.",
+    "ersetzen nicht die fachgerechte Beratung für die darin beschriebenen Finanzinstrumente und dienen insbesondere nicht als Ersatz für eine umfassende Risikoaufklärung.",
+    "stellen weder ein Anbot, noch eine Einladung zur Anbotsstellung zum Kauf oder Verkauf von Finanzinstrumenten dar.",
+    "wurden mit größter Sorgfalt recherchiert, es kann aber keine Haftung für deren Richtigkeit, Vollständigkeit, Aktualität oder Genauigkeit übernommen werden.",
+  ] as string[],
+  legalPerformance:
+    "Vergangene Entwicklungen und Erträge sind kein verlässlicher Indikator für künftige Entwicklungen. Sofern Angaben zur künftigen Wertentwicklung dargestellt sind, weist die Erstellerin darauf hin, dass derartige Prognosen kein verlässlicher Indikator für die künftige Entwicklung sind. Wertpapiere weisen je nach konkreter Ausgestaltung des Produktes ein unterschiedlich hohes Anlagerisiko auf (Totalverlust kann nicht ausgeschlossen werden). Obwohl wir die von uns verwendeten Quellen als verlässlich einstufen, übernehmen wir für die Vollständigkeit und Richtigkeit der hier wiedergegebenen Informationen keine Haftung. Die Berechnungen berücksichtigen weder Ausgabe- noch Rücknahmespesen.",
+  legalLiability:
+    "Haftungsausschluss: Jegliche Haftung im Zusammenhang mit der Erstellung dieser Unterlage, insbesondere für die Richtigkeit und Vollständigkeit ihres Inhaltes oder für das Eintreten erstellter Prognosen, ist ausgeschlossen. Die konkreten Hinweise und Feststellungen auf den einzelnen Seiten sind jedenfalls zu berücksichtigen. Irrtum und Druckfehler vorbehalten.",
+  legalAiNotice:
+    "Hinweis: Diese Unterlage basiert auf einem Programm, welches unter zu Hilfenahme von Künstlicher Intelligenz (KI) erstellt wurde. Die KI dient hierbei als unterstützendes Analyse- und Visualisierungswerkzeug für Ihren Kundenbetreuer. Sämtliche Ergebnisse wurden von diesem auf Plausibilität geprüft und fachlich validiert. KI-generierte Prognosen sind Modellrechnungen und keine Garantie für zukünftige Ergebnisse.",
   issuedBy: "Ausgegeben von",
   asOf: "Stand",
   pageOf: (a: number, b: number) => `Seite ${a} von ${b}`,
@@ -92,6 +114,29 @@ const DE = {
   age: "Alter",
   wealth: "Vermögen (EUR)",
   year: "Jahr",
+  /* Private Equity (Topf 4) */
+  peTitle: "Private Equity (Topf 4)",
+  peSub: "Illiquide Beteiligungen mit höheren Renditezielen",
+  peDesc: "Zeichnungen in Private-Equity-Fonds ergänzen Ihr Portfolio um eine illiquide Komponente. Capital Calls werden über mehrere Jahre verteilt abgerufen, Distributions folgen typischerweise über die gesamte Fondslaufzeit (J-Curve-Muster).",
+  peFunds: "Anzahl Fonds",
+  peCommitment: "Σ Zeichnungssumme",
+  peCalled: "Σ Abrufe (geplant)",
+  peDistGross: "Σ Distributions (brutto)",
+  pePeakNav: "Höchster NAV",
+  peTargetIRR: "Ø Ziel-IRR",
+  peTargetTVPI: "Ø Ziel-TVPI",
+  peSuccess: "Erfolg (TVPI ≥ 1×)",
+  peMedianIRR: "Median IRR (real.)",
+  peMedianTVPI: "Median TVPI (real.)",
+  peChartTitle: "Verlauf NAV, Capital Calls & Netto-Distributions",
+  peTableName: "Bezeichnung",
+  peTableCommitment: "Commitment",
+  peTableStart: "Start",
+  peTableDuration: "Laufzeit",
+  peTableIrr: "Ziel-IRR",
+  peTableTvpi: "Ziel-TVPI",
+  peNote:
+    "Private Equity ist eine langfristige, illiquide Beteiligung. Capital Calls müssen aus liquiden Mitteln bedient werden. Distributions sind nicht garantiert; Ziel-IRR/TVPI sind Erwartungswerte, ein Totalverlust kann nicht ausgeschlossen werden.",
 };
 
 const EN: typeof DE = {
@@ -133,6 +178,26 @@ const EN: typeof DE = {
   nextStepsText: "Please reach out with any questions or if you'd like to adjust your plan.",
   disclaimer: "Legal notice — Marketing communication",
   disclaimerText: "This document is a marketing communication and has not been prepared in accordance with legal requirements designed to promote the independence of investment research. It is not subject to any prohibition on dealing ahead of the dissemination of investment research. The simulations shown are based on assumptions that may diverge from actual developments over time. Past performance is not a reliable indicator of future performance. The information contained herein does not constitute personal investment advice, nor an offer or solicitation to buy or sell any financial instrument.",
+  disclaimerSeeFull: "Full legal notice — see page 6.",
+  /* Page 6 — full Schelhammer Capital marketing notice */
+  legalTitle: "Marketing communication — Legal notice",
+  legalIntro:
+    "This document is a MARKETING COMMUNICATION of Schelhammer Capital Bank AG (“Schelhammer Capital”), FN 58248i (Commercial Court Vienna), Goldschmiedgasse 3-5, 1010 Vienna, https://schelhammer.at. This is NOT investment research prepared in accordance with the legal requirements designed to promote the independence of investment research and is therefore not subject to any prohibition on dealing ahead of the dissemination of investment research (Art 36 f Commission Delegated Regulation (EU) 2017/565).",
+  legalBulletsLead: "The information contained in this presentation",
+  legalBullets: [
+    "is provided for non-binding information purposes only and is based on the current state of knowledge and market assessment of Schelhammer Capital.",
+    "is only valid at the time of preparation and may change very quickly under certain circumstances.",
+    "does not constitute a recommendation within the meaning of Art. 9 of Commission Delegated Regulation (EU) 2017/565.",
+    "does not replace professional advice for the financial instruments described and, in particular, is not a substitute for comprehensive risk disclosure.",
+    "constitutes neither an offer nor a solicitation to purchase or sell any financial instruments.",
+    "has been researched with the utmost care; however, no liability can be accepted for its accuracy, completeness, timeliness or precision.",
+  ] as string[],
+  legalPerformance:
+    "Past developments and returns are not a reliable indicator of future performance. To the extent that information on future performance is shown, the issuer points out that such forecasts are not a reliable indicator of future performance. Securities entail different levels of investment risk depending on the specific structure of the product (total loss cannot be excluded). Although we consider the sources used to be reliable, we accept no liability for the completeness or accuracy of the information reproduced herein. The calculations take neither subscription nor redemption fees into account.",
+  legalLiability:
+    "Liability disclaimer: Any liability in connection with the preparation of this document, in particular for the accuracy and completeness of its content or for the realisation of forecasts shown, is excluded. The specific notes and statements on the individual pages must be observed in any case. Subject to error and misprints.",
+  legalAiNotice:
+    "Note: This document is based on a program that was created with the assistance of artificial intelligence (AI). The AI serves as a supporting analysis and visualisation tool for your client advisor. All results have been reviewed for plausibility and professionally validated by your advisor. AI-generated forecasts are model calculations and not a guarantee of future results.",
   issuedBy: "Issued by",
   asOf: "As of",
   pageOf: (a: number, b: number) => `Page ${a} of ${b}`,
@@ -141,6 +206,29 @@ const EN: typeof DE = {
   age: "Age",
   wealth: "Wealth (EUR)",
   year: "Year",
+  /* Private Equity (bucket 4) */
+  peTitle: "Private Equity (bucket 4)",
+  peSub: "Illiquid commitments with higher target returns",
+  peDesc: "Subscriptions to private-equity funds add an illiquid component to your portfolio. Capital calls are drawn down over several years, with distributions typically arriving across the full fund life (J-curve pattern).",
+  peFunds: "Number of funds",
+  peCommitment: "Σ Commitment",
+  peCalled: "Σ Calls (planned)",
+  peDistGross: "Σ Distributions (gross)",
+  pePeakNav: "Peak NAV",
+  peTargetIRR: "Avg. target IRR",
+  peTargetTVPI: "Avg. target TVPI",
+  peSuccess: "Success (TVPI ≥ 1×)",
+  peMedianIRR: "Median IRR (real.)",
+  peMedianTVPI: "Median TVPI (real.)",
+  peChartTitle: "NAV, capital calls & net distributions over time",
+  peTableName: "Name",
+  peTableCommitment: "Commitment",
+  peTableStart: "Start",
+  peTableDuration: "Duration",
+  peTableIrr: "Target IRR",
+  peTableTvpi: "Target TVPI",
+  peNote:
+    "Private equity is a long-term, illiquid commitment. Capital calls must be funded from liquid assets. Distributions are not guaranteed; target IRR/TVPI are expected values and total loss cannot be excluded.",
 };
 
 /* ──────────────────────────────────────────
@@ -275,6 +363,10 @@ function fmtDate(locale: Locale): string {
 /* ──────────────────────────────────────────
    Main generator
    ────────────────────────────────────────── */
+export interface ClientPdfOptions {
+  includePrivateEquity?: boolean;
+}
+
 export async function generateClientPdfReport(
   client: ClientProfile,
   advisor: AdvisorProfile,
@@ -284,6 +376,7 @@ export async function generateClientPdfReport(
   historicalResult: HistoricalAnalysis | null,
   _liquidityEvents: LiquidityEvent[],
   locale: Locale,
+  pdfOpts: ClientPdfOptions = {},
 ): Promise<Blob> {
   const S = locale === "de" ? DE : EN;
   const pdf = await PDFDocument.create();
@@ -315,7 +408,12 @@ export async function generateClientPdfReport(
   const H = 841.89;
   const M = 48;
   const CW = W - 2 * M;
-  const totalPages = 5;
+
+  /* PE setup: only render the PE page if funds exist AND option not disabled. */
+  const peFundsList = portfolio.peFunds ?? [];
+  const includePE = pdfOpts.includePrivateEquity !== false && peFundsList.length > 0;
+  const totalPages = includePE ? 7 : 6;
+  const legalPageNo = totalPages; // last page is always Marketingmitteilung
 
   const mcSvg = renderMonteCarloFanSvg(result, client, {
     xAxis: S.age, yAxis: "EUR",
@@ -333,6 +431,86 @@ export async function generateClientPdfReport(
   const mcImg = await pdf.embedPng(mcPng);
   const histImg = histPng ? await pdf.embedPng(histPng) : null;
   const donutImg = await pdf.embedPng(donutPng);
+
+  /* PE timeline + ensemble + chart embed (only if needed). */
+  let peImg: Awaited<ReturnType<typeof pdf.embedPng>> | null = null;
+  let peStats: {
+    timeline: ReturnType<typeof computePETimeline>;
+    totalCommitment: number;
+    totalCalled: number;
+    totalDistGross: number;
+    peakNav: number;
+    avgTargetIRR: number;
+    avgTargetTVPI: number;
+    successRate: number | null;
+    medianIRR: number | null;
+    medianTVPI: number | null;
+  } | null = null;
+
+  if (includePE) {
+    const peMode = portfolio.peModelingMode ?? "realistic";
+    const totalYears = client.lifeExpectancy - client.currentAge + 1;
+    const kestRateFraction = (portfolio.kestRate ?? 27.5) / 100;
+    const timeline = computePETimeline(
+      peFundsList,
+      client.currentAge,
+      totalYears,
+      kestRateFraction,
+      peMode,
+    );
+    let navP25: number[] | undefined;
+    let navP75: number[] | undefined;
+    let successRate: number | null = null;
+    let medianIRR: number | null = null;
+    let medianTVPI: number | null = null;
+    if (peMode === "full") {
+      const ens = buildStochasticEnsemble(
+        peFundsList,
+        client.currentAge,
+        totalYears,
+        kestRateFraction,
+        100,
+        12345,
+      );
+      navP25 = ens.navP25;
+      navP75 = ens.navP75;
+      successRate = ens.successRate;
+      medianIRR = ens.medianIRRPct;
+      medianTVPI = ens.medianTVPI;
+    }
+
+    const peSvg = renderPrivateEquitySvg(
+      timeline,
+      client,
+      {
+        xAxis: S.age,
+        navMedian: peMode === "full" ? "NAV (Median)" : "NAV",
+        navBand: "NAV-Band p25–p75",
+        calls: locale === "de" ? "Capital Calls" : "Capital calls",
+        distNet: locale === "de" ? "Distributions (netto)" : "Distributions (net)",
+      },
+      navP25,
+      navP75,
+      720,
+      320,
+    );
+    const pePng = await svgToPngBytes(peSvg, 720, 320);
+    peImg = await pdf.embedPng(pePng);
+    peStats = {
+      timeline,
+      totalCommitment: peFundsList.reduce((s, f) => s + f.commitment, 0),
+      totalCalled: timeline.reduce((s, e) => s + e.totalCall, 0),
+      totalDistGross: timeline.reduce((s, e) => s + e.totalDistGross, 0),
+      peakNav: timeline.reduce((m, e) => Math.max(m, e.totalNav), 0),
+      avgTargetIRR:
+        peFundsList.reduce((s, f) => s + f.irr, 0) / peFundsList.length,
+      avgTargetTVPI:
+        peFundsList.reduce((s, f) => s + f.tvpi, 0) / peFundsList.length,
+      successRate,
+      medianIRR,
+      medianTVPI,
+    };
+  }
 
   let logoImg = null;
   if (advisor.logoDataUrl) {
@@ -525,7 +703,137 @@ export async function generateClientPdfReport(
 
   footer(p4, { body }, S, 4, totalPages, true);
 
-  /* ═══════════════ PAGE 5: HISTORICAL + NEXT STEPS ═══════════════ */
+  /* ═══════════════ PAGE 5 (optional): PRIVATE EQUITY ═══════════════ */
+  let pageCursor = 4;
+  if (includePE && peImg && peStats) {
+    pageCursor += 1;
+    const pPe = pdf.addPage([W, H]);
+    drawText(pPe, S.peTitle, M, H - M - 10, { font: bold, size: 22 });
+    drawText(pPe, S.peSub, M, H - M - 28, { font: italic, size: 12, color: C.muted });
+    pPe.drawLine({ start: { x: M, y: H - M - 44 }, end: { x: M + 80, y: H - M - 44 }, color: C.accent, thickness: 2 });
+
+    drawWrappedText(pPe, S.peDesc, M, H - M - 62, CW, { font: body, size: 10, color: C.text });
+
+    /* KPI strip — 4 columns */
+    const kpiY = H - M - 130;
+    const kpiH = 56;
+    const kpiCount = peStats.successRate !== null ? 8 : 8;
+    const kpis: { label: string; value: string }[] = [
+      { label: S.peFunds, value: String(peFundsList.length) },
+      { label: S.peCommitment, value: fmtEur(locale, peStats.totalCommitment) },
+      { label: S.peCalled, value: fmtEur(locale, peStats.totalCalled) },
+      { label: S.peDistGross, value: fmtEur(locale, peStats.totalDistGross) },
+      { label: S.pePeakNav, value: fmtEur(locale, peStats.peakNav) },
+      { label: S.peTargetIRR, value: fmtPct(locale, peStats.avgTargetIRR) },
+      { label: S.peTargetTVPI, value: peStats.avgTargetTVPI.toFixed(2) + "×" },
+    ];
+    if (peStats.successRate !== null) {
+      kpis.push({ label: S.peSuccess, value: fmtPct(locale, peStats.successRate * 100) });
+    }
+    const cols = 4;
+    const colW = (CW - (cols - 1) * 8) / cols;
+    kpis.slice(0, kpiCount).forEach((k, i) => {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const x = M + col * (colW + 8);
+      const y = kpiY - row * (kpiH + 8);
+      pPe.drawRectangle({ x, y: y - kpiH, width: colW, height: kpiH, color: C.soft });
+      drawText(pPe, k.label.toUpperCase(), x + 10, y - 16, { font: body, size: 7, color: C.muted });
+      drawText(pPe, k.value, x + 10, y - 38, { font: bold, size: 14 });
+    });
+
+    /* PE chart */
+    const peChartY = kpiY - (Math.ceil(kpis.length / cols) * (kpiH + 8)) - 20;
+    const peW = CW;
+    const peH = (CW / 720) * 320;
+    const peChartTop = peChartY - peH;
+    drawText(pPe, S.peChartTitle, M, peChartY + 6, { font: bold, size: 11 });
+    pPe.drawImage(peImg, { x: M, y: peChartTop, width: peW, height: peH });
+
+    /* Funds table — show up to 6 */
+    const tableTop = peChartTop - 30;
+    const headerY = tableTop;
+    const colsT = [
+      { label: S.peTableName, w: 0.32, align: "left" as const },
+      { label: S.peTableCommitment, w: 0.20, align: "right" as const },
+      { label: S.peTableStart, w: 0.10, align: "right" as const },
+      { label: S.peTableDuration, w: 0.14, align: "right" as const },
+      { label: S.peTableIrr, w: 0.12, align: "right" as const },
+      { label: S.peTableTvpi, w: 0.12, align: "right" as const },
+    ];
+    pPe.drawRectangle({ x: M, y: headerY - 18, width: CW, height: 18, color: C.soft });
+    let cx = M;
+    colsT.forEach((c) => {
+      const w = c.w * CW;
+      const label = c.label.toUpperCase();
+      const safeLabel = label.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "");
+      let tx = cx + 10;
+      if (c.align === "right") {
+        const lw = body.widthOfTextAtSize(safeLabel, 8);
+        tx = cx + w - 10 - lw;
+      }
+      drawText(pPe, label, tx, headerY - 12, { font: body, size: 8, color: C.muted });
+      cx += w;
+    });
+    let rowY = headerY - 18 - 14;
+    const maxRows = 6;
+    peFundsList.slice(0, maxRows).forEach((f) => {
+      cx = M;
+      const cells = [
+        f.name || "—",
+        fmtEur(locale, f.commitment),
+        String(f.startAge),
+        `${f.fundDuration} ${locale === "de" ? "J." : "y"}`,
+        fmtPct(locale, f.irr),
+        f.tvpi.toFixed(2) + "×",
+      ];
+      cells.forEach((v, i) => {
+        const c = colsT[i];
+        const w = c.w * CW;
+        const fontUsed = i === 0 ? bold : body;
+        const safeVal = v.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "");
+        let tx = cx + 10;
+        if (c.align === "right") {
+          const vw = fontUsed.widthOfTextAtSize(safeVal, 9);
+          tx = cx + w - 10 - vw;
+        }
+        drawText(pPe, v, tx, rowY, { font: fontUsed, size: 9, color: C.text });
+        cx += w;
+      });
+      pPe.drawLine({
+        start: { x: M, y: rowY - 6 },
+        end: { x: M + CW, y: rowY - 6 },
+        color: C.border,
+        thickness: 0.4,
+      });
+      rowY -= 18;
+    });
+    if (peFundsList.length > maxRows) {
+      drawText(pPe, `+ ${peFundsList.length - maxRows} ${locale === "de" ? "weitere Fonds" : "more funds"}`, M + 10, rowY - 4, {
+        font: italic,
+        size: 9,
+        color: C.muted,
+      });
+      rowY -= 16;
+    }
+
+    /* Note box */
+    const noteLines = wrap(S.peNote, body, 9, CW - 24);
+    const noteH = noteLines.length * 9 * 1.5 + 20;
+    const noteTop = Math.max(rowY - 12, 110);
+    pPe.drawRectangle({ x: M, y: noteTop - noteH, width: CW, height: noteH, color: C.soft });
+    pPe.drawRectangle({ x: M, y: noteTop - noteH, width: 3, height: noteH, color: rgb(0.482, 0.357, 0.714) }); // PE purple
+    drawWrappedText(pPe, S.peNote, M + 14, noteTop - 14, CW - 24, {
+      font: body,
+      size: 9,
+      color: C.text,
+      lineHeight: 1.5,
+    });
+
+    footer(pPe, { body }, S, pageCursor, totalPages, true);
+  }
+
+  /* ═══════════════ PAGE 5/6: HISTORICAL + NEXT STEPS ═══════════════ */
   const p5 = pdf.addPage([W, H]);
   if (histImg && historicalResult) {
     drawText(p5, S.historical, M, H - M - 10, { font: bold, size: 22 });
@@ -571,13 +879,16 @@ export async function generateClientPdfReport(
   if (advisor.email) cLines.push("✉ " + advisor.email);
   cLines.forEach((l, i) => drawText(p5, l, M + 16, boxY - 44 - i * 12, { font: body, size: 9 }));
 
-  // Disclaimer at bottom
+  // Disclaimer at bottom (short summary; full notice on the last page)
   const discY = 140;
+  const seeFullText = locale === "de"
+    ? `Vollständige rechtliche Hinweise siehe Seite ${legalPageNo}.`
+    : `Full legal notice — see page ${legalPageNo}.`;
   p5.drawLine({ start: { x: M, y: discY + 16 }, end: { x: W - M, y: discY + 16 }, color: C.border, thickness: 0.5 });
   drawText(p5, S.disclaimer.toUpperCase(), M, discY, { font: bold, size: 8, color: C.muted });
   const discEndY = drawWrappedText(
     p5,
-    `${S.disclaimerText} ${S.issuedBy} ${advisor.bankName}.`,
+    `${S.disclaimerText} ${S.issuedBy} ${advisor.bankName}. ${seeFullText}`,
     M,
     discY - 14,
     CW,
@@ -590,7 +901,75 @@ export async function generateClientPdfReport(
     color: C.muted,
   });
 
-  footer(p5, { body }, S, 5, totalPages, true);
+  pageCursor += 1;
+  footer(p5, { body }, S, pageCursor, totalPages, true);
+
+  /* ═══════════════ PAGE 6 — Marketingmitteilung (full legal notice) ═══════════════ */
+  const p6 = pdf.addPage([W, H]);
+  // Title + accent rule
+  drawText(p6, S.legalTitle, M, H - M - 10, { font: bold, size: 22 });
+  p6.drawLine({
+    start: { x: M, y: H - M - 28 },
+    end: { x: M + 80, y: H - M - 28 },
+    color: C.accent,
+    thickness: 2,
+  });
+
+  // Body composition
+  let cy = H - M - 56;
+  const bodyOpt = { font: body, size: 9, color: C.text, lineHeight: 1.55 };
+  const boldOpt = { font: bold, size: 9, color: C.text, lineHeight: 1.55 };
+
+  // Intro (entity, FN, address, marketing-comm declaration)
+  cy = drawWrappedText(p6, S.legalIntro, M, cy, CW, bodyOpt);
+  cy -= 14;
+
+  // Bullets lead
+  cy = drawWrappedText(p6, S.legalBulletsLead, M, cy, CW, boldOpt);
+  cy -= 8;
+
+  // Bullet list
+  const bulletIndent = 14;
+  for (const item of S.legalBullets) {
+    drawText(p6, "•", M, cy, { font: body, size: 9, color: C.accent });
+    cy = drawWrappedText(p6, item, M + bulletIndent, cy, CW - bulletIndent, bodyOpt);
+    cy -= 4;
+  }
+  cy -= 8;
+
+  // Performance / risk paragraph
+  cy = drawWrappedText(p6, S.legalPerformance, M, cy, CW, bodyOpt);
+  cy -= 12;
+
+  // Liability disclaimer
+  cy = drawWrappedText(p6, S.legalLiability, M, cy, CW, bodyOpt);
+  cy -= 12;
+
+  // AI notice — visually framed
+  const aiBoxTop = cy + 8;
+  // Pre-measure AI block height
+  const aiLines = wrap(S.legalAiNotice, body, 9, CW - 24);
+  const aiBoxH = aiLines.length * 9 * 1.55 + 24;
+  p6.drawRectangle({
+    x: M,
+    y: aiBoxTop - aiBoxH,
+    width: CW,
+    height: aiBoxH,
+    color: C.soft,
+  });
+  cy = drawWrappedText(p6, S.legalAiNotice, M + 12, aiBoxTop - 14, CW - 24, bodyOpt);
+  cy = aiBoxTop - aiBoxH - 12;
+
+  // Issued-by + as-of footer
+  drawText(
+    p6,
+    `${S.issuedBy}: ${advisor.bankName}  ·  ${S.asOf}: ${fmtDate(locale)}`,
+    M,
+    Math.max(cy, 70),
+    { font: italic, size: 8, color: C.muted },
+  );
+
+  footer(p6, { body }, S, legalPageNo, totalPages, true);
 
   /* ═══════════════ Metadata ═══════════════ */
   pdf.setTitle(`Ruhestandsplan — ${client.name || ""}`.trim());

@@ -24,6 +24,7 @@ import type {
   Scenario,
   DetailedSimTrace,
 } from "../../types";
+import type { PETimelineEntry } from "../../engine/privateEquity";
 
 /* Corporate colours (Schelhammer Capital) */
 export const REPORT_COLORS = {
@@ -518,6 +519,188 @@ export function renderDetailedPathSvg(
   </g>
   <rect class="hit" x="${m.l}" y="${m.t}" width="${W}" height="${H}" fill="transparent" pointer-events="all"/>
   <script type="application/json" class="chart-data">${JSON.stringify(payload)}</script>
+</svg>`.trim();
+}
+
+/* ──────────────────────────────────────────
+   Private Equity (Topf 4) — NAV area + Calls/Distributions bars
+   ────────────────────────────────────────── */
+const PE_COLOR = "#7B5BB6";
+const PE_CALL_COLOR = "#D31220";
+const PE_DIST_COLOR = "#5A8A50";
+
+export interface PELabels {
+  xAxis: string;
+  navMedian: string;
+  navBand: string;
+  calls: string;
+  distNet: string;
+}
+
+export function renderPrivateEquitySvg(
+  timeline: PETimelineEntry[],
+  client: ClientProfile,
+  labels: PELabels,
+  navP25?: number[],
+  navP75?: number[],
+  width = 760,
+  height = 320,
+): string {
+  if (!timeline.length) return "";
+
+  const m = { l: 64, r: 24, t: 16, b: 64 };
+  const W = width - m.l - m.r;
+  const H = height - m.t - m.b;
+
+  const navs = timeline.map((e) => e.totalNav);
+  const calls = timeline.map((e) => e.totalCall);
+  const dists = timeline.map((e) => e.totalDistNet);
+  const ages = timeline.map((e) => e.age);
+  const n = timeline.length;
+
+  const hasBand = !!(navP25 && navP75 && navP25.length === n && navP75.length === n);
+
+  /* NAV (top scale, positive only) */
+  const navMaxRaw = Math.max(
+    1,
+    ...navs,
+    ...(hasBand ? navP75! : []),
+  );
+  const navTick = nice(navMaxRaw / 4);
+  const navMax = Math.ceil(navMaxRaw / navTick) * navTick;
+
+  /* Bars (bottom strip): independent symmetric scale around 0 */
+  const barMaxRaw = Math.max(1, ...calls, ...dists);
+  const barTick = nice(barMaxRaw / 2);
+  const barMax = Math.ceil(barMaxRaw / barTick) * barTick;
+
+  /* Layout: 70% NAV area, 30% bars strip below */
+  const navH = Math.round(H * 0.7);
+  const barH = H - navH - 10;
+
+  const sx = (i: number) => m.l + (i / Math.max(1, n - 1)) * W;
+  const syNav = (v: number) => m.t + navH - (v / navMax) * navH;
+  const barY0 = m.t + navH + 10 + barH / 2; // 0-line of bars area
+  const syBar = (v: number) => barY0 - (v / barMax) * (barH / 2);
+
+  /* NAV band path (only if available) */
+  const bandPath = hasBand
+    ? (() => {
+        const up = navP75!
+          .map((v, i) => `${i === 0 ? "M" : "L"}${sx(i).toFixed(1)},${syNav(v).toFixed(1)}`)
+          .join(" ");
+        const down = [...navP25!]
+          .reverse()
+          .map((v, i) => {
+            const idx = navP25!.length - 1 - i;
+            return `L${sx(idx).toFixed(1)},${syNav(v).toFixed(1)}`;
+          })
+          .join(" ");
+        return up + " " + down + " Z";
+      })()
+    : "";
+
+  /* NAV area + median line */
+  const navAreaUp = navs
+    .map((v, i) => `${i === 0 ? "M" : "L"}${sx(i).toFixed(1)},${syNav(v).toFixed(1)}`)
+    .join(" ");
+  const navAreaDown = `L${sx(n - 1).toFixed(1)},${syNav(0).toFixed(1)} L${sx(0).toFixed(1)},${syNav(0).toFixed(1)} Z`;
+  const navAreaPath = navAreaUp + " " + navAreaDown;
+  const navLine = navs
+    .map((v, i) => `${i === 0 ? "M" : "L"}${sx(i).toFixed(1)},${syNav(v).toFixed(1)}`)
+    .join(" ");
+
+  /* Bars */
+  const barW = Math.max(2, (W / Math.max(1, n - 1)) * 0.34);
+  const callBars = calls
+    .map((v, i) => {
+      if (v <= 0) return "";
+      const x = sx(i) - barW - 1;
+      const y0 = barY0;
+      const y1 = barY0 + (v / barMax) * (barH / 2);
+      return `<rect x="${x.toFixed(1)}" y="${y0.toFixed(1)}" width="${barW.toFixed(1)}" height="${(y1 - y0).toFixed(1)}" fill="${PE_CALL_COLOR}" opacity="0.78"/>`;
+    })
+    .join("");
+  const distBars = dists
+    .map((v, i) => {
+      if (v <= 0) return "";
+      const x = sx(i) + 1;
+      const y0 = syBar(v);
+      const y1 = barY0;
+      return `<rect x="${x.toFixed(1)}" y="${y0.toFixed(1)}" width="${barW.toFixed(1)}" height="${(y1 - y0).toFixed(1)}" fill="${PE_DIST_COLOR}" opacity="0.85"/>`;
+    })
+    .join("");
+
+  /* Y ticks (NAV) */
+  const yTicks: number[] = [];
+  for (let v = 0; v <= navMax; v += navTick) yTicks.push(v);
+
+  /* X ticks (ages) */
+  const xTicks: number[] = [];
+  const step = Math.max(1, Math.round((n - 1) / 6));
+  for (let i = 0; i < n; i += step) xTicks.push(i);
+  if (xTicks[xTicks.length - 1] !== n - 1) xTicks.push(n - 1);
+
+  const id = chartId("pe");
+
+  /* Legend swatches */
+  const lg1 = `${m.l + 12}, ${m.t + 6}`;
+  const escTxt = (s: string) =>
+    String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  return `
+<svg id="${id}" class="chart-interactive" data-chart-type="pe" viewBox="0 0 ${width} ${height}"
+  xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Private Equity timeline"
+  preserveAspectRatio="xMidYMid meet">
+  <rect x="0" y="0" width="${width}" height="${height}" fill="white"/>
+
+  <!-- NAV grid + ticks -->
+  ${yTicks
+    .map(
+      (v) => `
+    <line x1="${m.l}" x2="${m.l + W}" y1="${syNav(v).toFixed(1)}" y2="${syNav(v).toFixed(1)}" stroke="${REPORT_COLORS.gridLine}" stroke-width="1"/>
+    <text x="${m.l - 8}" y="${(syNav(v) + 4).toFixed(1)}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="end">${fmtEurCompact.format(v).replace(/\s/g, "\u00A0")}</text>
+  `,
+    )
+    .join("")}
+
+  <!-- NAV band + area + median line -->
+  ${hasBand ? `<path d="${bandPath}" fill="${PE_COLOR}" opacity="0.16"/>` : ""}
+  <path d="${navAreaPath}" fill="${PE_COLOR}" opacity="0.10"/>
+  <path d="${navLine}" fill="none" stroke="${PE_COLOR}" stroke-width="2"/>
+
+  <!-- Bar zone divider -->
+  <line x1="${m.l}" x2="${m.l + W}" y1="${(m.t + navH + 5).toFixed(1)}" y2="${(m.t + navH + 5).toFixed(1)}" stroke="${REPORT_COLORS.gridLine}" stroke-width="1"/>
+  <line x1="${m.l}" x2="${m.l + W}" y1="${barY0.toFixed(1)}" y2="${barY0.toFixed(1)}" stroke="${REPORT_COLORS.muted}" stroke-width="1"/>
+
+  ${callBars}
+  ${distBars}
+
+  <!-- X axis -->
+  ${xTicks
+    .map(
+      (i) => `
+    <text x="${sx(i).toFixed(1)}" y="${(m.t + H + 18).toFixed(1)}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.muted}" text-anchor="middle">${ages[i]}</text>
+  `,
+    )
+    .join("")}
+  <text x="${m.l + W / 2}" y="${m.t + H + 36}" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}" text-anchor="middle">${escTxt(labels.xAxis)}</text>
+
+  <!-- Legend -->
+  <g transform="translate(${lg1})">
+    <rect x="0" y="0" width="12" height="12" fill="${PE_COLOR}" opacity="0.85"/>
+    <text x="18" y="10" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${escTxt(hasBand ? labels.navMedian : labels.navMedian)}</text>
+    ${
+      hasBand
+        ? `<rect x="0" y="18" width="12" height="12" fill="${PE_COLOR}" opacity="0.30"/>
+           <text x="18" y="28" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${escTxt(labels.navBand)}</text>`
+        : ""
+    }
+    <rect x="160" y="0" width="12" height="12" fill="${PE_CALL_COLOR}" opacity="0.78"/>
+    <text x="178" y="10" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${escTxt(labels.calls)}</text>
+    <rect x="160" y="18" width="12" height="12" fill="${PE_DIST_COLOR}" opacity="0.85"/>
+    <text x="178" y="28" font-family="Skeena, -apple-system, Helvetica, Arial, sans-serif" font-size="11" fill="${REPORT_COLORS.text}">${escTxt(labels.distNet)}</text>
+  </g>
 </svg>`.trim();
 }
 

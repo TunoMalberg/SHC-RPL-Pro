@@ -35,9 +35,11 @@ import {
   renderHistoricalSvg,
   renderMonteCarloFanSvg,
   renderPortfolioDonutSvg,
+  renderPrivateEquitySvg,
   renderScenariosComparisonSvg,
   chartInteractionScript,
 } from "./chartSvg";
+import { computePETimeline, buildStochasticEnsemble } from "../../engine/privateEquity";
 
 /* HTML-escape. No external deps — deliberately minimal. */
 function esc(v: unknown): string {
@@ -154,6 +156,39 @@ const DE_STRINGS = {
   mifidGrowthDesc: "Langfristiger Vermögensaufbau steht im Vordergrund. Höhere Schwankungen sind möglich; ein längerer Anlagehorizont und ein ruhiger Umgang mit Kursrückgängen werden vorausgesetzt.",
   mifidSpeculativeName: "Spekulativ",
   mifidSpeculativeDesc: "Maximale Renditechancen, mit entsprechend höheren Risiken. Auch stärkere Wertrückgänge sollten Sie aushalten können, ohne Ihre Anlagestrategie zu ändern.",
+  /* Private Equity (Topf 4) */
+  peTitle: "Private Equity (Topf 4)",
+  peDesc: "Zeichnungen in Private-Equity-Fonds ergänzen Ihr Portfolio um eine illiquide Komponente mit höheren Renditezielen. Die Auszahlungen erfolgen über die Fondslaufzeit (typisch 10–14 Jahre) und folgen dem charakteristischen J-Curve-Muster: in den ersten Jahren überwiegen Capital Calls, später dominieren Distributions.",
+  peSummaryFunds: "Anzahl Fonds",
+  peSummaryCommitment: "Σ Zeichnungssumme",
+  peSummaryCalled: "Σ abgerufenes Kapital",
+  peSummaryDistGross: "Σ Distributions (brutto)",
+  peSummaryPeakNav: "Höchster NAV",
+  peSummaryTargetIRR: "Ø Ziel-IRR",
+  peSummaryTargetTVPI: "Ø Ziel-TVPI",
+  peEnsembleSuccess: "Erfolg (TVPI ≥ 1×)",
+  peEnsembleMedianIRR: "Median IRR (realisiert)",
+  peEnsembleMedianTVPI: "Median TVPI (realisiert)",
+  peChartTitle: "Verlauf NAV, Capital Calls & Netto-Distributions",
+  peChartNavMedian: "NAV (Median)",
+  peChartNav: "NAV",
+  peChartNavBand: "NAV-Band p25–p75",
+  peChartCalls: "Capital Calls",
+  peChartDistNet: "Distributions (netto)",
+  peTableTitle: "Ihre Private-Equity-Fonds",
+  peTableName: "Bezeichnung",
+  peTableCommitment: "Zeichnungssumme",
+  peTableStart: "Start-Alter",
+  peTableDuration: "Laufzeit",
+  peTableIrr: "Ziel-IRR",
+  peTableTvpi: "Ziel-TVPI",
+  peModeLabel: "Modellierung",
+  peModeSimple: "Vereinfacht",
+  peModeRealistic: "Realistisch (J-Curve)",
+  peModeFull: "Vollständig (J-Curve + Stochastik)",
+  peNoteTitle: "Was bedeutet das für Sie?",
+  peNoteBody:
+    "Private Equity ist eine langfristige, illiquide Beteiligung. Capital Calls werden über mehrere Jahre verteilt abgerufen und müssen aus liquiden Mitteln bedient werden — der Liquiditätsplan im Topf 1 berücksichtigt dies bereits. Distributions sind nicht garantiert; die genannten Ziel-IRR/TVPI sind Erwartungswerte und können in Einzelfällen deutlich verfehlt werden (Totalverlust nicht ausgeschlossen).",
 };
 
 const EN_STRINGS: typeof DE_STRINGS = {
@@ -260,10 +295,93 @@ const EN_STRINGS: typeof DE_STRINGS = {
   mifidGrowthDesc: "Long-term wealth building is the priority. Higher fluctuations are possible; a longer investment horizon and a calm approach to market setbacks are required.",
   mifidSpeculativeName: "Speculative",
   mifidSpeculativeDesc: "Maximum return potential with correspondingly higher risks. You should be able to tolerate pronounced drawdowns without changing your investment strategy.",
+  /* Private Equity (bucket 4) */
+  peTitle: "Private Equity (bucket 4)",
+  peDesc: "Subscriptions to private-equity funds add an illiquid component with higher target returns to your portfolio. Distributions occur over the fund life (typically 10–14 years) and follow the characteristic J-curve: capital calls dominate in the early years, distributions in the later years.",
+  peSummaryFunds: "Number of funds",
+  peSummaryCommitment: "Σ Commitment",
+  peSummaryCalled: "Σ Capital called",
+  peSummaryDistGross: "Σ Distributions (gross)",
+  peSummaryPeakNav: "Peak NAV",
+  peSummaryTargetIRR: "Avg. target IRR",
+  peSummaryTargetTVPI: "Avg. target TVPI",
+  peEnsembleSuccess: "Success (TVPI ≥ 1×)",
+  peEnsembleMedianIRR: "Median IRR (realised)",
+  peEnsembleMedianTVPI: "Median TVPI (realised)",
+  peChartTitle: "NAV, capital calls & net distributions over time",
+  peChartNavMedian: "NAV (median)",
+  peChartNav: "NAV",
+  peChartNavBand: "NAV band p25–p75",
+  peChartCalls: "Capital calls",
+  peChartDistNet: "Distributions (net)",
+  peTableTitle: "Your private-equity funds",
+  peTableName: "Name",
+  peTableCommitment: "Commitment",
+  peTableStart: "Start age",
+  peTableDuration: "Duration",
+  peTableIrr: "Target IRR",
+  peTableTvpi: "Target TVPI",
+  peModeLabel: "Modelling",
+  peModeSimple: "Simplified",
+  peModeRealistic: "Realistic (J-curve)",
+  peModeFull: "Full (J-curve + stochastic)",
+  peNoteTitle: "What does this mean for you?",
+  peNoteBody:
+    "Private equity is a long-term, illiquid commitment. Capital calls are drawn down over several years and must be funded from liquid assets — your liquidity plan in bucket 1 already accounts for this. Distributions are not guaranteed; the target IRR/TVPI shown above are expected values and may, in individual cases, be missed substantially (total loss cannot be excluded).",
 };
 
-const DISCLAIMER_DE = "Diese Unterlagen stellen eine Marketingmitteilung dar und wurden nicht im Einklang mit den Rechtsvorschriften zur Förderung der Unabhängigkeit von Anlageanalysen erstellt. Sie unterliegen nicht dem Verbot des Handels im Anschluss an die Verbreitung von Anlageanalysen. Die angeführten Simulationen basieren auf Annahmen, die im Zeitablauf von der tatsächlichen Entwicklung abweichen können. Vergangenheitsergebnisse sind kein verlässlicher Indikator für zukünftige Wertentwicklungen. Die dargestellten Informationen stellen weder eine individuelle Anlageberatung noch ein Angebot oder eine Aufforderung zum Kauf oder Verkauf von Finanzinstrumenten dar. Vor einer Anlageentscheidung sollten Sie die für Ihre persönliche Situation passende Anlageberatung in Anspruch nehmen.";
-const DISCLAIMER_EN = "This document is a marketing communication and has not been prepared in accordance with legal requirements designed to promote the independence of investment research. It is not subject to any prohibition on dealing ahead of the dissemination of investment research. The simulations shown are based on assumptions that may diverge from actual developments over time. Past performance is not a reliable indicator of future performance. The information contained herein does not constitute personal investment advice, nor an offer or solicitation to buy or sell any financial instrument. Before making an investment decision you should seek advice tailored to your personal circumstances.";
+/* ────────── Schelhammer Capital Marketingmitteilung — full structured legal notice ────────── */
+type LegalNotice = {
+  title: string;
+  intro: string;
+  bulletsLead: string;
+  bullets: string[];
+  performance: string;
+  liability: string;
+  aiNotice: string;
+};
+
+const LEGAL_DE: LegalNotice = {
+  title: "Marketingmitteilung — Rechtliche Hinweise",
+  intro:
+    "Bei dieser Unterlage handelt es sich um eine MARKETINGMITTEILUNG der Schelhammer Capital Bank AG („Schelhammer Capital“) FN 58248i (HG Wien), Goldschmiedgasse 3-5, 1010 Wien, https://schelhammer.at. Dies ist KEINE Finanzanalyse, die unter Einhaltung der Rechtsvorschriften zur Förderung der Unabhängigkeit von Finanzanalysen erstellt wurde und unterliegt daher auch nicht dem Verbot des Handels im Anschluss an die Verbreitung von Finanzanalysen (Art 36 f delegierte Verordnung (EU) 2017/565).",
+  bulletsLead: "Die in dieser Präsentation enthaltenen Informationen",
+  bullets: [
+    "dienen ausschließlich der unverbindlichen Information und basieren auf dem aktuellen Wissensstand und der Markteinschätzung der Schelhammer Capital.",
+    "sind nur zum Erstellungszeitpunkt gültig und können sich unter Umständen sehr rasch ändern.",
+    "stellen keine Empfehlung im Sinn des Art. 9 delegierte Verordnung (EU) 2017/565 der Europäischen Kommission dar.",
+    "ersetzen nicht die fachgerechte Beratung für die darin beschriebenen Finanzinstrumente und dienen insbesondere nicht als Ersatz für eine umfassende Risikoaufklärung.",
+    "stellen weder ein Anbot, noch eine Einladung zur Anbotsstellung zum Kauf oder Verkauf von Finanzinstrumenten dar.",
+    "wurden mit größter Sorgfalt recherchiert, es kann aber keine Haftung für deren Richtigkeit, Vollständigkeit, Aktualität oder Genauigkeit übernommen werden.",
+  ],
+  performance:
+    "Vergangene Entwicklungen und Erträge sind kein verlässlicher Indikator für künftige Entwicklungen. Sofern Angaben zur künftigen Wertentwicklung dargestellt sind, weist die Erstellerin darauf hin, dass derartige Prognosen kein verlässlicher Indikator für die künftige Entwicklung sind. Wertpapiere weisen je nach konkreter Ausgestaltung des Produktes ein unterschiedlich hohes Anlagerisiko auf (Totalverlust kann nicht ausgeschlossen werden). Obwohl wir die von uns verwendeten Quellen als verlässlich einstufen, übernehmen wir für die Vollständigkeit und Richtigkeit der hier wiedergegebenen Informationen keine Haftung. Die Berechnungen berücksichtigen weder Ausgabe- noch Rücknahmespesen.",
+  liability:
+    "Haftungsausschluss: Jegliche Haftung im Zusammenhang mit der Erstellung dieser Unterlage, insbesondere für die Richtigkeit und Vollständigkeit ihres Inhaltes oder für das Eintreten erstellter Prognosen, ist ausgeschlossen. Die konkreten Hinweise und Feststellungen auf den einzelnen Seiten sind jedenfalls zu berücksichtigen. Irrtum und Druckfehler vorbehalten.",
+  aiNotice:
+    "Hinweis: Diese Unterlage basiert auf einem Programm, welches unter zu Hilfenahme von Künstlicher Intelligenz (KI) erstellt wurde. Die KI dient hierbei als unterstützendes Analyse- und Visualisierungswerkzeug für Ihren Kundenbetreuer. Sämtliche Ergebnisse wurden von diesem auf Plausibilität geprüft und fachlich validiert. KI-generierte Prognosen sind Modellrechnungen und keine Garantie für zukünftige Ergebnisse.",
+};
+
+const LEGAL_EN: LegalNotice = {
+  title: "Marketing communication — Legal notice",
+  intro:
+    "This document is a MARKETING COMMUNICATION of Schelhammer Capital Bank AG (“Schelhammer Capital”), FN 58248i (Commercial Court Vienna), Goldschmiedgasse 3-5, 1010 Vienna, https://schelhammer.at. This is NOT investment research prepared in accordance with the legal requirements designed to promote the independence of investment research and is therefore not subject to any prohibition on dealing ahead of the dissemination of investment research (Art 36 f Commission Delegated Regulation (EU) 2017/565).",
+  bulletsLead: "The information contained in this presentation",
+  bullets: [
+    "is provided for non-binding information purposes only and is based on the current state of knowledge and market assessment of Schelhammer Capital.",
+    "is only valid at the time of preparation and may change very quickly under certain circumstances.",
+    "does not constitute a recommendation within the meaning of Art. 9 of Commission Delegated Regulation (EU) 2017/565.",
+    "does not replace professional advice for the financial instruments described and, in particular, is not a substitute for comprehensive risk disclosure.",
+    "constitutes neither an offer nor a solicitation to purchase or sell any financial instruments.",
+    "has been researched with the utmost care; however, no liability can be accepted for its accuracy, completeness, timeliness or precision.",
+  ],
+  performance:
+    "Past developments and returns are not a reliable indicator of future performance. To the extent that information on future performance is shown, the issuer points out that such forecasts are not a reliable indicator of future performance. Securities entail different levels of investment risk depending on the specific structure of the product (total loss cannot be excluded). Although we consider the sources used to be reliable, we accept no liability for the completeness or accuracy of the information reproduced herein. The calculations take neither subscription nor redemption fees into account.",
+  liability:
+    "Liability disclaimer: Any liability in connection with the preparation of this document, in particular for the accuracy and completeness of its content or for the realisation of forecasts shown, is excluded. The specific notes and statements on the individual pages must be observed in any case. Subject to error and misprints.",
+  aiNotice:
+    "Note: This document is based on a program that was created with the assistance of artificial intelligence (AI). The AI serves as a supporting analysis and visualisation tool for your client advisor. All results have been reviewed for plausibility and professionally validated by your advisor. AI-generated forecasts are model calculations and not a guarantee of future results.",
+};
 
 /* ────────── formatters ────────── */
 function fmtEur(locale: Locale, v: number): string {
@@ -297,6 +415,7 @@ export interface ClientReportOptions {
   includeDetailedPath?: boolean;
   includeMifid?: boolean;
   includeMeetingNotes?: boolean;
+  includePrivateEquity?: boolean;
   scenarios?: Scenario[];
   detailedTrace?: DetailedSimTrace | null;
 }
@@ -321,7 +440,7 @@ export async function generateClientHtmlReport(
   opts: ClientReportOptions,
 ): Promise<Blob> {
   const S = opts.locale === "de" ? DE_STRINGS : EN_STRINGS;
-  const disclaimer = opts.locale === "de" ? DISCLAIMER_DE : DISCLAIMER_EN;
+  const legal = opts.locale === "de" ? LEGAL_DE : LEGAL_EN;
 
   /* Skeena font embedding (self-contained HTML, portable without /fonts/ path) */
   const fontFaceCss = await buildEmbeddedSkeenaCss();
@@ -441,6 +560,9 @@ export async function generateClientHtmlReport(
     @media(max-width:720px){.hist-stats{grid-template-columns:1fr}}
     .disclaimer{margin-top:64px;padding:24px;background:var(--soft);border-radius:12px;font-size:12px;color:var(--muted);line-height:1.6}
     .disclaimer h3{font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text);margin:0 0 12px}
+    .disclaimer p{margin:0}
+    .disclaimer .legal-bullets{margin:0 0 0 20px;padding:0;list-style:disc}
+    .disclaimer .legal-bullets li{margin:4px 0;padding-left:4px}
     .footer-meta{margin-top:24px;font-size:11px;color:var(--muted);text-align:center;letter-spacing:0.08em;text-transform:uppercase}
     .liq-inflow{color:var(--ok);font-weight:600}
     .liq-outflow{color:var(--accent);font-weight:600}
@@ -564,6 +686,146 @@ export async function generateClientHtmlReport(
             <span class="confirm-icon">${confirmed ? "✓" : "ℹ"}</span>
             <span>${esc(confirmed ? S.mifidConfirmedYes : S.mifidConfirmedNo)}</span>
           </div>
+        </div>
+      </section>
+    `;
+  }
+
+  /* ───────── Private Equity (Topf 4) block ───────── */
+  let peBlock = "";
+  const peFunds = portfolio.peFunds ?? [];
+  if (opts.includePrivateEquity !== false && peFunds.length > 0) {
+    const peMode = portfolio.peModelingMode ?? "realistic";
+    const totalYears = client.lifeExpectancy - client.currentAge + 1;
+    const kestRateFraction = (portfolio.kestRate ?? 27.5) / 100;
+
+    /* Aggregated annual timeline (median for stochastic mode). */
+    const timeline = computePETimeline(
+      peFunds,
+      client.currentAge,
+      totalYears,
+      kestRateFraction,
+      peMode,
+    );
+    /* p25/p75 NAV bands only available in 'full' mode. */
+    let navP25: number[] | undefined;
+    let navP75: number[] | undefined;
+    let ensembleSuccess: number | null = null;
+    let ensembleMedianIRR: number | null = null;
+    let ensembleMedianTVPI: number | null = null;
+    if (peMode === "full") {
+      const ens = buildStochasticEnsemble(
+        peFunds,
+        client.currentAge,
+        totalYears,
+        kestRateFraction,
+        100,
+        12345,
+      );
+      navP25 = ens.navP25;
+      navP75 = ens.navP75;
+      ensembleSuccess = ens.successRate;
+      ensembleMedianIRR = ens.medianIRRPct;
+      ensembleMedianTVPI = ens.medianTVPI;
+    }
+
+    const totalCommitment = peFunds.reduce((s, f) => s + f.commitment, 0);
+    const totalCalled = timeline.reduce((s, e) => s + e.totalCall, 0);
+    const totalDistGross = timeline.reduce((s, e) => s + e.totalDistGross, 0);
+    const peakNav = timeline.reduce((m, e) => Math.max(m, e.totalNav), 0);
+    const avgTargetIRR =
+      peFunds.reduce((s, f) => s + f.irr, 0) / peFunds.length;
+    const avgTargetTVPI =
+      peFunds.reduce((s, f) => s + f.tvpi, 0) / peFunds.length;
+
+    const modeLabel =
+      peMode === "simple"
+        ? S.peModeSimple
+        : peMode === "full"
+          ? S.peModeFull
+          : S.peModeRealistic;
+
+    const peSvg = renderPrivateEquitySvg(
+      timeline,
+      client,
+      {
+        xAxis: S.axisAge,
+        navMedian: peMode === "full" ? S.peChartNavMedian : S.peChartNav,
+        navBand: S.peChartNavBand,
+        calls: S.peChartCalls,
+        distNet: S.peChartDistNet,
+      },
+      navP25,
+      navP75,
+      760,
+      320,
+    );
+
+    const fundRows = peFunds
+      .map((f) => {
+        return `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:10px 12px;font-weight:600">${esc(f.name || "—")}</td>
+          <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, f.commitment)}</td>
+          <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${f.startAge}</td>
+          <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${f.fundDuration} ${opts.locale === "de" ? "Jahre" : "yrs"}</td>
+          <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtPct(opts.locale, f.irr)}</td>
+          <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${f.tvpi.toFixed(2)}×</td>
+        </tr>`;
+      })
+      .join("");
+
+    const summaryCards = `
+      <div class="kpi"><div class="label">${esc(S.peSummaryFunds)}</div><div class="value">${peFunds.length}</div></div>
+      <div class="kpi"><div class="label">${esc(S.peSummaryCommitment)}</div><div class="value">${fmtEur(opts.locale, totalCommitment)}</div></div>
+      <div class="kpi"><div class="label">${esc(S.peSummaryCalled)}</div><div class="value">${fmtEur(opts.locale, totalCalled)}</div></div>
+      <div class="kpi"><div class="label">${esc(S.peSummaryDistGross)}</div><div class="value">${fmtEur(opts.locale, totalDistGross)}</div></div>
+      <div class="kpi"><div class="label">${esc(S.peSummaryPeakNav)}</div><div class="value">${fmtEur(opts.locale, peakNav)}</div></div>
+      <div class="kpi"><div class="label">${esc(S.peSummaryTargetIRR)}</div><div class="value">${fmtPct(opts.locale, avgTargetIRR)}</div></div>
+      <div class="kpi"><div class="label">${esc(S.peSummaryTargetTVPI)}</div><div class="value">${avgTargetTVPI.toFixed(2)}×</div></div>
+      <div class="kpi"><div class="label">${esc(S.peModeLabel)}</div><div class="value" style="font-size:14px">${esc(modeLabel)}</div></div>
+    `;
+
+    const ensembleCards =
+      peMode === "full" && ensembleSuccess !== null
+        ? `
+        <div class="kpi accent"><div class="label">${esc(S.peEnsembleSuccess)}</div><div class="value">${fmtPct(opts.locale, (ensembleSuccess ?? 0) * 100)}</div></div>
+        <div class="kpi"><div class="label">${esc(S.peEnsembleMedianIRR)}</div><div class="value">${fmtPct(opts.locale, ensembleMedianIRR ?? 0)}</div></div>
+        <div class="kpi"><div class="label">${esc(S.peEnsembleMedianTVPI)}</div><div class="value">${(ensembleMedianTVPI ?? 0).toFixed(2)}×</div></div>
+      `
+        : "";
+
+    peBlock = `
+      <section class="section">
+        <h2>${esc(S.peTitle)}</h2>
+        <p class="desc">${esc(S.peDesc)}</p>
+        <div class="kpi-grid" style="margin-bottom:16px">
+          ${summaryCards}
+        </div>
+        ${
+          ensembleCards
+            ? `<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${ensembleCards}</div>`
+            : ""
+        }
+        <div class="chart-card">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">${esc(S.peChartTitle)}</div>
+          ${peSvg}
+        </div>
+        <div class="chart-card" style="padding:0;margin-top:16px">
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead><tr style="background:var(--soft)">
+              <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.peTableName)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.peTableCommitment)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.peTableStart)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.peTableDuration)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.peTableIrr)}</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">${esc(S.peTableTvpi)}</th>
+            </tr></thead>
+            <tbody>${fundRows}</tbody>
+          </table>
+        </div>
+        <div class="notes-card" style="margin-top:16px;border-left:4px solid #7B5BB6;background:rgba(123,91,182,0.06)">
+          <div class="notes-card-label" style="color:#7B5BB6">${esc(S.peNoteTitle)}</div>
+          <div class="notes-card-body">${esc(S.peNoteBody)}</div>
         </div>
       </section>
     `;
@@ -921,6 +1183,7 @@ ${pinGate}
     </section>
 
     ${mifidBlock}
+    ${peBlock}
     ${scenariosBlock}
     ${detailedBlock}
     ${historicalBlock}
@@ -934,9 +1197,16 @@ ${pinGate}
     </section>
 
     <div class="disclaimer">
-      <h3>${esc(S.disclaimerTitle)}</h3>
-      <p>${esc(disclaimer)} ${opts.locale === "de" ? "Ausgegeben von" : "Issued by"} ${esc(advisor.bankName)}.</p>
-      <p style="margin-top:10px;font-style:italic;"><strong>${opts.locale === "de" ? "Stand" : "As of"}:</strong> ${esc(fmtDate(opts.locale))}</p>
+      <h3>${esc(legal.title)}</h3>
+      <p>${esc(legal.intro)}</p>
+      <p style="margin-top:12px;margin-bottom:6px;">${esc(legal.bulletsLead)}</p>
+      <ul class="legal-bullets">
+        ${legal.bullets.map((b) => `<li>${esc(b)}</li>`).join("")}
+      </ul>
+      <p style="margin-top:12px;">${esc(legal.performance)}</p>
+      <p style="margin-top:12px;">${esc(legal.liability)}</p>
+      <p style="margin-top:12px;">${esc(legal.aiNotice)}</p>
+      <p style="margin-top:14px;font-style:italic;"><strong>${opts.locale === "de" ? "Ausgegeben von" : "Issued by"}:</strong> ${esc(advisor.bankName)} &nbsp;·&nbsp; <strong>${opts.locale === "de" ? "Stand" : "As of"}:</strong> ${esc(fmtDate(opts.locale))}</p>
     </div>
     <div class="footer-meta">${esc(S.confidential)}</div>
   </div>
