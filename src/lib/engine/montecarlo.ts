@@ -144,6 +144,16 @@ export function runMonteCarloSimulation(
 
   const allFinalValues: number[] = [];
   const allPaths: number[][] = [];
+  // FIX (2026-Q2): Reiner Markt-Drawdown.
+  // Der bisherige MaxDD wurde auf dem Vermögenspfad inkl. Sparraten,
+  // Entnahmen, KESt und Liquiditätsereignissen berechnet → der
+  // monotone Vermögensabbau in der Entnahmephase wurde fälschlich
+  // als "Drawdown" ausgewiesen (typisch +10–20 pp Inflation).
+  // Wir tracken jetzt zusätzlich einen reinen Marktindex pro Pfad
+  // (gewichtete Brutto-Renditen aller Töpfe, ohne Cash-Flows),
+  // der die übliche Definition «größter Peak-to-Trough-Verlust»
+  // erfüllt und den Tooltip-Versprechen «20–40 %» entspricht.
+  const marketDrawdowns: number[] = [];
   let successCount = 0;
   const failureYears: number[] = [];
 
@@ -155,6 +165,10 @@ export function runMonteCarloSimulation(
     // PE-NAV zu Beginn = 0 (Fonds starten zu definierten Altersstufen).
     let peNavCurrent = hasPE ? peTimeline[0].totalNav : 0;
     const path: number[] = [inputs.initialCapital + peNavCurrent];
+    // Reiner Marktindex (startet bei 1) — nur Renditen, keine Cash-Flows.
+    let marketIndex = 1;
+    let marketPeak = 1;
+    let marketMaxDD = 0;
     let failed = false;
     let failureStep = -1;
     let cumulativeInflation = 1;
@@ -168,6 +182,15 @@ export function runMonteCarloSimulation(
       for (let i = 0; i < 3; i++) {
         bucketValues[i] *= 1 + returns[i];
       }
+
+      // Reine Marktrendite des Schritts = strategische Allokation × Topf-Renditen.
+      // KESt wird hier NICHT abgezogen — der Marktindex misst Brutto-Marktrisiko.
+      // (KESt ist eine deterministische Steuer auf Gewinne und keine Marktbewegung.)
+      const marketStepReturn = weights.reduce((s, w, i) => s + w * returns[i], 0);
+      marketIndex *= 1 + marketStepReturn;
+      if (marketIndex > marketPeak) marketPeak = marketIndex;
+      const ddNow = marketPeak > 0 ? (marketPeak - marketIndex) / marketPeak : 0;
+      if (ddNow > marketMaxDD) marketMaxDD = ddNow;
 
       const isAccumulation = step < accumulationSteps;
       cumulativeInflation *= 1 + inflationPerStep;
@@ -322,6 +345,7 @@ export function runMonteCarloSimulation(
     const finalValue = finalLiquid + peNavCurrent;
     allFinalValues.push(finalValue);
     allPaths.push(path);
+    marketDrawdowns.push(marketMaxDD);
 
     if (!failed) {
       successCount++;
@@ -351,8 +375,11 @@ export function runMonteCarloSimulation(
   const percentilePaths = computePercentilePaths(allPaths, totalSteps + 1);
   const sortedFinal = [...allFinalValues].sort((a, b) => a - b);
 
-  const maxDrawdowns = allPaths.map(computeMaxDrawdown);
-  const medianDrawdown = percentile(maxDrawdowns, 50);
+  // FIX (2026-Q2): Median des reinen Markt-Drawdowns (ohne Cash-Flow-Effekte).
+  // Vorher: percentile(allPaths.map(computeMaxDrawdown), 50) — verzerrt durch
+  // Sparraten, Entnahmen, KESt und Liquiditätsereignisse; Failure-Pfade
+  // (Vermögen → 0) trugen zudem 100 % zum Median bei.
+  const medianDrawdown = percentile(marketDrawdowns, 50);
 
   // PE-NAV-Pfad pro Jahr.
   // - simple/realistic: ein einziger NAV-Pfad (deterministisch).
@@ -921,13 +948,6 @@ function computePercentilePaths(
   return result;
 }
 
-function computeMaxDrawdown(path: number[]): number {
-  let maxVal = path[0];
-  let maxDD = 0;
-  for (let i = 1; i < path.length; i++) {
-    if (path[i] > maxVal) maxVal = path[i];
-    const dd = maxVal > 0 ? (maxVal - path[i]) / maxVal : 0;
-    if (dd > maxDD) maxDD = dd;
-  }
-  return maxDD;
-}
+// computeMaxDrawdown wurde 2026-Q2 entfernt — der Markt-Drawdown wird
+// jetzt inkrementell pro Pfad als reiner Marktindex (ohne Cash-Flows)
+// in der Hauptschleife geführt (siehe `marketDrawdowns`).
