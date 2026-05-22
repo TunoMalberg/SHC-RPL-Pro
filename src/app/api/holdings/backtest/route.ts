@@ -3,7 +3,12 @@ import type { Holding, HoldingsBacktestResult } from "@/lib/holdings/types";
 import { resolveIsins, figiToYahooSymbol } from "@/lib/holdings/openfigi";
 import { fetchYahooSeriesBatch, type PriceSeries } from "@/lib/holdings/yahoo";
 import { fetchFxSeries, fetchFxSpot } from "@/lib/holdings/frankfurter";
-import { runHoldingsBacktest, finalizeStressTestEUR } from "@/lib/holdings/backtest";
+import {
+  runHoldingsBacktest,
+  finalizeStressTestEUR,
+  type BacktestTelemetry,
+} from "@/lib/holdings/backtest";
+import { buildBucketStats } from "@/lib/holdings/bucketStats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -109,17 +114,45 @@ export async function POST(req: NextRequest) {
   );
   fxSpotByCurrency.set("EUR", 1.0);
 
-  // Step 5 — Run backtest
-  const result: HoldingsBacktestResult = runHoldingsBacktest({
-    holdings: enrichedHoldings,
-    priceSeriesByHoldingId,
-    fxByCurrency,
-    fxSpotByCurrency,
-  });
+  // Step 5 — Run backtest, capture telemetry for bucket-stats
+  const telemetry: BacktestTelemetry = {
+    posReturnsById: new Map<string, number[]>(),
+    mvEURById: new Map<string, number>(),
+    dates: [],
+  };
+  const result: HoldingsBacktestResult = runHoldingsBacktest(
+    {
+      holdings: enrichedHoldings,
+      priceSeriesByHoldingId,
+      fxByCurrency,
+      fxSpotByCurrency,
+    },
+    telemetry,
+  );
   finalizeStressTestEUR(result);
+
+  // Step 6 — Bucket-Stats (mu, sigma, Korrelationen für 3 Töpfe → Szenario-Übernahme)
+  const bucketStatsFull =
+    telemetry.posReturnsById.size > 0
+      ? buildBucketStats({
+          holdings: enrichedHoldings,
+          mvEURById: telemetry.mvEURById,
+          posReturnsById: telemetry.posReturnsById,
+          dates: telemetry.dates,
+        })
+      : null;
+  // Strip the daily return arrays before sending back — only the summary stats are relevant.
+  const bucketStats = bucketStatsFull
+    ? {
+        buckets: bucketStatsFull.buckets,
+        correlationMatrix: bucketStatsFull.correlationMatrix,
+        daysOfHistory: bucketStatsFull.daysOfHistory,
+      }
+    : null;
 
   return NextResponse.json({
     holdings: enrichedHoldings,
     result,
+    bucketStats,
   });
 }

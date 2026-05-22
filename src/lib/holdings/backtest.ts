@@ -81,7 +81,24 @@ export interface BacktestInput {
   fxSpotByCurrency: Map<string, number>;
 }
 
-export function runHoldingsBacktest(input: BacktestInput): HoldingsBacktestResult {
+/**
+ * Zusätzliche Telemetrie für nachgelagerte Auswertungen (Bucket-Stats /
+ * „Als Szenario speichern"). Wird vom Backtest-Lauf nebenbei mitgeschrieben
+ * und kann ignoriert werden, wenn nicht benötigt.
+ */
+export interface BacktestTelemetry {
+  /** Tägliche EUR-Returns pro Holding (Länge = dates.length - 1). */
+  posReturnsById: Map<string, number[]>;
+  /** Marktwert in EUR pro Holding heute. */
+  mvEURById: Map<string, number>;
+  /** Sortierte Backtest-Daten (YYYY-MM-DD). */
+  dates: string[];
+}
+
+export function runHoldingsBacktest(
+  input: BacktestInput,
+  telemetry?: BacktestTelemetry,
+): HoldingsBacktestResult {
   const { holdings, priceSeriesByHoldingId, fxByCurrency, fxSpotByCurrency } = input;
   const warnings: string[] = [];
 
@@ -242,6 +259,13 @@ export function runHoldingsBacktest(input: BacktestInput): HoldingsBacktestResul
       historyStart: dates[0],
       historyEnd: dates[dates.length - 1],
     });
+  }
+
+  // Hand telemetry over to the caller (used by „Als Szenario speichern").
+  if (telemetry) {
+    telemetry.dates = dates;
+    for (const [id, mv] of mvEURById) telemetry.mvEURById.set(id, mv);
+    for (const [id, rs] of posReturns) telemetry.posReturnsById.set(id, rs);
   }
 
   // 5) Portfolio daily return = Σ w_i × r_i (constant weights = today's allocation)

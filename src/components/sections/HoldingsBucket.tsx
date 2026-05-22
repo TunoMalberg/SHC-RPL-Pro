@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,20 @@ import type {
   HoldingsBacktestResult,
 } from "@/lib/holdings/types";
 import { isValidIsin } from "@/lib/holdings/isin";
+import { classifySecurity } from "@/lib/holdings/classify";
+import { runMonteCarloSimulation, generateWithdrawalHeatmap } from "@/lib/engine/montecarlo";
+import type { Scenario, AssetBucket } from "@/lib/types";
+
+interface BucketStatsResp {
+  buckets: Array<{
+    bucket: "cash" | "bonds" | "equities";
+    weight: number;
+    expectedReturn: number;
+    volatility: number;
+  }>;
+  correlationMatrix: number[][];
+  daysOfHistory: number;
+}
 
 const ASSET_CLASSES: HoldingAssetClass[] = [
   "Aktien Welt",
@@ -59,7 +73,7 @@ function emptyHolding(): Holding {
 
 export function HoldingsBucket() {
   const { state, dispatch } = useAppState();
-  const { holdings: holdingsState } = state;
+  const { holdings: holdingsState, client, inputs, portfolio, settings } = state;
   const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,7 +81,10 @@ export function HoldingsBucket() {
   const [importMessage, setImportMessage] = useState<string>("");
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [backtest, setBacktest] = useState<HoldingsBacktestResult | null>(null);
+  const [bucketStats, setBucketStats] = useState<BucketStatsResp | null>(null);
   const [backtestError, setBacktestError] = useState<string>("");
+  const [scenarioName, setScenarioName] = useState("");
+  const [scenarioMessage, setScenarioMessage] = useState<string>("");
 
   const holdings = useMemo(() => holdingsState?.holdings ?? [], [holdingsState?.holdings]);
   const enabled = holdingsState?.enabled ?? false;
@@ -109,6 +126,88 @@ export function HoldingsBucket() {
   const addManual = useCallback(() => {
     setHoldings([...holdings, emptyHolding()]);
   }, [holdings, setHoldings]);
+
+  const addFromSearch = useCallback(
+    (h: Holding) => {
+      setHoldings([...holdings, h]);
+    },
+    [holdings, setHoldings],
+  );
+
+  // ─── Bestand → Szenario ──────────────────────────────────────────
+  const canSaveScenario = useMemo(
+    () => !!bucketStats && bucketStats.daysOfHistory > 30 && !!backtest,
+    [bucketStats, backtest],
+  );
+
+  const saveAsScenario = useCallback(() => {
+    if (!bucketStats || !backtest) return;
+    // Build a PortfolioConfig copy with the buckets replaced by the
+    // observed historical mu/sigma + correlation matrix from the backtest.
+    const m = backtest.portfolioMetrics;
+    const buckets = portfolio.buckets.map((b, idx) => {
+      const stat = bucketStats.buckets[idx]; // [cash, bonds, equities] same order as default
+      const expectedReturn = stat.expectedReturn;
+      const volatility = stat.volatility;
+      const w = stat.weight * 100;
+      // Keep the user's costs/taxDrag for the topf — historical returns are
+      // gross of advisory fees / KESt was already excluded from backtest.
+      const next: AssetBucket = {
+        ...b,
+        allocation: Math.round(w * 100) / 100,
+        expectedReturn,
+        volatility,
+        netReturn: +(expectedReturn - b.costs - b.taxDrag).toFixed(2),
+      };
+      return next;
+    }) as [AssetBucket, AssetBucket, AssetBucket];
+
+    // Renormalise to 100 % to fight rounding drift
+    const sum = buckets.reduce((s, b) => s + b.allocation, 0);
+    if (sum > 0 && Math.abs(sum - 100) > 0.01) {
+      buckets[2].allocation = +(100 - buckets[0].allocation - buckets[1].allocation).toFixed(2);
+    }
+
+    const newPortfolio = {
+      ...portfolio,
+      buckets,
+      correlationMatrix: bucketStats.correlationMatrix,
+    };
+
+    const name =
+      scenarioName.trim() ||
+      `Bestand ${new Date().toISOString().slice(0, 10)} (${m.windowYears.toFixed(0)}J Backtest)`;
+
+    const scenario: Scenario = {
+      id: `bestand-${Date.now()}`,
+      name,
+      inputs: { ...inputs },
+      portfolio: newPortfolio,
+      source: "manual",
+    };
+    const result = runMonteCarloSimulation(client, scenario.inputs, scenario.portfolio, settings);
+    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, scenario.inputs, scenario.portfolio, settings);
+    scenario.result = result;
+    dispatch({ type: "ADD_SCENARIO", payload: scenario });
+
+    // Apply the bucket stats also to the live portfolio so the next "Simulation"
+    // run reflects the historical data. Berater bleibt frei, das wieder zurück
+    // zu setzen — Szenario ist die geprüfte Quelle.
+    dispatch({
+      type: "SET_PORTFOLIO",
+      payload: { buckets, correlationMatrix: bucketStats.correlationMatrix },
+    });
+
+    setScenarioName("");
+    setScenarioMessage(`✅ ${t("holdings.saveAsScenario.success")} – „${name}"`);
+  }, [bucketStats, backtest, portfolio, scenarioName, inputs, client, settings, dispatch, t]);
+
+  useEffect(() => {
+    if (scenarioMessage) {
+      const id = window.setTimeout(() => setScenarioMessage(""), 6000);
+      return () => window.clearTimeout(id);
+    }
+  }, [scenarioMessage]);
 
   // ---- Excel template download
   const downloadTemplate = useCallback(() => {
@@ -182,6 +281,8 @@ export function HoldingsBucket() {
         return;
       }
       setBacktest(data.result as HoldingsBacktestResult);
+      setBucketStats((data.bucketStats as BucketStatsResp | null) ?? null);
+      setScenarioMessage("");
       // Update holdings with resolution info
       if (Array.isArray(data.holdings)) {
         setHoldings(data.holdings as Holding[]);
@@ -283,6 +384,9 @@ export function HoldingsBucket() {
         </CardContent>
       </Card>
 
+      {/* ─── Live-Suche Direkteingabe ───────────────────── */}
+      <LiveSearchAddRow onAdd={addFromSearch} />
+
       {/* ─── Holdings Table ─────────────────────────────── */}
       {holdings.length > 0 && (
         <Card>
@@ -328,7 +432,370 @@ export function HoldingsBucket() {
         </Card>
       )}
       {backtest && <BacktestResults result={backtest} />}
+
+      {/* ─── Bucket-Stats + Save-as-Scenario ─────────────── */}
+      {backtest && bucketStats && (
+        <BucketStatsCard stats={bucketStats} />
+      )}
+      {backtest && (
+        <Card className={`${canSaveScenario ? "border-emerald-300 bg-emerald-50/40" : "border-neutral-200 bg-neutral-50"} border-2`}>
+          <CardHeader>
+            <CardTitle className="text-base">🎯 {t("holdings.saveAsScenario.title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-[#4D4A47]">
+              {t("holdings.saveAsScenario.desc")}
+            </p>
+            {!canSaveScenario && (
+              <div className="text-sm rounded-md bg-amber-50 border border-amber-200 text-amber-900 p-2">
+                {t("holdings.saveAsScenario.notReady")}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="flex-1 min-w-[260px]">
+                <Label htmlFor="scn-name" className="text-xs">
+                  {t("holdings.saveAsScenario.namePlaceholder")}
+                </Label>
+                <Input
+                  id="scn-name"
+                  value={scenarioName}
+                  onChange={(e) => setScenarioName(e.target.value)}
+                  placeholder={t("holdings.saveAsScenario.namePlaceholder")}
+                  className="h-9"
+                  disabled={!canSaveScenario}
+                />
+              </div>
+              <Button
+                onClick={saveAsScenario}
+                disabled={!canSaveScenario}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white"
+              >
+                💾 {t("holdings.saveAsScenario.button")}
+              </Button>
+            </div>
+            {scenarioMessage && (
+              <div
+                className={`text-sm rounded-md p-2 ${
+                  scenarioMessage.startsWith("✅")
+                    ? "bg-green-50 border border-green-200 text-green-900"
+                    : "bg-red-50 border border-red-200 text-red-900"
+                }`}
+              >
+                {scenarioMessage}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────
+   Live-Suche: Yahoo-Autocomplete + Auto-Fill
+   ────────────────────────────────────────────────────────── */
+interface SearchResult {
+  symbol: string;
+  name: string;
+  quoteType: string;
+  exchange: string;
+  sector?: string;
+  industry?: string;
+  isin?: string;
+}
+
+function LiveSearchAddRow({ onAdd }: { onAdd: (h: Holding) => void }) {
+  const { t } = useI18n();
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [adding, setAdding] = useState<string | null>(null);
+  const [qty, setQty] = useState<number>(1);
+  const [highlight, setHighlight] = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Debounced search
+  useEffect(() => {
+    if (q.trim().length < 2) {
+      setResults([]);
+      setError("");
+      return;
+    }
+    const handle = window.setTimeout(async () => {
+      setLoading(true);
+      setError("");
+      if (abortRef.current) abortRef.current.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      try {
+        const r = await fetch(`/api/holdings/search?q=${encodeURIComponent(q)}&limit=10`, {
+          signal: ctrl.signal,
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          setError(data.error ?? t("holdings.search.error"));
+          setResults([]);
+        } else {
+          setResults((data.results as SearchResult[]) ?? []);
+          setOpen(true);
+          setHighlight(0);
+        }
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          setError(t("holdings.search.error"));
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [q, t]);
+
+  // Close on outside click
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const choose = useCallback(
+    async (r: SearchResult) => {
+      setAdding(r.symbol);
+      setOpen(false);
+      try {
+        const resp = await fetch(`/api/holdings/quote?symbol=${encodeURIComponent(r.symbol)}`);
+        const data = await resp.json();
+        const cls = classifySecurity({
+          quoteType: r.quoteType,
+          name: r.name,
+          symbol: r.symbol,
+          sector: r.sector,
+          industry: r.industry,
+        });
+        const ccyRaw = (data?.currency ?? "USD").toUpperCase();
+        const currency: HoldingCurrency = (
+          ["EUR", "USD", "CHF", "GBP", "JPY", "CAD", "AUD"].includes(ccyRaw) ? ccyRaw : "USD"
+        ) as HoldingCurrency;
+        const id =
+          typeof globalThis.crypto?.randomUUID === "function"
+            ? globalThis.crypto.randomUUID()
+            : `h_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const h: Holding = {
+          id,
+          name: r.name,
+          isin: r.isin,
+          ticker: r.symbol,
+          quantity: qty > 0 ? qty : 1,
+          currentPrice: typeof data?.price === "number" && data.price > 0 ? data.price : 0,
+          currency,
+          assetClass: cls.assetClass,
+          region: cls.region,
+          sector: cls.sector ?? r.sector,
+          resolutionStatus: "ok",
+          priceHistorySource: "yahoo",
+        } as Holding;
+        onAdd(h);
+        setQ("");
+        setResults([]);
+        setQty(1);
+      } catch (err) {
+        setError(`${t("holdings.search.error")}: ${(err as Error).message}`);
+      } finally {
+        setAdding(null);
+      }
+    },
+    [onAdd, qty, t],
+  );
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open || results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => Math.min(results.length - 1, h + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(0, h - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      choose(results[highlight]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <Card className="border-2 border-dashed border-[#0F766E]/40 bg-white">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          🔍 {t("holdings.search.title")}
+        </CardTitle>
+        <p className="text-xs text-[#4D4A47]">{t("holdings.search.subtitle")}</p>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2 items-stretch">
+          <div ref={wrapRef} className="relative flex-1 min-w-[280px]">
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onFocus={() => results.length > 0 && setOpen(true)}
+              onKeyDown={onKeyDown}
+              placeholder={t("holdings.search.placeholder")}
+              className="h-9"
+              autoComplete="off"
+            />
+            {loading && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#4D4A47]">⏳</div>
+            )}
+            {open && (
+              <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-[340px] overflow-y-auto">
+                {results.length === 0 && !loading && (
+                  <div className="p-3 text-sm text-neutral-500">{t("holdings.search.noResults")}</div>
+                )}
+                {results.map((r, idx) => (
+                  <button
+                    key={r.symbol}
+                    type="button"
+                    onClick={() => choose(r)}
+                    onMouseEnter={() => setHighlight(idx)}
+                    className={`w-full text-left px-3 py-2 text-sm border-b last:border-b-0 ${
+                      idx === highlight ? "bg-[#0F766E]/10" : "hover:bg-neutral-50"
+                    }`}
+                  >
+                    <div className="flex justify-between items-baseline gap-3">
+                      <span className="font-mono font-semibold text-[#0F766E]">{r.symbol}</span>
+                      <span className="text-xs text-neutral-500">
+                        {r.quoteType} · {r.exchange}
+                      </span>
+                    </div>
+                    <div className="text-[13px] text-neutral-800 truncate">{r.name}</div>
+                    {(r.sector || r.industry) && (
+                      <div className="text-xs text-neutral-500 truncate">
+                        {[r.sector, r.industry].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
+                  </button>
+                ))}
+                {adding && (
+                  <div className="p-3 text-sm text-[#0F766E]">⏳ {t("holdings.search.adding")} {adding}</div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="w-[110px]">
+            <Label htmlFor="hs-qty" className="text-xs">
+              {t("holdings.search.qty")}
+            </Label>
+            <Input
+              id="hs-qty"
+              type="number"
+              step="0.0001"
+              value={qty || ""}
+              onChange={(e) => setQty(Number.parseFloat(e.target.value) || 0)}
+              className="h-9 text-right"
+            />
+          </div>
+        </div>
+        {error && (
+          <div className="mt-2 text-xs rounded-md bg-red-50 border border-red-200 text-red-900 p-2">
+            {error}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────
+   Bucket-Stats-Card (3-Topf-Kennzahlen aus Backtest)
+   ────────────────────────────────────────────────────────── */
+function BucketStatsCard({ stats }: { stats: BucketStatsResp }) {
+  const { t } = useI18n();
+  const labels: Record<string, string> = {
+    cash: t("holdings.bucketStats.cash"),
+    bonds: t("holdings.bucketStats.bonds"),
+    equities: t("holdings.bucketStats.equities"),
+  };
+  return (
+    <Card className="border-emerald-200">
+      <CardHeader>
+        <CardTitle className="text-base">📐 {t("holdings.bucketStats.title")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase text-neutral-500">
+              <tr>
+                <th className="text-left py-1">{t("holdings.bucketStats.bucket")}</th>
+                <th className="text-right py-1">{t("holdings.bucketStats.weight")}</th>
+                <th className="text-right py-1">{t("holdings.bucketStats.expReturn")}</th>
+                <th className="text-right py-1">{t("holdings.bucketStats.vola")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.buckets.map((b) => (
+                <tr key={b.bucket} className="border-t">
+                  <td className="py-1.5 font-medium">{labels[b.bucket]}</td>
+                  <td className="py-1.5 text-right font-mono">{fmtPct(b.weight * 100, 1)}</td>
+                  <td className="py-1.5 text-right font-mono">{fmtPct(b.expectedReturn, 2)}</td>
+                  <td className="py-1.5 text-right font-mono">{fmtPct(b.volatility, 2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div className="text-xs uppercase text-neutral-500 mb-1">{t("holdings.bucketStats.corr")}</div>
+          <table className="text-sm border-collapse">
+            <thead>
+              <tr>
+                <th></th>
+                {stats.buckets.map((b) => (
+                  <th key={b.bucket} className="px-3 py-1 text-xs text-neutral-500 font-normal">
+                    {labels[b.bucket]}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {stats.correlationMatrix.map((row, i) => (
+                <tr key={i}>
+                  <th className="px-3 py-1 text-xs text-neutral-500 font-normal text-right">
+                    {labels[stats.buckets[i].bucket]}
+                  </th>
+                  {row.map((v, j) => (
+                    <td
+                      key={j}
+                      className="px-3 py-1 text-right font-mono"
+                      style={{
+                        backgroundColor:
+                          i === j
+                            ? "#F1F5F9"
+                            : v > 0.2
+                              ? "#FEE2E2"
+                              : v < -0.05
+                                ? "#DCFCE7"
+                                : "transparent",
+                      }}
+                    >
+                      {v.toFixed(2)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-neutral-500">
+          Fenster: {stats.daysOfHistory.toLocaleString("de-AT")} Handelstage. Werte fließen direkt
+          in das Monte-Carlo-Szenario ein, sobald „{t("holdings.saveAsScenario.button")}" geklickt wird.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
