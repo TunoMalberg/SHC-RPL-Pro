@@ -154,6 +154,20 @@ export interface HoldingsBacktestResult {
     sharpe: number;
     sortino: number;
     maxDrawdown: number;
+    /** Datum des Höchststands vor dem schlimmsten Drawdown (ISO yyyy-mm-dd). */
+    maxDrawdownPeakDate?: string;
+    /** Datum des Tiefpunkts des schlimmsten Drawdowns (ISO yyyy-mm-dd). */
+    maxDrawdownTroughDate?: string;
+    /** Datum der Rückkehr zum Peak (oder undefined, falls bis Window-Ende noch nicht erreicht). */
+    maxDrawdownRecoveryDate?: string;
+    /** Handelstage von Peak bis Trough (Dauer der Abwärtsphase). */
+    drawdownPeakToTroughDays?: number;
+    /** Handelstage vom Trough bis zur Wiedererreichung des Peaks; bei nicht erfolgter Erholung Tage bis Serienende. */
+    drawdownRecoveryDays?: number;
+    /** Handelstage Peak → Recovery (bzw. Serienende, falls noch nicht erholt). */
+    drawdownUnderwaterDays?: number;
+    /** True, wenn der Peak bis Serienende wieder erreicht wurde. */
+    drawdownRecovered?: boolean;
     bestYear: number;
     worstYear: number;
     /** Gewichtete tägliche EUR-Returns als kumuliertes Index = 100. */

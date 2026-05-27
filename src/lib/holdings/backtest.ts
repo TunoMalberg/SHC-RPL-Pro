@@ -299,14 +299,51 @@ export function runHoldingsBacktest(
   const downsideSd = safeStdDev(downside, downsideMean);
   const sortino = downsideSd > 0 ? (annR - RISK_FREE_ANNUAL) / (downsideSd * Math.sqrt(TRADING_DAYS)) : 0;
 
-  // MaxDD on portfolio index
+  // MaxDD on portfolio index — inkl. Peak-/Trough-/Recovery-Zeitpunkten
+  // sowie Recovery-Dauer in Handelstagen.
+  // Algorithmus:
+  //  1) Lokales Hoch (peak) wandert nach oben mit. Bei jedem Punkt wird der
+  //     relative Rückgang vom letzten Peak ermittelt. Der schlimmste Wert
+  //     liefert die Trough-Position und den dazugehörigen Peak.
+  //  2) Recovery = erster Punkt NACH dem Trough, dessen Wert den damaligen
+  //     Peak wieder erreicht/überschreitet. Falls bis Serienende noch keine
+  //     Erholung erfolgt ist, bleibt `recoveryDate` undefined und der
+  //     Underwater-Status ist „andauernd".
   let peak = indexPath[0].value;
+  let peakIdx = 0;
   let maxDD = 0;
-  for (const p of indexPath) {
-    if (p.value > peak) peak = p.value;
-    const dd = peak > 0 ? p.value / peak - 1 : 0;
-    if (dd < maxDD) maxDD = dd;
+  let troughIdx = 0;
+  let troughPeakIdx = 0;
+  for (let i = 0; i < indexPath.length; i++) {
+    const pv = indexPath[i].value;
+    if (pv > peak) {
+      peak = pv;
+      peakIdx = i;
+    }
+    const dd = peak > 0 ? pv / peak - 1 : 0;
+    if (dd < maxDD) {
+      maxDD = dd;
+      troughIdx = i;
+      troughPeakIdx = peakIdx;
+    }
   }
+  const peakValue = indexPath[troughPeakIdx]?.value ?? 0;
+  let recoveryIdx = -1;
+  for (let i = troughIdx + 1; i < indexPath.length; i++) {
+    if (indexPath[i].value >= peakValue) {
+      recoveryIdx = i;
+      break;
+    }
+  }
+  const peakDate = indexPath[troughPeakIdx]?.date;
+  const troughDate = indexPath[troughIdx]?.date;
+  const recoveryDate = recoveryIdx >= 0 ? indexPath[recoveryIdx].date : undefined;
+  const drawdownPeakToTroughDays = troughIdx - troughPeakIdx;
+  const drawdownRecoveryDays =
+    recoveryIdx >= 0 ? recoveryIdx - troughIdx : indexPath.length - 1 - troughIdx;
+  const drawdownUnderwaterDays =
+    recoveryIdx >= 0 ? recoveryIdx - troughPeakIdx : indexPath.length - 1 - troughPeakIdx;
+  const drawdownRecovered = recoveryIdx >= 0;
 
   // Per-year returns (simple bucket by year)
   const yearMap = new Map<number, number[]>();
@@ -464,6 +501,13 @@ export function runHoldingsBacktest(
       sharpe,
       sortino,
       maxDrawdown: maxDD,
+      maxDrawdownPeakDate: peakDate,
+      maxDrawdownTroughDate: troughDate,
+      maxDrawdownRecoveryDate: recoveryDate,
+      drawdownPeakToTroughDays,
+      drawdownRecoveryDays,
+      drawdownUnderwaterDays,
+      drawdownRecovered,
       bestYear,
       worstYear,
       indexPath,

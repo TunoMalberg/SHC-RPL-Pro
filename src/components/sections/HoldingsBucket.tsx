@@ -809,6 +809,102 @@ function KpiCard({ label, value, hint }: { label: string; value: string; hint?: 
   );
 }
 
+/**
+ * Drawdown-Analyse: zeigt Peak-, Trough- und Recovery-Datum sowie die
+ * Dauern (in Handelstagen UND Kalendertagen) für den schlimmsten Drawdown
+ * im Backtest-Window. Falls bis zum Window-Ende noch keine Erholung erfolgt
+ * ist, wird das deutlich gekennzeichnet.
+ */
+function DrawdownAnalysisPanel({
+  m,
+}: {
+  m: HoldingsBacktestResult["portfolioMetrics"];
+}) {
+  if (!m.maxDrawdownPeakDate || !m.maxDrawdownTroughDate) return null;
+
+  const calDaysBetween = (from?: string, to?: string): number | null => {
+    if (!from || !to) return null;
+    const a = new Date(from).getTime();
+    const b = new Date(to).getTime();
+    if (Number.isNaN(a) || Number.isNaN(b)) return null;
+    return Math.round((b - a) / 86_400_000);
+  };
+
+  const peakToTroughTrading = m.drawdownPeakToTroughDays ?? 0;
+  const recoveryTrading = m.drawdownRecoveryDays ?? 0;
+  const underwaterTrading = m.drawdownUnderwaterDays ?? 0;
+  const peakToTroughCal = calDaysBetween(m.maxDrawdownPeakDate, m.maxDrawdownTroughDate) ?? 0;
+  const recoveryCal =
+    calDaysBetween(m.maxDrawdownTroughDate, m.maxDrawdownRecoveryDate ?? m.windowTo) ?? 0;
+  const underwaterCal =
+    calDaysBetween(m.maxDrawdownPeakDate, m.maxDrawdownRecoveryDate ?? m.windowTo) ?? 0;
+
+  const recovered = m.drawdownRecovered === true;
+  const fmtDays = (trading: number, calendar: number) =>
+    `${trading.toLocaleString("de-AT")} HT · ${calendar.toLocaleString("de-AT")} KT`;
+
+  return (
+    <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-sm font-semibold text-[#20201E]">📉 Drawdown-Analyse</div>
+          <div className="text-xs text-[#4D4A47]">
+            Schlimmster Peak-to-Trough-Verlust im Backtest-Window und dazugehörige Erholungsdauer
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-xl font-bold text-rose-700">
+            {(m.maxDrawdown * 100).toFixed(1)} %
+          </div>
+          <div className="text-xs text-[#4D4A47]">Max Drawdown</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+        <div className="rounded-md bg-white border border-neutral-200 p-3">
+          <div className="text-[10px] uppercase tracking-wide text-[#4D4A47]">Peak (Höchststand)</div>
+          <div className="mt-1 font-mono text-sm font-semibold">{m.maxDrawdownPeakDate}</div>
+          <div className="text-[#4D4A47] mt-1">Ausgangspunkt vor dem Einbruch.</div>
+        </div>
+        <div className="rounded-md bg-white border border-neutral-200 p-3">
+          <div className="text-[10px] uppercase tracking-wide text-[#4D4A47]">Trough (Tiefpunkt)</div>
+          <div className="mt-1 font-mono text-sm font-semibold">{m.maxDrawdownTroughDate}</div>
+          <div className="text-[#4D4A47] mt-1">
+            Abstieg: <span className="font-semibold">{fmtDays(peakToTroughTrading, peakToTroughCal)}</span>
+          </div>
+        </div>
+        <div className="rounded-md bg-white border border-neutral-200 p-3">
+          <div className="text-[10px] uppercase tracking-wide text-[#4D4A47]">
+            Recovery {recovered ? "" : "(noch andauernd)"}
+          </div>
+          <div className="mt-1 font-mono text-sm font-semibold">
+            {recovered ? m.maxDrawdownRecoveryDate : "—"}
+          </div>
+          <div className="text-[#4D4A47] mt-1">
+            {recovered ? "Erholung: " : "Bisher unter Wasser: "}
+            <span className={`font-semibold ${recovered ? "" : "text-rose-700"}`}>
+              {fmtDays(recoveryTrading, recoveryCal)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[#4D4A47]">
+        <div>
+          Gesamt unter Wasser:{" "}
+          <span className="font-semibold text-[#20201E]">
+            {fmtDays(underwaterTrading, underwaterCal)}
+          </span>
+          {!recovered && <span className="ml-1 text-rose-700">(bis Window-Ende {m.windowTo})</span>}
+        </div>
+        <div className="text-[10px] text-[#6B6864]">
+          HT = Handelstage · KT = Kalendertage · ≈ {(underwaterCal / 365.25).toFixed(2)} Jahre
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HoldingRow({
   holding,
   onUpdate,
@@ -953,6 +1049,7 @@ function BacktestResults({ result }: { result: HoldingsBacktestResult }) {
                 <KpiCard label="Schlechtestes Jahr" value={fmtPct(m.worstYear * 100, 1)} />
                 <KpiCard label="Marktwert" value={fmtEur(result.totalMarketValueEUR)} />
               </div>
+              <DrawdownAnalysisPanel m={m} />
               <IndexChart path={m.indexPath} />
             </>
           )}
