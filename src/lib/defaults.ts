@@ -32,6 +32,7 @@ export const defaultInputs: FinancialInputs = {
   pensionStartAge: 65,
   inflationRate: 2.5,
   useRealValues: true,
+  inflateWithdrawalToRetirement: false,
 };
 
 // Default KESt rate (Austrian capital gains tax) applied to (gross return − costs)

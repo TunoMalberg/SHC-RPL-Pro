@@ -9,6 +9,13 @@ import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
 import { runDetailedSingleSimulation } from "@/lib/engine/montecarlo";
 import type { DetailedSimTrace } from "@/lib/types";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AreaChart,
   Area,
   XAxis,
@@ -31,20 +38,61 @@ const COLORS = {
 
 export function DetailedExampleSection() {
   const { state, dispatch } = useAppState();
-  const { client, inputs, portfolio, settings, result, detailedTrace, liquidityEvents } = state;
+  const { client, inputs, portfolio, settings, result, detailedTrace, liquidityEvents, scenarios } = state;
   const { t } = useI18n();
   const [simIndex, setSimIndex] = useState(0);
+  // Auswahl des Quell-Szenarios. "current" = aktueller Plan aus Store,
+  // sonst die ID eines gespeicherten Szenarios. So kann der Berater die
+  // gespeicherten Szenarien direkt im Einzelpfad-Reiter durchblättern,
+  // ohne die globalen Eingaben zu verändern.
+  const [sourceScenarioId, setSourceScenarioId] = useState<string>("current");
 
-  const generateTrace = () => {
+  // Aktive Eingabe-/Portfolio-Quelle für das Trace bestimmen.
+  const activeScenario = useMemo(
+    () => scenarios.find((s) => s.id === sourceScenarioId),
+    [scenarios, sourceScenarioId],
+  );
+  const activeInputs = activeScenario ? activeScenario.inputs : inputs;
+  const activePortfolio = activeScenario ? activeScenario.portfolio : portfolio;
+  const activeResult = activeScenario?.result ?? result;
+
+  const generateTraceWithIndex = (idx: number) => {
     const trace = runDetailedSingleSimulation(
-      client, inputs, portfolio, settings, simIndex, liquidityEvents
+      client,
+      activeInputs,
+      activePortfolio,
+      settings,
+      idx,
+      liquidityEvents,
     );
     dispatch({ type: "SET_DETAILED_TRACE", payload: trace });
   };
 
-  // Nutzer-definierte Topf-Bezeichnungen (fällt auf Übersetzung zurück)
+  const generateTrace = () => generateTraceWithIndex(simIndex);
+
+  const jumpToWorst = () => {
+    const idx = activeResult?.worstSimIndex ?? 0;
+    setSimIndex(idx);
+    generateTraceWithIndex(idx);
+  };
+
+  const jumpToBest = () => {
+    const idx = activeResult?.bestSimIndex ?? 0;
+    setSimIndex(idx);
+    generateTraceWithIndex(idx);
+  };
+
+  const hasWorstBest =
+    activeResult?.worstSimIndex !== undefined &&
+    activeResult?.bestSimIndex !== undefined;
+
+  // Nutzer-definierte Topf-Bezeichnungen (fällt auf Übersetzung zurück).
+  // Wenn ein Szenario aktiv ist, ziehen wir dessen Topf-Labels — sonst
+  // entstünden inkonsistente Beschriftungen zwischen Trace & Chart.
   const bucketName = (i: 0 | 1 | 2, fallbackKey: string) =>
-    portfolio.buckets[i]?.label?.trim() ? portfolio.buckets[i].label : t(fallbackKey);
+    activePortfolio.buckets[i]?.label?.trim()
+      ? activePortfolio.buckets[i].label
+      : t(fallbackKey);
   const cashLabel = bucketName(0, "detailed.cash");
   const bondsLabel = bucketName(1, "detailed.bonds");
   const equitiesLabel = bucketName(2, "detailed.equities");
@@ -82,7 +130,7 @@ export function DetailedExampleSection() {
     return detailedTrace.rows.filter((r) => r.rebalanced).map((r) => r.age);
   }, [detailedTrace]);
 
-  const hasResults = result !== null;
+  const hasResults = activeResult !== null && activeResult !== undefined;
 
   return (
     <div className="space-y-6" data-design-id="detailed-example-section">
@@ -107,7 +155,65 @@ export function DetailedExampleSection() {
 
       {hasResults && (
         <Card data-design-id="detailed-generate-card">
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 space-y-4">
+            {/* Szenarioauswahl — "Aktueller Plan" oder eines der
+                gespeicherten Szenarien aus dem Reiter „Szenarien". */}
+            <div
+              className="flex flex-col md:flex-row md:items-end gap-3"
+              data-design-id="detailed-scenario-picker"
+            >
+              <div className="flex-1 min-w-[220px]">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  {t("detailed.scenarioPickerLabel")}
+                </label>
+                <Select
+                  value={sourceScenarioId}
+                  onValueChange={(v) => {
+                    setSourceScenarioId(v);
+                    // Bestehendes Trace verwerfen — gehört zum vorherigen
+                    // Szenario und sollte nicht mit den neuen Eingaben
+                    // weiterangezeigt werden.
+                    dispatch({ type: "SET_DETAILED_TRACE", payload: null });
+                    setSimIndex(0);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="current">
+                      {t("detailed.scenarioCurrent")}
+                    </SelectItem>
+                    {scenarios.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                        {s.result
+                          ? ` — ${fmtPct(s.result.successRate)} · ${fmtEur(s.result.medianFinalWealth)}`
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-400 mt-1">
+                  {scenarios.length === 0
+                    ? t("detailed.scenarioPickerEmpty")
+                    : t("detailed.scenarioPickerHint")}
+                </p>
+              </div>
+              {activeScenario?.result && (
+                <div className="text-xs text-slate-500 md:pb-2 leading-relaxed">
+                  <div>
+                    <span className="text-slate-400">{t("detailed.scenarioBadgeSuccess")}: </span>
+                    <span className="font-semibold text-slate-700">{fmtPct(activeScenario.result.successRate)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">{t("detailed.scenarioBadgeMedian")}: </span>
+                    <span className="font-semibold text-slate-700">{fmtEur(activeScenario.result.medianFinalWealth)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-wrap gap-3 items-end">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -139,10 +245,42 @@ export function DetailedExampleSection() {
                 className="bg-[#D31220] hover:bg-[#a80e19]"
                 data-design-id="generate-trace-button"
               >
-                🔍 Einzelpfad generieren
+                🔍 {t("detailed.generate")}
               </Button>
+              {hasWorstBest && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={jumpToWorst}
+                    className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                    data-design-id="generate-worst-button"
+                    title={t("detailed.worstHint")}
+                  >
+                    ▼ {t("detailed.worstButton")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={jumpToBest}
+                    className="border-[#5a8a50]/50 text-[#5a8a50] hover:bg-[#8FB687]/10"
+                    data-design-id="generate-best-button"
+                    title={t("detailed.bestHint")}
+                  >
+                    ▲ {t("detailed.bestButton")}
+                  </Button>
+                </>
+              )}
               {detailedTrace && (
                 <div className="ml-auto flex items-center gap-4 text-sm">
+                  {activeResult && detailedTrace.simulationIndex === activeResult.worstSimIndex && (
+                    <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 text-[11px] font-semibold border border-rose-200">
+                      {t("detailed.badgeWorst")}
+                    </span>
+                  )}
+                  {activeResult && detailedTrace.simulationIndex === activeResult.bestSimIndex && (
+                    <span className="px-2 py-0.5 rounded bg-[#8FB687]/15 text-[#5a8a50] text-[11px] font-semibold border border-[#8FB687]/40">
+                      {t("detailed.badgeBest")}
+                    </span>
+                  )}
                   <span className={`font-bold ${detailedTrace.success ? "text-[#5a8a50]" : "text-rose-600"}`}>
                     {detailedTrace.success ? t("detailed.success") : t("detailed.depleted")}
                   </span>
@@ -152,8 +290,9 @@ export function DetailedExampleSection() {
                 </div>
               )}
             </div>
-            <p className="text-xs text-slate-400 mt-2">
+            <p className="text-xs text-slate-400">
               {t("detailed.hint")}
+              {hasWorstBest && ` ${t("detailed.worstBestHint")}`}
             </p>
           </CardContent>
         </Card>

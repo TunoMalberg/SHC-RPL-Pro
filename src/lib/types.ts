@@ -30,6 +30,19 @@ export interface FinancialInputs {
   pensionStartAge: number;
   inflationRate: number;
   useRealValues: boolean;
+  /**
+   * Wenn aktiv, wird der eingegebene `desiredMonthlyWithdrawal` (heutige
+   * Kaufkraft) bis zum Pensionsbeginn um die Inflation hochgerechnet, sodass
+   * die Simulation an Tag 1 der Entnahmephase mit dem inflationsangepassten
+   * zukünftigen Nominalbetrag startet.
+   *
+   * Beispiel: 18.000 € heute, 2,5 % Inflation, 15 Jahre Ansparphase
+   *   → Start-Entnahme = 18.000 × 1,025^15 ≈ 26.085 € p.a. zum Pensionsbeginn.
+   *
+   * Default false (Rückwärtskompatibilität: bestehende Pläne arbeiten
+   * unverändert mit den eingegebenen Nominalwerten).
+   */
+  inflateWithdrawalToRetirement?: boolean;
 }
 
 export interface AssetBucket {
@@ -166,6 +179,17 @@ export interface SimulationResult {
   peMedianIRR?: number;
   /** Median realisierter PE-TVPI über alle Stochastik-Pfade. */
   peMedianTVPI?: number;
+  /**
+   * Simulationsindex des Pfades mit dem niedrigsten Endvermögen
+   * (= Worst-Case-Szenario). Wird im Reiter „Einzelpfad" genutzt,
+   * um diesen exakten Pfad reproduzierbar nachzuzeichnen.
+   */
+  worstSimIndex?: number;
+  /**
+   * Simulationsindex des Pfades mit dem höchsten Endvermögen
+   * (= Best-Case-Szenario). Wird im Reiter „Einzelpfad" genutzt.
+   */
+  bestSimIndex?: number;
 }
 
 export interface HistoricalData {

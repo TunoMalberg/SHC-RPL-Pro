@@ -155,6 +155,54 @@ export function FinancialInputsSection() {
               </div>
             </div>
           </div>
+
+          {/* Neue Option: Entnahmewunsch bis Pensionsantritt inflationieren.
+              Wirkt unabhängig von „Reale Werte"; bei beidem-an entsteht keine
+              Doppelinflation, weil die Engine den ODER-Pfad evaluiert. */}
+          <div
+            className="mt-5 pt-5 border-t border-slate-100 flex flex-col md:flex-row md:items-start gap-3"
+            data-design-id="inflate-to-retirement-toggle"
+          >
+            <div className="flex items-center gap-3 md:pt-1">
+              <Switch
+                id="inflateToRet"
+                checked={!!inputs.inflateWithdrawalToRetirement}
+                onCheckedChange={(checked) => update("inflateWithdrawalToRetirement", checked)}
+              />
+            </div>
+            <div className="flex-1">
+              <Label htmlFor="inflateToRet" className="cursor-pointer font-medium">
+                {t("inputs.inflateToRetTitle")}
+              </Label>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {inputs.inflateWithdrawalToRetirement
+                  ? t("inputs.inflateToRetOn")
+                  : t("inputs.inflateToRetOff")}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                {t("inputs.inflateToRetHint")}
+              </p>
+              {inputs.inflateWithdrawalToRetirement && (() => {
+                const accYears = Math.max(0, client.retirementAge - client.currentAge);
+                const factor = Math.pow(1 + (inputs.inflationRate || 0) / 100, accYears);
+                const yearly = inputs.desiredMonthlyWithdrawal * 12 * factor;
+                const monthly = inputs.desiredMonthlyWithdrawal * factor;
+                return (
+                  <div
+                    className="mt-2 inline-flex items-center gap-2 rounded-md bg-[#FAC075]/15 border border-[#FAC075]/40 px-2.5 py-1"
+                    data-design-id="inflate-to-retirement-preview"
+                  >
+                    <span className="text-[11px] font-semibold text-[#5d4a1f]">↗</span>
+                    <span className="text-[11px] text-[#5d4a1f]">
+                      {t("inputs.inflateToRetPreview")
+                        .replace("{amount}", fmtEur(yearly))
+                        .replace("{months}", fmtEur(monthly))}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

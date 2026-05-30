@@ -102,6 +102,14 @@ export function runMonteCarloSimulation(
   const pensionPerStep = inputs.monthlyPension * settings.timeStepMonths;
   const accumulationSteps = Math.ceil(accumulationYears * stepsPerYear);
   const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
+  // Wenn der Berater "Entnahmewunsch bis Pensionsbeginn inflationieren"
+  // wählt, wird die Entnahme (heutige Kaufkraft) ab Tag 1 der Simulation
+  // inflationsbereinigt — unabhängig von `useRealValues`, das nur die
+  // Sparphase betrifft. Effekt: an Tag 1 der Pension entspricht die
+  // Auszahlung dem zukünftigen Nominalwert (z. B. 18 k → 26 k bei
+  // 15 J × 2,5 %) und wächst danach weiter mit der Inflation.
+  const inflateWithdrawals =
+    inputs.useRealValues || inputs.inflateWithdrawalToRetirement === true;
 
   // PE-Timeline (Topf 4). Drei Modi:
   //  - 'simple'    : klassische Compound-Balance NAV.
@@ -144,6 +152,13 @@ export function runMonteCarloSimulation(
 
   const allFinalValues: number[] = [];
   const allPaths: number[][] = [];
+  // Best/Worst-Simulationsindex (niedrigstes/höchstes Endvermögen) —
+  // wird genutzt, um im Reiter „Einzelpfad" gezielt den exakten Worst-/
+  // Best-Case-Pfad reproduzieren zu können (gleicher Seed-Offset).
+  let bestSimIndex = 0;
+  let worstSimIndex = 0;
+  let bestFinalValue = -Infinity;
+  let worstFinalValue = Infinity;
   // FIX (2026-Q2): Reiner Markt-Drawdown.
   // Der bisherige MaxDD wurde auf dem Vermögenspfad inkl. Sparraten,
   // Entnahmen, KESt und Liquiditätsereignissen berechnet → der
@@ -157,9 +172,19 @@ export function runMonteCarloSimulation(
   let successCount = 0;
   const failureYears: number[] = [];
 
-  const rng = new SeededRandom(settings.randomSeed ?? 42);
+  // FIX (2026-Q3): Pro Sim eigene SeededRandom-Instanz mit Seed = base+sim.
+  // Damit erzeugt MC für simIndex N exakt die gleiche Pfadhistorie wie der
+  // Reiter „Einzelpfad" via runDetailedSingleSimulation(N) (gleiches Seeding,
+  // gleicher Pseudo-Zufall). Dadurch zeigen die Buttons „Worst-/Best-Case-Pfad"
+  // im Einzelpfad-Reiter die Cashflows der jeweiligen MC-Pfade reproduzierbar
+  // an. Statistisch ändert sich gegenüber dem alten gemeinsamen RNG nichts:
+  // 10 000 unabhängige Seeds liefern eine gleichwertige Stichprobenverteilung;
+  // nur einzelne Pfadergebnisse verschieben sich. Reproduzierbarkeit ist hier
+  // wichtiger als historische Bit-Identität der Stichprobe.
+  const baseSeed = settings.randomSeed ?? 42;
 
   for (let sim = 0; sim < settings.numSimulations; sim++) {
+    const rng = new SeededRandom(baseSeed + sim);
     const peTimeline = peTimelineForSim(sim);
     let bucketValues = weights.map((w) => w * inputs.initialCapital);
     // PE-NAV zu Beginn = 0 (Fonds starten zu definierten Altersstufen).
@@ -223,7 +248,7 @@ export function runMonteCarloSimulation(
         // Einzahlung hebt den Höchststand 1:1 (kein Steuerereignis).
         highWatermark += adjustedSavings;
       } else {
-        const adjustedWithdrawal = inputs.useRealValues
+        const adjustedWithdrawal = inflateWithdrawals
           ? withdrawalPerStep * cumulativeInflation
           : withdrawalPerStep;
 
@@ -231,7 +256,7 @@ export function runMonteCarloSimulation(
           client.currentAge + step / stepsPerYear;
         const hasPension = currentAge >= inputs.pensionStartAge;
         const adjustedPension = hasPension
-          ? inputs.useRealValues
+          ? inflateWithdrawals
             ? pensionPerStep * cumulativeInflation
             : pensionPerStep
           : 0;
@@ -304,12 +329,12 @@ export function runMonteCarloSimulation(
             portfolio.rebalancingThreshold
           );
         } else {
-          const annualWithdrawalForTarget = inputs.useRealValues
+          const annualWithdrawalForTarget = inflateWithdrawals
             ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
             : inputs.desiredMonthlyWithdrawal * 12;
           const pensionForTarget =
             (client.currentAge + step / stepsPerYear) >= inputs.pensionStartAge
-              ? (inputs.useRealValues ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
+              ? (inflateWithdrawals ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
               : 0;
           const netAnnualWithdrawal = Math.max(0, annualWithdrawalForTarget - pensionForTarget);
 
@@ -346,6 +371,16 @@ export function runMonteCarloSimulation(
     allFinalValues.push(finalValue);
     allPaths.push(path);
     marketDrawdowns.push(marketMaxDD);
+
+    // Best/Worst-Sim-Index nach Endvermögen tracken.
+    if (finalValue > bestFinalValue) {
+      bestFinalValue = finalValue;
+      bestSimIndex = sim;
+    }
+    if (finalValue < worstFinalValue) {
+      worstFinalValue = finalValue;
+      worstSimIndex = sim;
+    }
 
     if (!failed) {
       successCount++;
@@ -411,7 +446,7 @@ export function runMonteCarloSimulation(
     if (y >= accumulationYears) {
       const inflation = Math.pow(1 + inputs.inflationRate / 100, y);
       annualWithdrawals.push(
-        inputs.useRealValues
+        inflateWithdrawals
           ? inputs.desiredMonthlyWithdrawal * 12 * inflation
           : inputs.desiredMonthlyWithdrawal * 12
       );
@@ -463,6 +498,8 @@ export function runMonteCarloSimulation(
     peSuccessRate: peEnsemble ? peEnsemble.successRate : undefined,
     peMedianIRR: peEnsemble ? peEnsemble.medianIRRPct : undefined,
     peMedianTVPI: peEnsemble ? peEnsemble.medianTVPI : undefined,
+    worstSimIndex,
+    bestSimIndex,
   };
 }
 
@@ -634,6 +671,12 @@ export function runDetailedSingleSimulation(
   let cumulativeInflation = 1;
   let highWatermark = inputs.initialCapital;
   let failed = false;
+  // Identische Logik wie in `runMonteCarloSimulation`: die neue Option
+  // „Entnahmewunsch an Inflation bis Pensionsbeginn anpassen" wirkt wie
+  // `useRealValues` für Entnahme + Pension, lässt die Sparphase aber
+  // unangetastet (dort entscheidet weiterhin `useRealValues`).
+  const inflateWithdrawalsTrace =
+    inputs.useRealValues || inputs.inflateWithdrawalToRetirement === true;
 
   const rows: DetailedYearRow[] = [];
 
@@ -696,14 +739,14 @@ export function runDetailedSingleSimulation(
       }
       highWatermark += adjustedSavings;
     } else {
-      const annualWithdrawal = inputs.useRealValues
+      const annualWithdrawal = inflateWithdrawalsTrace
         ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
         : inputs.desiredMonthlyWithdrawal * 12;
 
       const ageForPension = age;
       const hasPension = ageForPension >= inputs.pensionStartAge;
       const annualPension = hasPension
-        ? inputs.useRealValues
+        ? inflateWithdrawalsTrace
           ? inputs.monthlyPension * 12 * cumulativeInflation
           : inputs.monthlyPension * 12
         : 0;
@@ -787,11 +830,11 @@ export function runDetailedSingleSimulation(
           bucketValues = newValues;
         }
       } else {
-        const annualWithdrawalForTarget = inputs.useRealValues
+        const annualWithdrawalForTarget = inflateWithdrawalsTrace
           ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
           : inputs.desiredMonthlyWithdrawal * 12;
         const pensionForTarget = age >= inputs.pensionStartAge
-          ? (inputs.useRealValues ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
+          ? (inflateWithdrawalsTrace ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
           : 0;
         const netAnnualForTarget = Math.max(0, annualWithdrawalForTarget - pensionForTarget);
 

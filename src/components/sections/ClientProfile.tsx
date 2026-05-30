@@ -44,7 +44,19 @@ export function ClientProfileSection() {
             </div>
             <div data-design-id="client-current-age-field">
               <Label htmlFor="currentAge">{t("client.currentAge")}</Label>
-              <Input id="currentAge" type="number" value={client.currentAge} onChange={(e) => update("currentAge", parseInt(e.target.value) || 0)} />
+              <Input
+                id="currentAge"
+                type="number"
+                value={client.currentAge}
+                onChange={(e) => {
+                  const currentAge = parseInt(e.target.value) || 0;
+                  // Bidirektionaler Sync: Wenn das Alter geändert wird,
+                  // ziehen wir das Geburtsjahr nach (Jahr - Alter), analog
+                  // zum Sync-Verhalten beim Geburtsjahr-Feld oben.
+                  const birthYear = new Date().getFullYear() - currentAge;
+                  dispatch({ type: "SET_CLIENT", payload: { currentAge, birthYear } });
+                }}
+              />
             </div>
             <div data-design-id="client-currency-field">
               <Label htmlFor="currency">{t("client.currency")}</Label>
