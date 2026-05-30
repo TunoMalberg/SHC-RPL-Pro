@@ -285,6 +285,22 @@ export interface AdvisorProfile {
   logoDataUrl: string;
 }
 
+/**
+ * UI-Bedienmodus.
+ * - 'classic' : Reduzierte Oberfläche für Standardberatung (10 Tabs, ohne
+ *   Bestandsportfolio, ohne Korrelationsmatrix, ohne 4. Topf, ohne
+ *   Rebalancing-Eingaben). Dafür mehr Inline-Erklärungen.
+ * - 'pro'     : Voller Funktionsumfang (11 Tabs, alle Profi-Eingaben,
+ *   minimierte Erklärtexte).
+ *
+ * Beide Modi nutzen dieselbe Engine. Klassik liefert für ausgeblendete
+ * Pro-Eingaben fest verdrahtete Best-Practice-Defaults (Korrelationen,
+ * Rebalancing jährlich/5 %), sodass Ergebnisse, Quantile, MaxDrawdown
+ * und Exporte bei identischen sichtbaren Eingaben bitidentisch zu Pro
+ * sind.
+ */
+export type UIMode = 'classic' | 'pro';
+
 export interface AppState {
   client: ClientProfile;
   advisor: AdvisorProfile;
@@ -299,4 +315,9 @@ export interface AppState {
   activeTab: string;
   /** Bestandsportfolio (Excel-Import + ISIN-Backtest). Optional. */
   holdings?: import("./holdings/types").HoldingsState;
+  /** UI-Modus (Klassik/Pro). Default 'classic'. Persistiert in localStorage. */
+  uiMode: UIMode;
+  /** Wurde der Modus beim Erstaufruf bereits gewählt? Wenn nicht, zeigt die
+   *  App einmalig ein Auswahl-Modal. */
+  uiModeChosen: boolean;
 }

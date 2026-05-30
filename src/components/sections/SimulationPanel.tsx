@@ -197,6 +197,18 @@ export function SimulationPanel() {
         </p>
       </div>
 
+      {/* Klassik-Erklärbox: was passiert beim Klick auf Simulation starten */}
+      {state.uiMode === "classic" && (
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-3" data-design-id="classic-help-sim">
+          <div className="text-xs font-semibold text-[#20201E]">
+            {t("classic.help.simRunTitle")}
+          </div>
+          <p className="text-xs text-[#4D4A47] leading-relaxed mt-1">
+            {t("classic.help.simRunBody")}
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-design-id="sim-config-card">
           <CardHeader>

@@ -16,6 +16,12 @@ export function FinancialInputsSection() {
   const { state, dispatch } = useAppState();
   const { inputs, client, liquidityEvents } = state;
   const { t } = useI18n();
+  const isPro = state.uiMode === "pro";
+
+  const switchToPro = () => {
+    dispatch({ type: "SET_UI_MODE", payload: "pro" });
+    dispatch({ type: "SET_TAB", payload: "holdings" });
+  };
 
   const update = (field: string, value: number | boolean) => {
     dispatch({ type: "SET_INPUTS", payload: { [field]: value } });
@@ -32,6 +38,48 @@ export function FinancialInputsSection() {
         <h2 className="text-2xl font-bold text-slate-900" data-design-id="financial-inputs-title">{t("inputs.title")}</h2>
         <p className="text-slate-500 mt-1" data-design-id="financial-inputs-subtitle">{t("inputs.subtitle")}</p>
       </div>
+
+      {/* Pro-Hint im Klassik-Modus: weist auf Bestandsportfolio-Funktion hin */}
+      {!isPro && (
+        <div
+          className="rounded-xl border border-neutral-200 bg-neutral-50/80 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
+          data-design-id="classic-pro-hint-holdings"
+        >
+          <p className="text-xs text-[#4D4A47] leading-relaxed">
+            {t("classic.proHint.holdings")}
+          </p>
+          <button
+            type="button"
+            onClick={switchToPro}
+            className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-md bg-[#20201E] text-white hover:bg-[#3a3935] transition-colors"
+            data-design-id="classic-pro-hint-cta"
+          >
+            {t("classic.proHint.cta")} →
+          </button>
+        </div>
+      )}
+
+      {/* Klassik-Erklärbox zu Kapital & Entnahme */}
+      {!isPro && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3" data-design-id="classic-help-inputs">
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
+            <div className="text-xs font-semibold text-[#20201E]">
+              {t("classic.help.inputsCapitalTitle")}
+            </div>
+            <p className="text-xs text-[#4D4A47] leading-relaxed mt-1">
+              {t("classic.help.inputsCapitalBody")}
+            </p>
+          </div>
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
+            <div className="text-xs font-semibold text-[#20201E]">
+              {t("classic.help.inputsWithdrawalTitle")}
+            </div>
+            <p className="text-xs text-[#4D4A47] leading-relaxed mt-1">
+              {t("classic.help.inputsWithdrawalBody")}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-design-id="capital-savings-card">

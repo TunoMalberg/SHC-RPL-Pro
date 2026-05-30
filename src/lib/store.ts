@@ -14,6 +14,7 @@ import type {
   DetailedSimTrace,
   Scenario,
   LiquidityEvent,
+  UIMode,
 } from "./types";
 import type { HoldingsState } from "./holdings/types";
 import {
@@ -37,6 +38,8 @@ export const initialState: AppState = {
   scenarios: [],
   activeTab: "profile",
   holdings: { enabled: false, holdings: [], anonymized: false },
+  uiMode: "classic",
+  uiModeChosen: false,
 };
 
 export type Action =
@@ -63,6 +66,8 @@ export type Action =
   | { type: "REPLACE_MULTIRUN_SCENARIOS"; payload: Scenario[] }
   | { type: "SET_TAB"; payload: string }
   | { type: "SET_HOLDINGS"; payload: Partial<HoldingsState> }
+  | { type: "SET_UI_MODE"; payload: UIMode }
+  | { type: "MARK_UI_MODE_CHOSEN" }
   | { type: "RESET" };
 
 export function appReducer(state: AppState, action: Action): AppState {
@@ -150,6 +155,24 @@ export function appReducer(state: AppState, action: Action): AppState {
       const cur = state.holdings ?? { enabled: false, holdings: [], anonymized: false };
       return { ...state, holdings: { ...cur, ...action.payload } };
     }
+    case "SET_UI_MODE": {
+      // Auto-Tab-Korrektur: Wenn ein Pro-only-Tab aktiv ist und der Benutzer
+      // zu Klassik wechselt, springe auf "profile" zurück, damit kein leerer
+      // Tab-Container sichtbar bleibt.
+      const PRO_ONLY_TABS = new Set(["holdings"]);
+      const nextTab =
+        action.payload === "classic" && PRO_ONLY_TABS.has(state.activeTab)
+          ? "profile"
+          : state.activeTab;
+      return {
+        ...state,
+        uiMode: action.payload,
+        uiModeChosen: true,
+        activeTab: nextTab,
+      };
+    }
+    case "MARK_UI_MODE_CHOSEN":
+      return { ...state, uiModeChosen: true };
     case "RESET":
       return initialState;
     default:

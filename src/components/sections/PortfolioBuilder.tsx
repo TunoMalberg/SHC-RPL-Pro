@@ -31,6 +31,7 @@ export function PortfolioBuilderSection() {
   const { state, dispatch } = useAppState();
   const { portfolio } = state;
   const { t } = useI18n();
+  const isPro = state.uiMode === "pro";
 
   const updateBucket = (index: number, field: keyof AssetBucket, value: number | string) => {
     const newBuckets = [...portfolio.buckets] as PortfolioConfig["buckets"];
@@ -269,10 +270,25 @@ export function PortfolioBuilderSection() {
         ))}
       </div>
 
-      {/* Topf 4: Private Equity (deterministisch, optional) */}
-      <PrivateEquityBucket />
+      {/* Topf 4: Private Equity (deterministisch, optional) — nur Pro-Modus */}
+      {isPro && <PrivateEquityBucket />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Klassik-Erklärbox zur Allokation (nur in Klassik) */}
+      {!isPro && (
+        <Card className="border-neutral-200 bg-neutral-50/60" data-design-id="classic-help-allocation">
+          <CardContent className="py-3">
+            <div className="text-xs font-semibold text-[#20201E] mb-1">
+              {t("classic.help.allocationTitle")}
+            </div>
+            <p className="text-xs text-[#4D4A47] leading-relaxed">
+              {t("classic.help.allocationBody")}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className={`grid grid-cols-1 ${isPro ? "lg:grid-cols-2" : ""} gap-6`}>
+        {isPro && (
         <Card data-design-id="correlation-matrix-card">
           <CardHeader>
             <CardTitle className="text-lg" data-design-id="correlation-title">{t("portfolio.correlationTitle")}</CardTitle>
@@ -310,12 +326,16 @@ export function PortfolioBuilderSection() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         <Card data-design-id="rebalancing-card">
           <CardHeader>
-            <CardTitle className="text-lg" data-design-id="rebalancing-title">{t("portfolio.rebalancingTitle")}</CardTitle>
+            <CardTitle className="text-lg" data-design-id="rebalancing-title">
+              {isPro ? t("portfolio.rebalancingTitle") : t("portfolio.cashYearsLabel")}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isPro && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm space-y-3" data-design-id="three-bucket-info">
               <div className="font-semibold text-amber-800">{t("portfolio.strategyTitle")}</div>
               <div className="grid grid-cols-1 gap-2">
@@ -351,6 +371,7 @@ export function PortfolioBuilderSection() {
                 <p><strong>{t("portfolio.strategyRefill")}</strong> {t("portfolio.strategyRefillDesc")}</p>
               </div>
             </div>
+            )}
 
             <div data-design-id="cash-years-target-field">
               <Label>{t("portfolio.cashYearsLabel")}</Label>
@@ -360,8 +381,19 @@ export function PortfolioBuilderSection() {
                 <span className="font-bold text-[#5a8a50]">{portfolio.cashYearsTarget} {portfolio.cashYearsTarget === 1 ? t("portfolio.year") : t("portfolio.yearsPlural")}</span>
                 <span>{t("portfolio.cashYearsConservative")}</span>
               </div>
+              {!isPro && (
+                <div className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50/60 p-2">
+                  <div className="text-[11px] font-semibold text-[#20201E]">
+                    {t("classic.help.cashYearsTitle")}
+                  </div>
+                  <p className="text-[11px] text-[#4D4A47] leading-relaxed">
+                    {t("classic.help.cashYearsBody")}
+                  </p>
+                </div>
+              )}
             </div>
 
+            {isPro && (
             <div data-design-id="rebalancing-frequency-field">
               <Label>{t("portfolio.rebalFreq")}</Label>
               <Select value={portfolio.rebalancingFrequency} onValueChange={(v) => dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingFrequency: v as PortfolioConfig["rebalancingFrequency"] } })}>
@@ -374,11 +406,14 @@ export function PortfolioBuilderSection() {
                 </SelectContent>
               </Select>
             </div>
+            )}
+            {isPro && (
             <div data-design-id="rebalancing-threshold-field">
               <Label>{t("portfolio.rebalThreshold")}</Label>
               <Slider value={[portfolio.rebalancingThreshold]} onValueChange={([val]) => dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingThreshold: val } })} max={20} min={1} step={1} />
               <div className="text-right text-sm text-slate-500">{t("portfolio.rebalThresholdHint")} {portfolio.rebalancingThreshold}%</div>
             </div>
+            )}
 
             <div className="border-t pt-3" data-design-id="kest-rate-field">
               <Label htmlFor="kestRate" className="flex items-center gap-2">
@@ -396,6 +431,16 @@ export function PortfolioBuilderSection() {
                 className="mt-1"
               />
               <p className="text-xs text-slate-500 mt-1">{t("portfolio.kestHint")}</p>
+              {!isPro && (
+                <div className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50/60 p-2">
+                  <div className="text-[11px] font-semibold text-[#20201E]">
+                    {t("classic.help.kestTitle")}
+                  </div>
+                  <p className="text-[11px] text-[#4D4A47] leading-relaxed">
+                    {t("classic.help.kestBody")}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-3 pt-3 border-t" data-design-id="portfolio-metrics">

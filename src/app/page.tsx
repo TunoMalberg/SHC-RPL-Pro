@@ -15,13 +15,15 @@ import { ExportPanel } from "@/components/sections/ExportPanel";
 import { ClientView } from "@/components/sections/ClientView";
 import { HoldingsBucket } from "@/components/sections/HoldingsBucket";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { ModeToggle } from "@/components/ModeToggle";
+import { ModeChooserModal } from "@/components/ModeChooserModal";
 import Image from "next/image";
 
-const TAB_IDS = [
+const ALL_TABS = [
   { id: "profile", labelKey: "tab.profile", icon: "/icons/rot/schild.png" },
   { id: "inputs", labelKey: "tab.inputs", icon: "/icons/rot/Scheckkarte.png" },
   { id: "portfolio", labelKey: "tab.portfolio", icon: "/icons/rot/Wagge.png" },
-  { id: "holdings", labelKey: "tab.holdings", icon: "/icons/rot/Scheckkarte.png" },
+  { id: "holdings", labelKey: "tab.holdings", icon: "/icons/rot/Scheckkarte.png", proOnly: true },
   { id: "simulation", labelKey: "tab.simulation", icon: "/icons/rot/Computer.png" },
   { id: "results", labelKey: "tab.results", icon: "/icons/rot/Ziel.png" },
   { id: "historical", labelKey: "tab.historical", icon: "/icons/rot/Uhr.png" },
@@ -35,8 +37,16 @@ export default function RetirementPlannerApp() {
   const { state, dispatch } = useAppState();
   const { t } = useI18n();
 
+  const visibleTabs = ALL_TABS.filter(
+    (tab) => state.uiMode === "pro" || !tab.proOnly,
+  );
+  // Tailwind-Klassen für Grid-Spalten je nach Tab-Anzahl (nur 10 oder 11 hier).
+  const gridColsClass =
+    visibleTabs.length === 11 ? "md:grid-cols-11" : "md:grid-cols-10";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-white to-red-50/30" data-design-id="app-root">
+      <ModeChooserModal />
       <header className="border-b border-neutral-200 bg-white/90 backdrop-blur-sm sticky top-0 z-50" data-design-id="app-header">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -50,13 +60,15 @@ export default function RetirementPlannerApp() {
                 priority
               />
               <div className="hidden sm:block h-8 w-px bg-neutral-300" />
-              <div className="hidden sm:block">
-                <h1 className="text-sm font-semibold text-[#20201E] leading-tight" data-design-id="app-title">
-                  {t("app.title")}
-                </h1>
-                <p className="text-xs text-[#4D4A47] leading-tight" data-design-id="app-tagline">
+              <div className="hidden md:block">
+                <ModeToggle />
+                <p className="text-xs text-[#4D4A47] leading-tight mt-0.5" data-design-id="app-tagline">
                   {t("app.tagline")}
                 </p>
+              </div>
+              {/* Mobile: kompakter Modus-Switch ohne Tagline */}
+              <div className="md:hidden">
+                <ModeToggle />
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-[#4D4A47]" data-design-id="app-meta">
@@ -76,8 +88,11 @@ export default function RetirementPlannerApp() {
           onValueChange={(tab) => dispatch({ type: "SET_TAB", payload: tab })}
           className="space-y-6"
         >
-          <TabsList className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-11 w-full h-auto p-1 bg-white border border-neutral-200 shadow-sm rounded-xl" data-design-id="tabs-list">
-            {TAB_IDS.map((tab) => (
+          <TabsList
+            className={`grid grid-cols-3 sm:grid-cols-6 ${gridColsClass} w-full h-auto p-1 bg-white border border-neutral-200 shadow-sm rounded-xl`}
+            data-design-id="tabs-list"
+          >
+            {visibleTabs.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
@@ -105,9 +120,11 @@ export default function RetirementPlannerApp() {
           <TabsContent value="portfolio" data-design-id="tab-content-portfolio">
             <PortfolioBuilderSection />
           </TabsContent>
-          <TabsContent value="holdings" data-design-id="tab-content-holdings">
-            <HoldingsBucket />
-          </TabsContent>
+          {state.uiMode === "pro" && (
+            <TabsContent value="holdings" data-design-id="tab-content-holdings">
+              <HoldingsBucket />
+            </TabsContent>
+          )}
           <TabsContent value="simulation" data-design-id="tab-content-simulation">
             <SimulationPanel />
           </TabsContent>

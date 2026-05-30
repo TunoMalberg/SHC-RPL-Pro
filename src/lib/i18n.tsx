@@ -713,6 +713,45 @@ const de: Record<string, string> = {
   "rpt.disclaimer.title": "Rechtlicher Hinweis — Marketingmitteilung",
   "rpt.disclaimer.text": "Diese Unterlagen stellen eine Marketingmitteilung dar und wurden nicht im Einklang mit den Rechtsvorschriften zur Förderung der Unabhängigkeit von Anlageanalysen erstellt. Sie unterliegen nicht dem Verbot des Handels im Anschluss an die Verbreitung von Anlageanalysen. Die angeführten Simulationen basieren auf Annahmen, die im Zeitablauf von der tatsächlichen Entwicklung abweichen können. Vergangenheitsergebnisse sind kein verlässlicher Indikator für zukünftige Wertentwicklungen. Die dargestellten Informationen stellen weder eine individuelle Anlageberatung noch ein Angebot oder eine Aufforderung zum Kauf oder Verkauf von Finanzinstrumenten dar. Vor einer Anlageentscheidung sollten Sie die für Ihre persönliche Situation passende Anlageberatung in Anspruch nehmen. Ausgegeben von {bankName}.",
   "rpt.confidential": "Vertraulich — nur zur persönlichen Verwendung",
+
+  /* ───── Bedienmodus (Klassik / Pro) ───── */
+  "app.titleShort": "Ruhestandsplaner",
+  "mode.classic": "Klassik",
+  "mode.pro": "Pro",
+  "mode.toggleTitle": "Klassik: schnelle Standardberatung mit Erklärungen. Pro: alle Profi-Funktionen (Bestand, 4. Topf, Korrelationen, Rebalancing).",
+  "mode.chooser.title": "Willkommen — bitte wählen Sie Ihren Bedienmodus",
+  "mode.chooser.subtitle": "Sie können den Modus jederzeit oben rechts im Header wechseln. Ihre Eingaben gehen dabei nicht verloren.",
+  "mode.chooser.recommended": "Empfohlen",
+  "mode.chooser.advanced": "Profi",
+  "mode.chooser.classicDesc": "Schnelle, geführte Standardberatung mit zusätzlichen Erklärungen — ideal für die meisten Kundengespräche.",
+  "mode.chooser.classicBullet1": "10 Tabs, schlanke Oberfläche",
+  "mode.chooser.classicBullet2": "Inline-Erklärungen zu KESt, Drawdown & Co.",
+  "mode.chooser.classicBullet3": "Best-Practice-Annahmen für Korrelationen & Rebalancing",
+  "mode.chooser.proDesc": "Voller Funktionsumfang für Heavy-User und komplexe Mandate.",
+  "mode.chooser.proBullet1": "Bestandsportfolio mit ISIN-Backtest & Drawdown-Analyse",
+  "mode.chooser.proBullet2": "4. Topf (Private Equity) & Korrelationsmatrix editierbar",
+  "mode.chooser.proBullet3": "Rebalancing-Frequenz & -Schwellenwert frei wählbar",
+  "mode.chooser.chooseClassic": "Klassik wählen",
+  "mode.chooser.choosePro": "Pro wählen",
+  "mode.chooser.footer": "Beide Modi nutzen dieselbe Berechnungs-Engine. Bei identischen Eingaben sind die Ergebnisse identisch.",
+
+  /* ───── Klassik-Erklärboxen (nur in Klassik sichtbar) ───── */
+  "classic.help.kestTitle": "💡 Was ist die KESt?",
+  "classic.help.kestBody": "Die österreichische Kapitalertragsteuer (KESt) beträgt 27,5 % auf realisierte Wertpapiergewinne. Sie wird in der Simulation automatisch auf (Rendite − Kosten) je Topf angewandt — Sie müssen nichts manuell anpassen.",
+  "classic.help.cashYearsTitle": "💡 Liquiditätspuffer — wie viele Jahre?",
+  "classic.help.cashYearsBody": "In der Entnahmephase werden 1–5 Jahresentnahmen als Cash gehalten, damit in Crashphasen nicht zu Tiefstkursen verkauft werden muss. Empfehlung: 3 Jahre — robuster Schutz gegen Sequence-of-Returns-Risiko ohne Renditeverzicht.",
+  "classic.help.allocationTitle": "💡 Wie wähle ich die Aufteilung?",
+  "classic.help.allocationBody": "Die MiFID II-Voreinstellungen oben sind regulatorisch anerkannt und decken die häufigsten Risikoprofile ab. Verschieben Sie die Slider nur, wenn ein Kunde ausdrücklich eine abweichende Allokation wünscht.",
+  "classic.help.simRunTitle": "💡 Wie funktioniert die Simulation?",
+  "classic.help.simRunBody": "Die Engine spielt 5.000 mögliche Marktverläufe (Monte-Carlo) durch. Das Ergebnis: in wie vielen Pfaden Ihr Plan funktioniert (Erfolgsquote), wie groß der schlimmste Markteinbruch ist (Max. Drawdown) und welches Endvermögen wahrscheinlich ist.",
+  "classic.help.inputsCapitalTitle": "💡 Anfangskapital & Sparrate",
+  "classic.help.inputsCapitalBody": "Tragen Sie ein, was heute investierbar ist und was monatlich gespart werden kann. Beträge in Euro, brutto. Die Engine berücksichtigt KESt automatisch.",
+  "classic.help.inputsWithdrawalTitle": "💡 Gewünschte Entnahme — netto oder brutto?",
+  "classic.help.inputsWithdrawalBody": "Geben Sie die gewünschte monatliche Auszahlung in Euro ein. Bei aktivierter Option \u201eReale Werte\u201c steigt diese automatisch mit der Inflation. Die staatliche Pension wird ab dem eingegebenen Pensionsbeginn-Alter zusätzlich berücksichtigt.",
+
+  /* ───── Pro-Hint im Klassik-Modus ───── */
+  "classic.proHint.holdings": "Sie möchten ein bestehendes Wertpapierdepot des Kunden importieren und einem ISIN-Backtest unterziehen? → Wechseln Sie oben in den Pro-Modus.",
+  "classic.proHint.cta": "Zum Pro-Modus wechseln",
 };
 
 /* ──────────────────────────────────────────
@@ -1410,6 +1449,45 @@ const en: Record<string, string> = {
   "rpt.disclaimer.title": "Legal notice — Marketing communication",
   "rpt.disclaimer.text": "This document is a marketing communication and has not been prepared in accordance with legal requirements designed to promote the independence of investment research. It is not subject to any prohibition on dealing ahead of the dissemination of investment research. The simulations shown are based on assumptions that may diverge from actual developments over time. Past performance is not a reliable indicator of future performance. The information contained herein does not constitute personal investment advice, nor an offer or solicitation to buy or sell any financial instrument. Before making an investment decision you should seek advice tailored to your personal circumstances. Issued by {bankName}.",
   "rpt.confidential": "Confidential — for personal use only",
+
+  /* ───── UI mode (Classic / Pro) ───── */
+  "app.titleShort": "Retirement Planner",
+  "mode.classic": "Classic",
+  "mode.pro": "Pro",
+  "mode.toggleTitle": "Classic: fast standard advice with explanations. Pro: full pro toolset (holdings, 4th bucket, correlations, rebalancing).",
+  "mode.chooser.title": "Welcome — please choose your mode",
+  "mode.chooser.subtitle": "You can switch modes any time from the header. Your inputs are preserved.",
+  "mode.chooser.recommended": "Recommended",
+  "mode.chooser.advanced": "Advanced",
+  "mode.chooser.classicDesc": "Fast, guided standard advice with extra explanations — ideal for most client meetings.",
+  "mode.chooser.classicBullet1": "10 tabs, lean interface",
+  "mode.chooser.classicBullet2": "Inline explanations for KESt, drawdown & co.",
+  "mode.chooser.classicBullet3": "Best-practice defaults for correlations & rebalancing",
+  "mode.chooser.proDesc": "Full toolset for power users and complex mandates.",
+  "mode.chooser.proBullet1": "Existing holdings with ISIN backtest & drawdown analysis",
+  "mode.chooser.proBullet2": "4th bucket (Private Equity) & editable correlation matrix",
+  "mode.chooser.proBullet3": "Rebalancing frequency & threshold freely configurable",
+  "mode.chooser.chooseClassic": "Choose Classic",
+  "mode.chooser.choosePro": "Choose Pro",
+  "mode.chooser.footer": "Both modes use the same calculation engine. Identical inputs produce identical results.",
+
+  /* ───── Classic explanation boxes (visible only in Classic) ───── */
+  "classic.help.kestTitle": "💡 What is KESt?",
+  "classic.help.kestBody": "Austrian capital-gains tax (KESt) is 27.5% on realised securities gains. The simulation applies it automatically to (return − costs) per bucket — no manual adjustment needed.",
+  "classic.help.cashYearsTitle": "💡 Liquidity buffer — how many years?",
+  "classic.help.cashYearsBody": "During the withdrawal phase, 1–5 years of withdrawals are held in cash so you don't have to sell at depressed prices during a crash. Recommendation: 3 years — solid protection against sequence-of-returns risk without sacrificing yield.",
+  "classic.help.allocationTitle": "💡 How to choose the allocation?",
+  "classic.help.allocationBody": "The MiFID II presets above are regulator-recognised and cover the most common risk profiles. Move the sliders only when a client explicitly requests a different mix.",
+  "classic.help.simRunTitle": "💡 How does the simulation work?",
+  "classic.help.simRunBody": "The engine plays out 5,000 possible market trajectories (Monte Carlo). The result: how many paths your plan succeeds in (success rate), how deep the worst market drop is (max. drawdown), and what the likely final wealth is.",
+  "classic.help.inputsCapitalTitle": "💡 Initial capital & savings rate",
+  "classic.help.inputsCapitalBody": "Enter what is investable today and how much can be saved monthly. Amounts in EUR, gross. The engine accounts for KESt automatically.",
+  "classic.help.inputsWithdrawalTitle": "💡 Desired withdrawal — net or gross?",
+  "classic.help.inputsWithdrawalBody": "Enter the desired monthly payout in EUR. With \"Real values\" enabled, this rises with inflation automatically. The state pension is added from the configured pension start age.",
+
+  /* ───── Pro hint in Classic mode ───── */
+  "classic.proHint.holdings": "Want to import an existing securities portfolio and run an ISIN backtest? → Switch to Pro mode at the top.",
+  "classic.proHint.cta": "Switch to Pro mode",
 };
 
 const translations: Record<Locale, Record<string, string>> = { de, en };
