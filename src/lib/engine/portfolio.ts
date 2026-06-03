@@ -125,7 +125,7 @@ export function rebalanceThreeBuckets(
       newBonds -= transferFromBonds;
       newCash += transferFromBonds;
       source = "Aktien + Anleihen → Liquidität";
-    } else {
+    } else if (transferFromEquities > 0) {
       source = "Aktien → Liquidität";
     }
   } else {
@@ -134,20 +134,35 @@ export function rebalanceThreeBuckets(
     newCash += transferFromBonds;
     const remaining = deficit - transferFromBonds;
 
-    if (remaining > 0 && newEquities > 0) {
-      source = "Anleihen → Liquidität (Verlustschutz, Anleihen reichen nicht)";
-    } else {
+    if (transferFromBonds > 0 && remaining > 0) {
+      source = "Anleihen → Liquidität (Verlustschutz, teilweise)";
+    } else if (transferFromBonds > 0) {
       source = "Anleihen → Liquidität (Verlustschutz)";
+    } else {
+      // Verlustschutz greift nicht: Anleihen sind leer, Aktien stehen im
+      // Minus → Topf 1 wird bewusst NICHT aus Aktien aufgefüllt
+      // (Entnahme deckt sich bereits aus Cash + impliziten Aktien-Verkauf).
+      source = "";
     }
   }
 
+  // FIX (2026-Q3): rebalanced=true nur, wenn tatsächlich Geld bewegt wurde.
+  // Vorher meldete die Engine einen Rebalance-Event auch dann, wenn der
+  // Verlustschutz mangels Anleihen nichts auffüllen konnte → Tabelle zeigte
+  // "Anleihen → Liquidität (...)" trotz Δ = 0 in allen Spalten.
+  const cashDelta = newCash - cash;
+  const bondsDelta = newBonds - bonds;
+  const equitiesDelta = newEquities - equities;
+  const actuallyMoved =
+    Math.abs(cashDelta) + Math.abs(bondsDelta) + Math.abs(equitiesDelta) > 0.01;
+
   return {
     values: [newCash, newBonds, newEquities],
-    rebalanced: true,
-    source,
-    cashDelta: newCash - cash,
-    bondsDelta: newBonds - bonds,
-    equitiesDelta: newEquities - equities,
+    rebalanced: actuallyMoved,
+    source: actuallyMoved ? source : "",
+    cashDelta,
+    bondsDelta,
+    equitiesDelta,
   };
 }
 

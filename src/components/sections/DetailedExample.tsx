@@ -481,6 +481,24 @@ export function DetailedExampleSection() {
                         ? "bg-white"
                         : "bg-slate-50/60";
 
+                      // Aufschlüsselung der tatsächlichen Liquiditätsquelle
+                      // für Tooltip + ⓘ-Indikator. Greift bei Entnahmen
+                      // (cashflow < 0) und bei negativen Liquiditätsereignissen.
+                      const wParts: string[] = [];
+                      if (row.withdrawalFromCash > 0)
+                        wParts.push(`${fmtEur(row.withdrawalFromCash)} ${t("detailed.fromBucket")} ${cashLabel}`);
+                      if (row.withdrawalFromBonds > 0)
+                        wParts.push(`${fmtEur(row.withdrawalFromBonds)} ${t("detailed.fromBucket")} ${bondsLabel}`);
+                      if (row.withdrawalFromEquities > 0)
+                        wParts.push(`${fmtEur(row.withdrawalFromEquities)} ${t("detailed.fromBucket")} ${equitiesLabel}`);
+                      const withdrawalSourcesTooltip =
+                        wParts.length > 0
+                          ? `${t("detailed.cashflowSourceLabel")}: ${wParts.join(" + ")}`
+                          : "";
+                      const usedMultipleBuckets =
+                        [row.withdrawalFromCash, row.withdrawalFromBonds, row.withdrawalFromEquities]
+                          .filter((v) => v > 0).length > 1;
+
                       return (
                         <tr key={row.year} className={`${bgClass} hover:bg-amber-50/40 border-b border-slate-100`}>
                           <td className={`py-1.5 px-2 font-mono font-semibold text-slate-700 sticky left-0 z-10 ${isRetirementStart ? "bg-red-50" : idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"}`}>
@@ -517,8 +535,19 @@ export function DetailedExampleSection() {
                           <td className={`py-1.5 px-2 text-right tabular-nums font-medium ${row.returnEquitiesPct >= 0 ? "text-[#D31220]" : "text-rose-600"}`}>
                             {row.returnEquitiesPct >= 0 ? "+" : ""}{fmtNum(row.returnEquitiesPct, 1)}%
                           </td>
-                          <td className={`py-1.5 px-2 text-right tabular-nums font-medium ${row.cashflow >= 0 ? "text-[#5a8a50]" : "text-orange-700"}`}>
+                          <td
+                            className={`py-1.5 px-2 text-right tabular-nums font-medium ${row.cashflow >= 0 ? "text-[#5a8a50]" : "text-orange-700"}`}
+                            title={withdrawalSourcesTooltip}
+                          >
                             {row.cashflow >= 0 ? "+" : ""}{fmtEur(row.cashflow)}
+                            {withdrawalSourcesTooltip && (
+                              <span
+                                className={`ml-1 text-[9px] cursor-help ${usedMultipleBuckets ? "text-amber-600 font-bold" : "text-slate-400"}`}
+                                aria-label={withdrawalSourcesTooltip}
+                              >
+                                ⓘ
+                              </span>
+                            )}
                           </td>
                           <td className={`py-1.5 px-2 text-right tabular-nums font-semibold ${
                             row.liquidityEvent > 0

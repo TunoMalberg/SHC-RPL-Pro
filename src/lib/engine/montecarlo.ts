@@ -724,6 +724,11 @@ export function runDetailedSingleSimulation(
 
     let cashflow = 0;
     let cashflowLabel = "";
+    // Tatsächliche Herkunft der Entnahme-Liquidität — wird je nach Topfbestand
+    // zur Laufzeit befüllt (Cash zuerst, Rest proportional aus Anleihen+Aktien).
+    let withdrawalFromCash = 0;
+    let withdrawalFromBonds = 0;
+    let withdrawalFromEquities = 0;
 
     if (isAccumulation) {
       const annualSavings = inputs.monthlySavings * 12;
@@ -764,18 +769,24 @@ export function runDetailedSingleSimulation(
         failed = true;
       }
 
-      if (totalPortfolio > 0) {
+      if (totalPortfolio > 0 && netWithdrawal > 0) {
         const cashAvailable = bucketValues[0];
         if (cashAvailable >= netWithdrawal) {
           bucketValues[0] -= netWithdrawal;
+          withdrawalFromCash = netWithdrawal;
         } else {
           const remaining = netWithdrawal - cashAvailable;
+          withdrawalFromCash = cashAvailable;
           bucketValues[0] = 0;
           const restTotal = bucketValues[1] + bucketValues[2];
           if (restTotal > 0) {
             const ratio = Math.min(1, remaining / restTotal);
-            bucketValues[1] *= 1 - ratio;
-            bucketValues[2] *= 1 - ratio;
+            const soldBonds = bucketValues[1] * ratio;
+            const soldEquities = bucketValues[2] * ratio;
+            bucketValues[1] -= soldBonds;
+            bucketValues[2] -= soldEquities;
+            withdrawalFromBonds = soldBonds;
+            withdrawalFromEquities = soldEquities;
           }
         }
       }
@@ -799,9 +810,17 @@ export function runDetailedSingleSimulation(
         const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
         if (totalPortfolio > 0) {
           const withdrawRatio = Math.min(1, Math.abs(liquidityEventAmount) / totalPortfolio);
-          for (let i = 0; i < 3; i++) {
-            bucketValues[i] *= 1 - withdrawRatio;
-          }
+          const soldCash = bucketValues[0] * withdrawRatio;
+          const soldBonds = bucketValues[1] * withdrawRatio;
+          const soldEquities = bucketValues[2] * withdrawRatio;
+          bucketValues[0] -= soldCash;
+          bucketValues[1] -= soldBonds;
+          bucketValues[2] -= soldEquities;
+          // Liquiditätsereignis-Auszahlung in dieselben Zähler buchen,
+          // damit der Tooltip im Einzelpfad alle echten Quellen zeigt.
+          withdrawalFromCash += soldCash;
+          withdrawalFromBonds += soldBonds;
+          withdrawalFromEquities += soldEquities;
         }
         highWatermark = Math.max(0, highWatermark - Math.abs(liquidityEventAmount));
       }
@@ -895,6 +914,9 @@ export function runDetailedSingleSimulation(
       rebalBondsDelta,
       rebalEquitiesDelta,
       rebalSource,
+      withdrawalFromCash,
+      withdrawalFromBonds,
+      withdrawalFromEquities,
       endCash,
       endBonds,
       endEquities,

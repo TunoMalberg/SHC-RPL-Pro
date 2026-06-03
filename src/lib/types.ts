@@ -245,6 +245,18 @@ export interface DetailedYearRow {
   rebalBondsDelta: number;
   rebalEquitiesDelta: number;
   rebalSource: string; // e.g. "Aktien → Liquidität", "Anleihen → Liquidität (Verlustschutz)"
+  /**
+   * Tatsächliche Herkunft des Cashflows (Entnahme oder Liquiditätsereignis-
+   * Auszahlung). Werte sind ≥ 0 und summieren sich zu |cashflow + min(0, liquidityEvent)|.
+   * Wenn der Bargeld-Topf nicht ausreicht, wird der Rest proportional aus
+   * Anleihen + Aktien verkauft (= „impliziter Verkauf"), den die Engine
+   * sonst nicht in den Δ-Spalten anzeigt.
+   * Bei reinen Sparrate-/Einzahlungs-Jahren (cashflow ≥ 0) sind alle
+   * Felder 0.
+   */
+  withdrawalFromCash: number;
+  withdrawalFromBonds: number;
+  withdrawalFromEquities: number;
   endCash: number;
   endBonds: number;
   endEquities: number;

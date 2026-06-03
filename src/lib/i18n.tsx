@@ -594,10 +594,12 @@ const de: Record<string, string> = {
   "detailed.legendBonds": "Anleihen — mittlere Rendite, mittleres Risiko",
   "detailed.legendEquities": "Aktien — höchste erwartete Rendite, höchstes Risiko",
   "detailed.legendReturn": "Rend. % — realisierte Jahresrendite je Topf (simuliert)",
-  "detailed.legendCashflow": "Cashflow — Sparrate (Ansparphase) oder Netto-Entnahme (Ruhestandsphase)",
+  "detailed.legendCashflow": "Cashflow — Sparrate (Ansparphase) oder Netto-Entnahme (Ruhestandsphase). Tooltip ⓘ zeigt die tatsächliche Herkunft der Liquidität (Cash zuerst, Rest proportional aus Anleihen + Aktien).",
+  "detailed.cashflowSourceLabel": "Tatsächliche Liquiditätsquelle",
+  "detailed.fromBucket": "aus",
   "detailed.legendLiquidity": "Liquidität — Sonder-Ein-/Auszahlungen (z.B. Erbschaft, Immobilienverkauf)",
   "detailed.legendRebal": "Umsch. Δ — Umschichtungsbetrag bei Rebalancing (⟳ = Rebalancing erfolgt)",
-  "detailed.legendSource": "Quelle — Umschichtungsquelle: Aktien → Liquidität (bei Gewinnen) oder Anleihen → Liquidität (Verlustschutz) (bei Aktienverlusten)",
+  "detailed.legendSource": "Quelle — Auffüllung des Liquiditätstopfs am Jahresende: Aktien → Liquidität (bei Gewinnen) oder Anleihen → Liquidität (Verlustschutz) bei Aktienverlusten. Wenn Anleihen leer sind, bleibt Topf 1 leer und das Feld ist leer (—). Die Spalte zeigt NICHT, woher die laufende Entnahme kam — dafür der Tooltip ⓘ in der Cashflow-Spalte.",
   "detailed.legendPhase": "Anspar vs. Entnahme — Phase des Lebenszyklus",
 
   // Export
@@ -1348,10 +1350,12 @@ const en: Record<string, string> = {
   "detailed.legendBonds": "Bonds — moderate return, moderate risk",
   "detailed.legendEquities": "Equities — highest expected return, highest risk",
   "detailed.legendReturn": "Return % — realized annual return per bucket (simulated)",
-  "detailed.legendCashflow": "Cashflow — savings rate (accumulation) or net withdrawal (retirement)",
+  "detailed.legendCashflow": "Cashflow — savings rate (accumulation) or net withdrawal (retirement). Tooltip ⓘ shows the actual source of liquidity (cash first, then proportionally from bonds + equities).",
+  "detailed.cashflowSourceLabel": "Actual liquidity source",
+  "detailed.fromBucket": "from",
   "detailed.legendLiquidity": "Liquidity — special deposits/withdrawals (e.g. inheritance, property sale)",
   "detailed.legendRebal": "Rebal. Δ — rebalancing amount (⟳ = rebalancing occurred)",
-  "detailed.legendSource": "Source — rebalancing source: Equities → Cash (on gains) or Bonds → Cash (loss protection) (on equity losses)",
+  "detailed.legendSource": "Source — year-end refill of the cash bucket: Equities → Cash (on gains) or Bonds → Cash (loss protection) on equity losses. If bonds are empty, the cash bucket stays empty and the field shows a dash (—). This column does NOT show where the current withdrawal came from — see the ⓘ tooltip in the Cashflow column for that.",
   "detailed.legendPhase": "Accum. vs. Withdr. — life cycle phase",
 
   // Export
