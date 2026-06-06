@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { generateExcelReport } from "@/lib/export/excel";
 import { generatePowerPointReport } from "@/lib/export/powerpoint";
 import { safeFilename } from "@/lib/export/sanitize";
+import { logger } from "@/lib/logger";
+import { toast } from "sonner";
 
 export function ExportPanel() {
   const { state } = useAppState();
@@ -37,7 +39,10 @@ export function ExportPanel() {
       // F-06: strict filename whitelist + length cap (safeFilename)
       downloadBlob(blob, `Retirement_Plan_${safeFilename(client.name, "Kunde")}_${date}.xlsx`);
     } catch (err) {
-      console.error("Excel export error:", err);
+      logger.error("Excel export failed", { scope: "ExportPanel" }, err);
+      toast.error("Excel-Export fehlgeschlagen", {
+        description: (err as Error).message,
+      });
     }
     setExporting(null);
   };
@@ -53,7 +58,10 @@ export function ExportPanel() {
       // F-06: strict filename whitelist + length cap (safeFilename)
       downloadBlob(blob, `Retirement_Plan_${safeFilename(client.name, "Kunde")}_${date}.pptx`);
     } catch (err) {
-      console.error("PowerPoint export error:", err);
+      logger.error("PowerPoint export failed", { scope: "ExportPanel" }, err);
+      toast.error("PowerPoint-Export fehlgeschlagen", {
+        description: (err as Error).message,
+      });
     }
     setExporting(null);
   };

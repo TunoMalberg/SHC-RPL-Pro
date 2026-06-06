@@ -26,6 +26,9 @@ import {
 import { runHistoricalBacktest } from "@/lib/engine/historical";
 import type { MifidProfile, PortfolioConfig, Scenario, SimulationMode } from "@/lib/types";
 import { fmtEur } from "@/lib/format";
+import { validatePlanInputs } from "@/lib/validation";
+import { logger } from "@/lib/logger";
+import { toast } from "sonner";
 
 /** MiFID-II Risikoprofile als [Cash %, Bonds %, Equity %].
  *  Spiegelt 1:1 die Vorgaben aus PortfolioBuilder.tsx → MIFID_PRESETS. */
@@ -59,6 +62,26 @@ export function SimulationPanel() {
   const [progressDone, setProgressDone] = useState("");
 
   const runSimulation = useCallback(async () => {
+    // Audit H-5: Validierung VOR dem Start. Hard-Errors blockieren,
+    // Warnungen werden als nicht-blockierender Toast gezeigt.
+    const validation = validatePlanInputs(client, inputs, portfolio, liquidityEvents);
+    const errors = validation.errors.filter((e) => e.severity === "error");
+    const warnings = validation.errors.filter((e) => e.severity === "warn");
+
+    if (errors.length > 0) {
+      logger.warn("Simulation aborted due to validation errors", { scope: "SimulationPanel", count: errors.length });
+      toast.error(t("sim.validationFailed") || "Eingaben prüfen", {
+        description: errors.slice(0, 3).map((e) => e.message).join("\n"),
+      });
+      return;
+    }
+    if (warnings.length > 0) {
+      // Warnungen nicht blockierend, aber sichtbar.
+      toast.warning(t("sim.validationWarn") || "Hinweis", {
+        description: warnings.slice(0, 2).map((e) => e.message).join("\n"),
+      });
+    }
+
     setRunning(true);
     setProgressDone("");
     setProgressPct(5);
@@ -186,7 +209,7 @@ export function SimulationPanel() {
     } finally {
       setRunning(false);
     }
-  }, [client, inputs, portfolio, settings, liquidityEvents, dispatch]);
+  }, [client, inputs, portfolio, settings, liquidityEvents, dispatch, t]);
 
   return (
     <div className="space-y-6" data-design-id="simulation-panel-section">

@@ -3,6 +3,7 @@
 import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct } from "@/lib/format";
 import {
   BarChart,
@@ -26,13 +27,12 @@ export function HistoricalAnalysisSection() {
 
   if (!historicalResult) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-400" data-design-id="no-historical">
-        <div className="text-center">
-          <p className="text-4xl mb-3">📈</p>
-          <p className="text-lg font-medium">{t("hist.noData")}</p>
-          <p className="text-sm">{t("hist.noDataHint")}</p>
-        </div>
-      </div>
+      <EmptyState
+        icon="📈"
+        title={t("empty.historical.title")}
+        description={t("empty.historical.desc")}
+        designId="no-historical"
+      />
     );
   }
 

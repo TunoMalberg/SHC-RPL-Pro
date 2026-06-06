@@ -5,6 +5,7 @@ import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
 import { runDetailedSingleSimulation } from "@/lib/engine/montecarlo";
 import type { DetailedSimTrace } from "@/lib/types";
@@ -144,13 +145,12 @@ export function DetailedExampleSection() {
       </div>
 
       {!hasResults && (
-        <Card className="border-amber-200 bg-amber-50" data-design-id="detailed-no-results">
-          <CardContent className="pt-6 text-center">
-            <p className="text-amber-700 font-medium">
-              {t("detailed.noResults")}
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon="🔍"
+          title={t("empty.detailed.title")}
+          description={t("empty.detailed.desc")}
+          designId="detailed-no-results"
+        />
       )}
 
       {hasResults && (

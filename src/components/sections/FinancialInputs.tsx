@@ -128,6 +128,19 @@ export function FinancialInputsSection() {
             <div data-design-id="pension-start-age-field">
               <Label htmlFor="pensionAge">{t("inputs.pensionStartAge")}</Label>
               <Input id="pensionAge" type="number" value={inputs.pensionStartAge} onChange={(e) => update("pensionStartAge", parseInt(e.target.value) || 65)} />
+              {/* Plausibilitäts-Hinweis (Iter 2): Pensionsantritt vor
+                  Pensionsbeginn-Alter ist möglich (Frühpension), aber sollte
+                  bewusst sein. Engine respektiert Reihenfolge bereits korrekt. */}
+              {inputs.pensionStartAge < client.retirementAge && (
+                <p className="text-[11px] text-amber-700 mt-1" data-design-id="pension-before-retirement-warn">
+                  {t("inputs.pensionBeforeRetirementWarn")}
+                </p>
+              )}
+              {inputs.pensionStartAge > client.lifeExpectancy && (
+                <p className="text-[11px] text-rose-700 mt-1" data-design-id="pension-after-life-warn">
+                  {t("inputs.pensionAfterLifeWarn")}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

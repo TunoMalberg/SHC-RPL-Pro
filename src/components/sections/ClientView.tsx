@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { safeFilename } from "@/lib/export/sanitize";
 import { AdvisorSettings } from "./AdvisorSettings";
+import { logger } from "@/lib/logger";
+import { toast } from "sonner";
 
 export function ClientView() {
   const { state } = useAppState();
@@ -75,8 +77,11 @@ export function ClientView() {
       const date = new Date().toISOString().slice(0, 10);
       downloadBlob(blob, `Ruhestandsplan_${safeFilename(client.name, "Kunde")}_${date}.html`);
     } catch (err) {
-      console.error("HTML export error:", err);
-      alert("HTML-Export fehlgeschlagen: " + (err as Error).message);
+      logger.error("HTML export failed", { scope: "ClientView" }, err);
+      toast.error(
+        locale === "de" ? "HTML-Export fehlgeschlagen" : "HTML export failed",
+        { description: (err as Error).message },
+      );
     }
     setBusy(null);
   };
@@ -100,8 +105,11 @@ export function ClientView() {
       const date = new Date().toISOString().slice(0, 10);
       downloadBlob(blob, `Ruhestandsplan_${safeFilename(client.name, "Kunde")}_${date}.pdf`);
     } catch (err) {
-      console.error("PDF export error:", err);
-      alert("PDF-Export fehlgeschlagen: " + (err as Error).message);
+      logger.error("PDF export failed", { scope: "ClientView" }, err);
+      toast.error(
+        locale === "de" ? "PDF-Export fehlgeschlagen" : "PDF export failed",
+        { description: (err as Error).message },
+      );
     }
     setBusy(null);
   };

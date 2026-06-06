@@ -21,6 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { enforceRateLimit } from "@/lib/holdings/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +60,15 @@ interface YahooQuote {
 }
 
 export async function GET(req: NextRequest) {
+  // Audit H-3: Token-Bucket pro IP, ~30 Suchen/Minute mit Burst von 10.
+  // Schützt Yahoo vor Vendor-Sperren und die App vor billigem DoS.
+  const limited = enforceRateLimit(req, {
+    bucket: "holdings-search",
+    capacity: 10,
+    refillPerSecond: 0.5,
+  });
+  if (limited) return limited;
+
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") ?? "").trim();
   const limit = Math.min(20, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "10", 10) || 10));

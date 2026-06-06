@@ -79,6 +79,19 @@ export function ClientProfileSection() {
               <p className="text-xs text-slate-400 mt-1">
                 {t("client.yearsToRetirement")}: {Math.max(0, client.retirementAge - client.currentAge)}
               </p>
+              {/* Plausibilitätsguard: Pensionsantritt vor heute oder nach
+                  Lebenserwartung verhindern. (Iter 2 — kein Hard-Block, nur
+                  visueller Hinweis; Engine clamped intern bereits.) */}
+              {client.retirementAge <= client.currentAge && (
+                <p className="text-[11px] text-rose-700 mt-1" data-design-id="retirement-before-current-warn">
+                  {t("client.retirementBeforeCurrentWarn")}
+                </p>
+              )}
+              {client.retirementAge >= client.lifeExpectancy && (
+                <p className="text-[11px] text-rose-700 mt-1" data-design-id="retirement-after-life-warn">
+                  {t("client.retirementAfterLifeWarn")}
+                </p>
+              )}
             </div>
             <div data-design-id="client-life-expectancy-field">
               <Label htmlFor="lifeExpectancy">{t("client.lifeExpectancy")}</Label>
@@ -86,6 +99,11 @@ export function ClientProfileSection() {
               <p className="text-xs text-slate-400 mt-1">
                 {t("client.withdrawalPeriod")}: {Math.max(0, client.lifeExpectancy - client.retirementAge)} {t("client.years")}
               </p>
+              {client.lifeExpectancy <= client.currentAge && (
+                <p className="text-[11px] text-rose-700 mt-1" data-design-id="life-before-current-warn">
+                  {t("client.lifeBeforeCurrentWarn")}
+                </p>
+              )}
             </div>
             <div data-design-id="client-notes-field">
               <Label htmlFor="notes">{t("client.notes")}</Label>

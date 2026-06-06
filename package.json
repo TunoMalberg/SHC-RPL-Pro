@@ -5,10 +5,14 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0 --turbopack",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
-    "build": "prisma generate; BUILD_DIR=.next-build next build",
+    "build": "BUILD_DIR=.next-build next build",
     "build:local": "BUILD_DIR=.next-build next build",
+    "build:vercel": "next build",
     "lint": "bunx biome lint --write && bunx tsc --noEmit",
-    "format": "bunx biome format --write"
+    "typecheck": "bunx tsc --noEmit",
+    "format": "bunx biome format --write",
+    "test": "bun test src/",
+    "test:watch": "bun test --watch src/"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

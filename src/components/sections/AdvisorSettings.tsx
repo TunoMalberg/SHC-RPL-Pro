@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export function AdvisorSettings() {
   const { state, dispatch } = useAppState();
@@ -23,7 +24,9 @@ export function AdvisorSettings() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 200_000) {
-      alert("Logo > 200 KB — bitte kleineres Bild wählen.");
+      toast.error("Logo zu groß", {
+        description: "Maximalgröße 200 KB — bitte ein kleineres Bild wählen.",
+      });
       return;
     }
     const reader = new FileReader();

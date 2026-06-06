@@ -104,6 +104,9 @@ const de: Record<string, string> = {
   "client.lifeExpectancy": "Lebenserwartung",
   "client.withdrawalPeriod": "Entnahmezeitraum",
   "client.years": "Jahre",
+  "client.retirementBeforeCurrentWarn": "⚠ Pensionsalter liegt unter dem aktuellen Alter — bitte prüfen.",
+  "client.retirementAfterLifeWarn": "⚠ Pensionsalter ≥ Lebenserwartung — Entnahmezeitraum ist null.",
+  "client.lifeBeforeCurrentWarn": "⚠ Lebenserwartung liegt unter dem aktuellen Alter — bitte prüfen.",
   "client.notes": "Notizen",
   "client.notesPlaceholder": "Zusätzliche Notizen zum Kunden...",
   "client.advisoryTitle": "Beratungsprotokoll",
@@ -139,6 +142,8 @@ const de: Record<string, string> = {
   "inputs.monthlyPension": "Monatliches Pensionseinkommen (€)",
   "inputs.monthlyPensionHint": "Staatliche Pension",
   "inputs.pensionStartAge": "Pensionsbeginn (Alter)",
+  "inputs.pensionBeforeRetirementWarn": "ℹ Pensionsbeginn liegt vor dem Pensionsalter — Frühpension. Engine berücksichtigt dies.",
+  "inputs.pensionAfterLifeWarn": "⚠ Pensionsbeginn liegt nach der Lebenserwartung — staatliche Pension fließt nie ein.",
   "inputs.inflationTitle": "Inflation & Wertbasis",
   "inputs.inflationRate": "Inflationsrate (% p.a.)",
   "inputs.inflationHint": "EZB-Ziel: 2,0% | Österreich Ø (2000–2024): ~2,3%",
@@ -772,6 +777,22 @@ const de: Record<string, string> = {
   /* ───── Pro-Hint im Klassik-Modus ───── */
   "classic.proHint.holdings": "Sie möchten ein bestehendes Wertpapierdepot des Kunden importieren und einem ISIN-Backtest unterziehen? → Wechseln Sie oben in den Pro-Modus.",
   "classic.proHint.cta": "Zum Pro-Modus wechseln",
+
+  /* ───── Empty States (Iteration 2) ─────
+     Wird vom <EmptyState/>-Component genutzt, wenn ein Tab ohne
+     Simulationsergebnis aufgerufen wird. Konsistente Sprache über alle
+     Sektionen — kein „leerer Bildschirm" mehr im Beratungstermin. */
+  "empty.ctaToSimulation": "Zur Simulation",
+  "empty.results.title": "Noch keine Simulationsergebnisse",
+  "empty.results.desc": "Sobald Sie eine Simulation gestartet haben, finden Sie hier Erfolgsquote, Median-Endvermögen, Drawdown und das Vermögens-Fanchart.",
+  "empty.results.hint": "Tipp: Profil und Eingaben prüfen, dann „Simulation starten“ klicken.",
+  "empty.historical.title": "Noch keine historischen Backtest-Ergebnisse",
+  "empty.historical.desc": "Der Backtest auf realen Marktphasen seit 1928 startet automatisch mit jeder Simulation. Erfolgsquote pro Startjahr, Worst-/Best-Phase und Drawdown-Verteilung erscheinen anschließend hier.",
+  "empty.detailed.title": "Noch kein Einzelpfad ausgewählt",
+  "empty.detailed.desc": "Nach einer Simulation können Sie einen einzelnen Pfad (z. B. Worst- oder Best-Case) Jahr für Jahr nachvollziehen — inkl. Sparrate, Entnahme, Rebalancing und KESt-Belastung.",
+  "empty.scenarios.title": "Noch keine Szenarien gespeichert",
+  "empty.scenarios.desc": "Speichern Sie Varianten Ihrer Eingaben (z. B. „Pension mit 60“, „defensiveres Portfolio“), um Erfolgsquote und Endvermögen direkt zu vergleichen.",
+  "empty.scenarios.hint": "Tipp: Im Block oben einen Namen eingeben und „Aktuelle Konfiguration speichern“ klicken.",
 };
 
 /* ──────────────────────────────────────────
@@ -860,6 +881,9 @@ const en: Record<string, string> = {
   "client.lifeExpectancy": "Life Expectancy",
   "client.withdrawalPeriod": "Withdrawal Period",
   "client.years": "years",
+  "client.retirementBeforeCurrentWarn": "⚠ Retirement age is below current age — please review.",
+  "client.retirementAfterLifeWarn": "⚠ Retirement age ≥ life expectancy — withdrawal period is zero.",
+  "client.lifeBeforeCurrentWarn": "⚠ Life expectancy is below current age — please review.",
   "client.notes": "Notes",
   "client.notesPlaceholder": "Additional notes about the client...",
   "client.advisoryTitle": "Advisory Protocol",
@@ -895,6 +919,8 @@ const en: Record<string, string> = {
   "inputs.monthlyPension": "Monthly Pension Income (€)",
   "inputs.monthlyPensionHint": "State pension",
   "inputs.pensionStartAge": "Pension Start Age",
+  "inputs.pensionBeforeRetirementWarn": "ℹ Pension start is before retirement — early retirement. Engine handles this.",
+  "inputs.pensionAfterLifeWarn": "⚠ Pension start is after life expectancy — state pension never pays out.",
   "inputs.inflationTitle": "Inflation & Value Basis",
   "inputs.inflationRate": "Inflation Rate (% p.a.)",
   "inputs.inflationHint": "ECB target: 2.0% | Austria avg. (2000–2024): ~2.3%",
@@ -1528,6 +1554,19 @@ const en: Record<string, string> = {
   /* ───── Pro hint in Classic mode ───── */
   "classic.proHint.holdings": "Want to import an existing securities portfolio and run an ISIN backtest? → Switch to Pro mode at the top.",
   "classic.proHint.cta": "Switch to Pro mode",
+
+  /* ───── Empty States (Iteration 2) ───── */
+  "empty.ctaToSimulation": "Go to simulation",
+  "empty.results.title": "No simulation results yet",
+  "empty.results.desc": "Once you run a simulation, success rate, median final wealth, drawdown and the wealth fan chart will appear here.",
+  "empty.results.hint": "Tip: review profile and inputs, then click \"Run simulation\".",
+  "empty.historical.title": "No historical backtest results yet",
+  "empty.historical.desc": "The backtest on real market regimes since 1928 runs automatically with each simulation. Success rate per start year, worst/best regime and drawdown distribution will appear here.",
+  "empty.detailed.title": "No single path selected yet",
+  "empty.detailed.desc": "After a simulation you can walk through a single path (e.g. worst- or best-case) year by year — including savings, withdrawals, rebalancing and KESt taxation.",
+  "empty.scenarios.title": "No scenarios saved yet",
+  "empty.scenarios.desc": "Save variants of your inputs (e.g. \"Pension at 60\", \"more defensive portfolio\") to compare success rate and final wealth side-by-side.",
+  "empty.scenarios.hint": "Tip: enter a name in the block above and click \"Save current configuration\".",
 };
 
 const translations: Record<Locale, Record<string, string>> = { de, en };

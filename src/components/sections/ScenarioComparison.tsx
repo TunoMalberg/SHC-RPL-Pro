@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct } from "@/lib/format";
 import { runMonteCarloSimulation, generateWithdrawalHeatmap } from "@/lib/engine/montecarlo";
 import type { Scenario } from "@/lib/types";
@@ -113,11 +114,14 @@ export function ScenarioComparisonSection() {
       </Card>
 
       {scenarios.length === 0 ? (
-        <div className="text-center py-16 text-slate-400" data-design-id="no-scenarios">
-          <p className="text-4xl mb-3">🔀</p>
-          <p className="text-lg font-medium">{t("scenarios.noScenarios")}</p>
-          <p className="text-sm">{t("scenarios.noScenariosHint")}</p>
-        </div>
+        <EmptyState
+          icon="🔀"
+          title={t("empty.scenarios.title")}
+          description={t("empty.scenarios.desc")}
+          hint={t("empty.scenarios.hint")}
+          ctaToSimulation={false}
+          designId="no-scenarios"
+        />
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-design-id="scenario-cards-grid">

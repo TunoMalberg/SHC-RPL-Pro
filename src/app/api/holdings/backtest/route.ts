@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforceRateLimit } from "@/lib/holdings/rateLimit";
+import { validateBacktestBody } from "@/lib/validation";
 import type { Holding, HoldingsBacktestResult } from "@/lib/holdings/types";
 import { resolveIsins, figiToYahooSymbol } from "@/lib/holdings/openfigi";
 import { fetchYahooSeriesBatch, type PriceSeries } from "@/lib/holdings/yahoo";
@@ -21,17 +23,28 @@ interface BacktestRequest {
 }
 
 export async function POST(req: NextRequest) {
+  // Audit H-3: Backtest ist die teuerste Route (bis zu 200 Yahoo-Calls + FX).
+  // Bewusst eng gesetzt: 4 Backtests/Minute mit kleinem Burst.
+  const limited = enforceRateLimit(req, {
+    bucket: "holdings-backtest",
+    capacity: 3,
+    refillPerSecond: 0.07, // ~4/min
+  });
+  if (limited) return limited;
+
   let body: BacktestRequest;
   try {
     body = (await req.json()) as BacktestRequest;
   } catch {
     return NextResponse.json({ error: "Ungültiger JSON-Body." }, { status: 400 });
   }
-  if (!Array.isArray(body.holdings) || body.holdings.length === 0) {
-    return NextResponse.json({ error: "Mindestens eine Position erforderlich." }, { status: 400 });
-  }
-  if (body.holdings.length > 200) {
-    return NextResponse.json({ error: "Maximal 200 Positionen pro Request." }, { status: 413 });
+
+  // Audit H-5: Schema-Validierung an der API-Grenze. Wir geben dem Aufrufer
+  // ALLE Probleme auf einmal (Multi-Issue-Response) statt früh zu returnen.
+  const v = validateBacktestBody(body);
+  if (!v.ok) {
+    const status = v.errors.some((e) => e.message.includes("Maximal 200")) ? 413 : 400;
+    return NextResponse.json({ error: v.errors[0].message, errors: v.errors }, { status });
   }
 
   // Step 1 — ISIN resolution (only for holdings without explicit yahoo ticker)

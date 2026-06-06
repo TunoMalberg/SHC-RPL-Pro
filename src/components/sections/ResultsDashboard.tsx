@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
 import { computePETimeline } from "@/lib/engine/privateEquity";
 import { computeHistoricalGrossReturns } from "@/lib/engine/historical";
@@ -123,13 +124,13 @@ export function ResultsDashboard() {
 
   if (!result) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-400" data-design-id="no-results">
-        <div className="text-center">
-          <p className="text-4xl mb-3">📊</p>
-          <p className="text-lg font-medium">{t("results.noResults")}</p>
-          <p className="text-sm">{t("results.noResultsHint")}</p>
-        </div>
-      </div>
+      <EmptyState
+        icon="📊"
+        title={t("empty.results.title")}
+        description={t("empty.results.desc")}
+        hint={t("empty.results.hint")}
+        designId="no-results"
+      />
     );
   }
 
@@ -843,10 +844,10 @@ export function ResultsDashboard() {
               />
               <ReferenceLine
                 yAxisId="left"
-                x={client.retirementAge}
+                x={inputs.pensionStartAge}
                 stroke="#D31220"
                 strokeDasharray="5 5"
-                label={{ value: t("results.pension"), fontSize: 10, fill: "#D31220" }}
+                label={{ value: t("results.pension"), fontSize: 10, fill: "#D31220", position: "top" }}
               />
               {liquidityEvents.map((ev) => (
                 <ReferenceLine
