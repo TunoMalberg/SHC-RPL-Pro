@@ -14,6 +14,7 @@ import { DetailedExampleSection } from "@/components/sections/DetailedExample";
 import { ExportPanel } from "@/components/sections/ExportPanel";
 import { ClientView } from "@/components/sections/ClientView";
 import { HoldingsBucket } from "@/components/sections/HoldingsBucket";
+import { PortfolioOptimizerSection } from "@/components/sections/PortfolioOptimizer";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ModeToggle } from "@/components/ModeToggle";
 import { ModeChooserModal } from "@/components/ModeChooserModal";
@@ -24,6 +25,7 @@ const ALL_TABS = [
   { id: "inputs", labelKey: "tab.inputs", icon: "/icons/rot/Scheckkarte.png" },
   { id: "portfolio", labelKey: "tab.portfolio", icon: "/icons/rot/Wagge.png" },
   { id: "holdings", labelKey: "tab.holdings", icon: "/icons/rot/Scheckkarte.png", proOnly: true },
+  { id: "optimizer", labelKey: "tab.optimizer", icon: "/icons/rot/Wagge.png", proOnly: true },
   { id: "simulation", labelKey: "tab.simulation", icon: "/icons/rot/Computer.png" },
   { id: "results", labelKey: "tab.results", icon: "/icons/rot/Ziel.png" },
   { id: "historical", labelKey: "tab.historical", icon: "/icons/rot/Uhr.png" },
@@ -40,9 +42,13 @@ export default function RetirementPlannerApp() {
   const visibleTabs = ALL_TABS.filter(
     (tab) => state.uiMode === "pro" || !tab.proOnly,
   );
-  // Tailwind-Klassen für Grid-Spalten je nach Tab-Anzahl (nur 10 oder 11 hier).
+  // Tailwind-Klassen für Grid-Spalten je nach Tab-Anzahl.
+  // Klassik: 10 Tabs → md:grid-cols-10
+  // Pro: +holdings +optimizer = 12 Tabs → md:grid-cols-12
   const gridColsClass =
-    visibleTabs.length === 11 ? "md:grid-cols-11" : "md:grid-cols-10";
+    visibleTabs.length >= 12 ? "md:grid-cols-12"
+    : visibleTabs.length === 11 ? "md:grid-cols-11"
+    : "md:grid-cols-10";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-white to-red-50/30" data-design-id="app-root">
@@ -123,6 +129,11 @@ export default function RetirementPlannerApp() {
           {state.uiMode === "pro" && (
             <TabsContent value="holdings" data-design-id="tab-content-holdings">
               <HoldingsBucket />
+            </TabsContent>
+          )}
+          {state.uiMode === "pro" && (
+            <TabsContent value="optimizer" data-design-id="tab-content-optimizer">
+              <PortfolioOptimizerSection />
             </TabsContent>
           )}
           <TabsContent value="simulation" data-design-id="tab-content-simulation">
