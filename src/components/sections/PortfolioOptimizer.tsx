@@ -467,9 +467,17 @@ export function PortfolioOptimizerSection() {
                     </tr>
                   </thead>
                   <tbody>
-                    {result.ranked.slice(0, 10).map((r, idx) => (
+                    {/* ── Section header: Top 5 ──────────────────────── */}
+                    <tr className="bg-emerald-50 border-y border-emerald-200">
+                      <td colSpan={9} className="py-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
+                        ▲ {t("opt.topBadge")}
+                      </td>
+                    </tr>
+
+                    {/* Top 5 – beste Allokationen, alle mit 5.000 Pfaden re-evaluiert */}
+                    {result.ranked.slice(0, 5).map((r, idx) => (
                       <tr
-                        key={`${r.cash}-${r.bonds}-${r.equities}-${r.pe}`}
+                        key={`top-${r.cash}-${r.bonds}-${r.equities}-${r.pe}`}
                         className={
                           idx === 0
                             ? "bg-amber-50 border-b border-amber-100"
@@ -512,10 +520,13 @@ export function PortfolioOptimizerSection() {
                         </td>
                       </tr>
                     ))}
-                    {/* Baseline-Zeile */}
-                    <tr className="bg-slate-50 border-t-2 border-slate-300 italic">
+
+                    {/* ── Baseline-Zeile (Trenner) ───────────────────── */}
+                    <tr className="bg-slate-100 border-y-2 border-slate-300 italic">
                       <td className="py-2 px-2 text-slate-700 align-top">
-                        <div>{t("opt.col.baseline")}</div>
+                        <div className="not-italic font-semibold text-[11px] uppercase tracking-wide text-slate-500">
+                          ◆ {t("opt.col.baseline")}
+                        </div>
                         <div className="text-[9px] not-italic font-normal text-emerald-700 leading-none mt-1">
                           ✓ {(result.baseline.pathsUsed / 1000).toFixed(0)}k
                         </div>
@@ -538,6 +549,60 @@ export function PortfolioOptimizerSection() {
                       <td className="py-2 px-2 text-right tabular-nums">{fmtEur(result.baseline.medianFinalWealth)}</td>
                       <td></td>
                     </tr>
+
+                    {/* ── Section header: Flop 5 ─────────────────────── */}
+                    <tr className="bg-rose-50 border-y border-rose-200">
+                      <td colSpan={9} className="py-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-rose-800">
+                        ▼ {t("opt.flopBadge")}
+                      </td>
+                    </tr>
+
+                    {/* Flop 5 – schlechteste Allokationen, ranked.length−5 ... ranked.length−1 */}
+                    {result.ranked.slice(-5).map((r, idx) => {
+                      const absoluteRank = result.ranked.length - 5 + idx + 1;
+                      return (
+                        <tr
+                          key={`flop-${r.cash}-${r.bonds}-${r.equities}-${r.pe}`}
+                          className="border-b border-slate-100 bg-rose-50/40 hover:bg-rose-50"
+                        >
+                          <td className="py-2 px-2 font-bold align-top text-rose-700">
+                            <div>{absoluteRank}</div>
+                            {r.pathsUsed >= PATHS_PHASE3 && (
+                              <div className="text-[9px] font-normal text-emerald-700 leading-none mt-1">
+                                ✓ {(r.pathsUsed / 1000).toFixed(0)}k
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2 px-2 text-right tabular-nums">{r.cash}%</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{r.bonds}%</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{r.equities}%</td>
+                          <td className="py-2 px-2 text-right tabular-nums">
+                            {r.pe > 0 ? <Badge variant="outline" className="border-[#8A83BE] text-[#8A83BE]">{r.pe}%</Badge> : <span className="text-slate-300">–</span>}
+                          </td>
+                          <td className="py-2 px-2 text-right tabular-nums">
+                            <div className="font-semibold text-rose-700">{r.successRate.toFixed(1)}%</div>
+                            <div className="text-[10px] text-slate-400 leading-none mt-0.5">
+                              [{r.successRateCiLow.toFixed(1)}–{r.successRateCiHigh.toFixed(1)}]
+                            </div>
+                          </td>
+                          <td className="py-2 px-2 text-right tabular-nums text-rose-700">
+                            −{(r.maxDrawdown * 100).toFixed(1)}%
+                          </td>
+                          <td className="py-2 px-2 text-right tabular-nums">{fmtEur(r.medianFinalWealth)}</td>
+                          <td className="py-2 px-2 text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-slate-400 hover:text-slate-600"
+                              onClick={() => applyAllocation(r)}
+                              data-design-id={`opt-apply-flop-${idx}`}
+                            >
+                              {t("opt.apply")}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
