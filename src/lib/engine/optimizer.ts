@@ -1,13 +1,23 @@
 /**
  * Portfolio-Optimizer (Pro-Mode-Feature)
  *
- * Sucht über einen 4-dimensionalen Allokations-Raum (Cash, Anleihen, Aktien,
- * Private Equity) das Portfolio mit der höchsten Erfolgsquote — bei *fest
- * vorgegebenem* Kapital, Sparrate und Entnahmewunsch.
+ * Sucht über einen 4-dimensionalen Allokations-Raum (Cash, Anleihen, Aktien
+ * — als Anteil des LIQUIDEN Portfolios, summieren auf 100 % — sowie PE als
+ * separates Commitment in % des Startkapitals) das Portfolio mit der
+ * höchsten Erfolgsquote.
+ *
+ * WICHTIG: Mental-Modell der Engine
+ *   - bucket.allocation SUMMIERT IMMER AUF 100 % (Anteile am liquiden Topf).
+ *   - peFund.commitment ist ein zusätzliches € Commitment, das über Capital
+ *     Calls aus dem Cash-Bucket gezogen wird. Es "verbraucht" also Liquidität,
+ *     ändert aber nicht die Bucket-Allokationen.
+ *   - Daher: Optimizer-Suche enumeriert (c, b, e) ∈ Simplex sum=100 UND
+ *     getrennt davon pe ∈ {0, 5, 10, 15, 20, 25} %. Das sind zwei unabhängige
+ *     Achsen — nicht ein 4-Simplex.
  *
  * Suchstrategie: Coarse-to-Fine
- *   Phase 1: 10 %-Grid mit pe ∈ {0, 10, 20} → ~166 Kombinationen
- *   Phase 2: 5 %-Grid um die Top-3 von Phase 1 → ~30-60 Kombinationen
+ *   Phase 1: 10 %-Grid (c,b,e) × pe ∈ {0, 10, 20}  → ~165 Kombinationen
+ *   Phase 2: 5 %-Grid um die Top-N + um die Baseline → ~30-100 Kombinationen
  *
  * Pro Kombination wird `runMonteCarloSimulation` mit reduzierter Pfadzahl
  * (Default 200) aufgerufen. Das ist 25× schneller als die Standard-Sim
@@ -150,55 +160,69 @@ export function optimizePortfolio(
     return r;
   };
 
+  // ── Baseline IMMER zuerst auswerten ─────────────────────────────
+  // Garantiert, dass die aktuelle Allokation im Suchraum erscheint und mit
+  // identischer Pfadzahl + Seed bewertet wird. Sonst kann (durch Sampling-
+  // Rauschen) das beste gefundene Optimum schlechter als die Baseline
+  // erscheinen, obwohl der Suchraum die Baseline mathematisch enthält.
+  options.onProgress?.(0.05, "baseline");
+  const baselineAlloc = currentAllocationOf(basePortfolio, inputs.initialCapital);
+  evaluator(baselineAlloc);
+
   // ── Phase 1: 10 %-Grid ──────────────────────────────────────────
-  options.onProgress?.(0.05, "phase1_start");
+  options.onProgress?.(0.08, "phase1_start");
   const coarseGrid = enumerateAllocations(10, peStepsCoarse, minCashPct);
   for (let i = 0; i < coarseGrid.length; i++) {
     evaluator(coarseGrid[i]);
     if (options.onProgress && i % 20 === 0) {
-      options.onProgress(0.05 + 0.65 * (i / coarseGrid.length), "phase1_running");
+      options.onProgress(0.08 + 0.62 * (i / coarseGrid.length), "phase1_running");
     }
   }
   options.onProgress?.(0.7, "phase1_done");
 
-  // ── Phase 2: 5 %-Grid um die Top-N ──────────────────────────────
+  // ── Phase 2: 5 %-Grid um die Top-N + um die Baseline ────────────
+  // Baseline wird IMMER als Refinement-Center hinzugefügt — auch wenn ihr
+  // Score nicht in den Top-N liegt — damit das 5%-Raster die Region um die
+  // aktuelle Allokation ebenfalls abdeckt. Sonst übersieht der Optimizer
+  // ggf. minimale Anpassungen, die die Baseline schlagen würden.
   const phase1Sorted = [...all].sort((a, b) => b.score - a.score);
-  const top = phase1Sorted.slice(0, Math.max(1, refinementTopN));
+  const topCandidates = phase1Sorted.slice(0, Math.max(1, refinementTopN));
+  const baselineEval = all.find(
+    (r) =>
+      r.cash === baselineAlloc.cash &&
+      r.bonds === baselineAlloc.bonds &&
+      r.equities === baselineAlloc.equities &&
+      r.pe === baselineAlloc.pe,
+  );
+  const centers: AllocationResult[] =
+    baselineEval && !topCandidates.includes(baselineEval)
+      ? [...topCandidates, baselineEval]
+      : topCandidates;
+
   const finerPeSteps = uniqueSorted(
-    top.flatMap((c) => [
+    centers.flatMap((c) => [
       Math.max(0, c.pe - 5),
       c.pe,
       Math.min(25, c.pe + 5),
     ]),
   );
-  const refinement = neighborhoodGrid(top, 5, minCashPct, finerPeSteps);
+  const refinement = neighborhoodGrid(centers, 5, minCashPct, finerPeSteps);
   for (let i = 0; i < refinement.length; i++) {
     evaluator(refinement[i]);
     if (options.onProgress && i % 5 === 0) {
-      options.onProgress(0.7 + 0.25 * (i / refinement.length), "phase2_running");
+      options.onProgress(0.7 + 0.27 * (i / refinement.length), "phase2_running");
     }
   }
-  options.onProgress?.(0.97, "baseline");
+  options.onProgress?.(0.99, "done");
 
-  // ── Baseline (= aktuelle Berater-Allokation) ────────────────────
-  const baselineAlloc = currentAllocationOf(basePortfolio, inputs.initialCapital);
-  const baseline =
-    all.find(
-      (r) =>
-        r.cash === baselineAlloc.cash &&
-        r.bonds === baselineAlloc.bonds &&
-        r.equities === baselineAlloc.equities &&
-        r.pe === baselineAlloc.pe,
-    ) ??
-    evaluateAllocation(
-      baselineAlloc,
-      client,
-      inputs,
-      basePortfolio,
-      { ...settings, numSimulations: pathsPerEval, randomSeed: seed },
-      liquidityEvents,
-      objective,
-    );
+  // Finalize Baseline-Referenz aus dem (jetzt garantiert vorhandenen) Eintrag.
+  const baseline = all.find(
+    (r) =>
+      r.cash === baselineAlloc.cash &&
+      r.bonds === baselineAlloc.bonds &&
+      r.equities === baselineAlloc.equities &&
+      r.pe === baselineAlloc.pe,
+  )!;
 
   options.onProgress?.(1, "done");
 
@@ -218,10 +242,13 @@ export function optimizePortfolio(
 
 /**
  * Erzeugt alle Allokationen `(cash, bonds, equities, pe)` mit:
- *   - cash + bonds + equities + pe = 100
- *   - pe ∈ peSteps
+ *   - cash + bonds + equities = 100  (Buckets summieren immer auf 100 %)
+ *   - pe ∈ peSteps                   (separates Commitment % des Startkapitals)
  *   - cash, bonds, equities Vielfache von `step`
  *   - cash ≥ minCashPct
+ *
+ * Damit ist der Suchraum ein echtes Kreuzprodukt aus (c,b,e)-Simplex und
+ * pe-Stufen — getrennte Achsen, keine 4-Simplex-Constraint.
  */
 export function enumerateAllocations(
   step: number,
@@ -229,13 +256,12 @@ export function enumerateAllocations(
   minCashPct: number = 0,
 ): AllocationCandidate[] {
   const out: AllocationCandidate[] = [];
+  if (100 % step !== 0) return out;
   for (const pe of peSteps) {
-    const remaining = 100 - pe;
-    if (remaining < 0) continue;
-    if (remaining % step !== 0) continue;
-    for (let cash = minCashPct; cash <= remaining; cash += step) {
-      for (let bonds = 0; bonds + cash <= remaining; bonds += step) {
-        const equities = remaining - cash - bonds;
+    if (pe < 0) continue;
+    for (let cash = minCashPct; cash <= 100; cash += step) {
+      for (let bonds = 0; bonds + cash <= 100; bonds += step) {
+        const equities = 100 - cash - bonds;
         if (equities < 0) continue;
         out.push({ cash, bonds, equities, pe });
       }
@@ -245,9 +271,9 @@ export function enumerateAllocations(
 }
 
 /**
- * Erzeugt 5 %-Verfeinerungs-Grid in der Umgebung jedes Top-N-Kandidaten.
- * Pro Top-Kandidat wird ein ±10 %-Window in jeder Achse durchschritten,
- * dabei normalisiert auf Summe = 100.
+ * Erzeugt Verfeinerungs-Grid (Default 5 %) in der Umgebung jedes Top-N-Kandidaten.
+ * Pro Top-Kandidat wird ein ±10 %-Window in jeder Achse durchschritten;
+ * Buckets summieren weiterhin auf 100 %, PE wird getrennt durchprobiert.
  */
 export function neighborhoodGrid(
   centers: AllocationCandidate[],
@@ -257,20 +283,19 @@ export function neighborhoodGrid(
 ): AllocationCandidate[] {
   const seen = new Set<string>();
   const out: AllocationCandidate[] = [];
+  if (100 % step !== 0) return out;
   for (const center of centers) {
+    const cMin = Math.max(minCashPct, Math.floor((center.cash - 10) / step) * step);
+    const cMax = Math.min(100, Math.ceil((center.cash + 10) / step) * step);
+    const bMin = Math.max(0, Math.floor((center.bonds - 10) / step) * step);
+    const bMax = Math.min(100, Math.ceil((center.bonds + 10) / step) * step);
     for (const pe of peSteps) {
-      // pe darf ±5 % vom Center sein, oder wenn explizit in peSteps
+      // pe darf ±10 % vom Center sein
       if (Math.abs(pe - center.pe) > 10) continue;
-      const remaining = 100 - pe;
-      if (remaining < 0 || remaining % step !== 0) continue;
-      const cMin = Math.max(minCashPct, center.cash - 10);
-      const cMax = Math.min(remaining, center.cash + 10);
-      const bMin = Math.max(0, center.bonds - 10);
-      const bMax = Math.min(remaining, center.bonds + 10);
       for (let cash = cMin; cash <= cMax; cash += step) {
         for (let bonds = bMin; bonds <= bMax; bonds += step) {
-          const equities = remaining - cash - bonds;
-          if (equities < 0) continue;
+          const equities = 100 - cash - bonds;
+          if (equities < 0 || equities > 100) continue;
           const key = `${cash}-${bonds}-${equities}-${pe}`;
           if (seen.has(key)) continue;
           seen.add(key);
@@ -299,15 +324,19 @@ export function evaluateAllocation(
   const portfolio = buildPortfolioFromAllocation(alloc, basePortfolio, inputs.initialCapital, client.currentAge);
   const r = runMonteCarloSimulation(client, inputs, portfolio, settings, liquidityEvents);
 
-  // Drawdown im Median-Pfad
-  const dd = computeMaxDrawdownInPath(r.medianPath);
+  // FIX: r.maxDrawdown ist bereits der reine Markt-Drawdown (in % von 0–100,
+  // ohne Cashflow-Effekte). Vorher wurde computeMaxDrawdownInPath(medianPath)
+  // verwendet — das mischte den geplanten Vermögens-Spend-Down (Vermögen →
+  // €0 am Lebensende) mit Markt-Drawdown und produzierte „Drawdowns" von
+  // 90–100 % auf jedem Portfolio. Das Ranking war damit unsinnig.
+  const ddFraction = r.maxDrawdown / 100; // engine returns %, internally we want 0..1
 
-  const score = computeObjective(objective, r.successRate, r.medianFinalWealth, dd);
+  const score = computeObjective(objective, r.successRate, r.medianFinalWealth, ddFraction);
   return {
     ...alloc,
     successRate: r.successRate,
     medianFinalWealth: r.medianFinalWealth,
-    maxDrawdown: dd,
+    maxDrawdown: ddFraction,
     score,
   };
 }
@@ -422,24 +451,39 @@ export function computeObjective(
 
 /**
  * Liest die aktuelle Allokation aus `basePortfolio` (als Allokations-Tupel).
- * `pe` wird aus den summierten Commitments / initialCapital abgeleitet.
+ *   - cash/bonds/equities = Bucket-Allokationen (summieren auf 100 % von
+ *     buckets, wird ggf. defensiv re-normalisiert).
+ *   - pe = Summe aller PE-Commitments / Startkapital, in % (gerundet auf
+ *     5 %-Vielfache, Clamp 0..25).
  */
 export function currentAllocationOf(
   basePortfolio: PortfolioConfig,
   initialCapital: number,
 ): AllocationCandidate {
-  const cash = Math.round(basePortfolio.buckets[0].allocation);
-  const bonds = Math.round(basePortfolio.buckets[1].allocation);
-  const equities = Math.round(basePortfolio.buckets[2].allocation);
+  let cash = Math.round(basePortfolio.buckets[0].allocation);
+  let bonds = Math.round(basePortfolio.buckets[1].allocation);
+  let equities = Math.round(basePortfolio.buckets[2].allocation);
+
+  // Defensive Re-Normalisierung auf 100 (nur falls die UI-Slider einen
+  // Rundungs-Drift hinterlassen haben). Die Differenz wird auf den größten
+  // Bucket gepackt, damit das Verhältnis möglichst erhalten bleibt.
+  const sum = cash + bonds + equities;
+  if (sum !== 100 && sum > 0) {
+    const delta = 100 - sum;
+    if (equities >= bonds && equities >= cash) equities += delta;
+    else if (bonds >= cash) bonds += delta;
+    else cash += delta;
+  }
+
   const peCommitments = (basePortfolio.peFunds ?? []).reduce(
     (acc, f) => acc + (f.commitment ?? 0),
     0,
   );
-  const pe =
-    initialCapital > 0
-      ? Math.round((peCommitments / initialCapital) * 100)
-      : 0;
-  return { cash, bonds, equities, pe: Math.min(25, Math.max(0, pe)) };
+  // Auf 5 %-Vielfache runden (Suchraster ist 5 %), Clamp 0..25.
+  const peRaw = initialCapital > 0 ? (peCommitments / initialCapital) * 100 : 0;
+  const pe = Math.min(25, Math.max(0, Math.round(peRaw / 5) * 5));
+
+  return { cash, bonds, equities, pe };
 }
 
 // ──────────────────────────────────────────

@@ -17,10 +17,11 @@ import { defaultClient, defaultInputs, defaultPortfolio } from "../defaults";
 import type { SimulationSettings } from "../types";
 
 describe("enumerateAllocations", () => {
-  test("10 % Grid, pe=[0]: Compositions sum auf 100", () => {
+  test("10 % Grid, pe=[0]: cash+bonds+equities=100 (PE getrennt)", () => {
     const all = enumerateAllocations(10, [0], 0);
     for (const a of all) {
-      expect(a.cash + a.bonds + a.equities + a.pe).toBe(100);
+      expect(a.cash + a.bonds + a.equities).toBe(100);
+      expect(a.pe).toBe(0);
     }
     expect(all.length).toBe(66); // C(12,2) für (c,b,e) mit Schritten 10
   });
@@ -30,10 +31,16 @@ describe("enumerateAllocations", () => {
     for (const a of all) expect(a.cash).toBeGreaterThanOrEqual(10);
   });
 
-  test("pe-Steps werden alle abgedeckt", () => {
+  test("pe-Steps werden alle abgedeckt — Buckets bleiben unabhängig auf 100", () => {
     const all = enumerateAllocations(10, [0, 10, 20], 0);
     const pes = new Set(all.map((a) => a.pe));
     expect([...pes].sort()).toEqual([0, 10, 20]);
+    // Pro pe-Stufe: identische 66 (c,b,e)-Kombinationen, weil PE separat.
+    for (const pe of [0, 10, 20]) {
+      const subset = all.filter((a) => a.pe === pe);
+      expect(subset.length).toBe(66);
+      for (const a of subset) expect(a.cash + a.bonds + a.equities).toBe(100);
+    }
   });
 
   test("keine Duplikate", () => {
@@ -42,20 +49,33 @@ describe("enumerateAllocations", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  test("step das remaining nicht teilt → leeres Ergebnis für diese pe-Stufe", () => {
-    const all = enumerateAllocations(10, [5], 0); // remaining=95, nicht durch 10 teilbar
+  test("Step der 100 nicht teilt → leeres Ergebnis", () => {
+    const all = enumerateAllocations(7, [0], 0); // 100 nicht durch 7 teilbar
     expect(all.length).toBe(0);
+  });
+
+  test("PE-Achse ist orthogonal zur Bucket-Achse (gleiche Buckets bei jedem pe)", () => {
+    const all = enumerateAllocations(10, [0, 20], 5);
+    const pe0Buckets = all
+      .filter((a) => a.pe === 0)
+      .map((a) => `${a.cash}-${a.bonds}-${a.equities}`)
+      .sort();
+    const pe20Buckets = all
+      .filter((a) => a.pe === 20)
+      .map((a) => `${a.cash}-${a.bonds}-${a.equities}`)
+      .sort();
+    expect(pe0Buckets).toEqual(pe20Buckets);
   });
 });
 
 describe("neighborhoodGrid", () => {
-  test("liefert nur Allokationen in ±10 % Window um Center", () => {
+  test("liefert nur Allokationen in ±10 % Window um Center; Buckets summieren auf 100", () => {
     const center = { cash: 20, bonds: 30, equities: 50, pe: 0 };
     const grid = neighborhoodGrid([center], 5, 0, [0]);
     for (const a of grid) {
       expect(Math.abs(a.cash - center.cash)).toBeLessThanOrEqual(10);
       expect(Math.abs(a.bonds - center.bonds)).toBeLessThanOrEqual(10);
-      expect(a.cash + a.bonds + a.equities + a.pe).toBe(100);
+      expect(a.cash + a.bonds + a.equities).toBe(100);
     }
   });
 
@@ -67,6 +87,13 @@ describe("neighborhoodGrid", () => {
     const grid = neighborhoodGrid(centers, 5, 0, [0]);
     const keys = grid.map((a) => `${a.cash}-${a.bonds}-${a.equities}-${a.pe}`);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  test("PE-Achse: ±10 % vom Center ist erlaubt", () => {
+    const center = { cash: 20, bonds: 30, equities: 50, pe: 10 };
+    const grid = neighborhoodGrid([center], 5, 0, [0, 5, 10, 15, 20, 25]);
+    const pes = new Set(grid.map((a) => a.pe));
+    expect([...pes].sort((a, b) => a - b)).toEqual([0, 5, 10, 15, 20]);
   });
 });
 
@@ -157,6 +184,18 @@ describe("currentAllocationOf", () => {
     expect(currentAllocationOf(p, 1_000_000).pe).toBe(25);
   });
 
+  test("PE wird auf nächstes 5 %-Vielfaches gerundet", () => {
+    const p = {
+      ...defaultPortfolio,
+      peFunds: [{
+        id: "x", name: "X", commitment: 130_000, callRatio: 80, irr: 10,
+        tvpi: 1.7, investmentPeriod: 5, fundDuration: 14, startAge: 50,
+      }],
+    };
+    // 13 % → gerundet auf 15 %
+    expect(currentAllocationOf(p, 1_000_000).pe).toBe(15);
+  });
+
   test("initialCapital = 0 → pe = 0 (kein Division-by-Zero)", () => {
     const p = {
       ...defaultPortfolio,
@@ -170,7 +209,7 @@ describe("currentAllocationOf", () => {
 });
 
 describe("buildPortfolioFromAllocation", () => {
-  test("Allokationen werden gesetzt, alles andere bleibt unverändert", () => {
+  test("Buckets werden gesetzt (sum=100), alles andere bleibt unverändert", () => {
     const p = buildPortfolioFromAllocation(
       { cash: 20, bonds: 30, equities: 50, pe: 0 },
       defaultPortfolio,
@@ -180,18 +219,22 @@ describe("buildPortfolioFromAllocation", () => {
     expect(p.buckets[0].allocation).toBe(20);
     expect(p.buckets[1].allocation).toBe(30);
     expect(p.buckets[2].allocation).toBe(50);
+    expect(p.buckets[0].allocation + p.buckets[1].allocation + p.buckets[2].allocation).toBe(100);
     expect(p.kestRate).toBe(defaultPortfolio.kestRate);
     expect(p.correlationMatrix).toEqual(defaultPortfolio.correlationMatrix);
     expect(p.peFunds).toEqual([]);
   });
 
-  test("pe > 0 erzeugt synthetischen PE-Fund mit korrektem Commitment", () => {
+  test("pe > 0: Buckets bleiben auf 100 % (nicht durch pe reduziert!)", () => {
     const p = buildPortfolioFromAllocation(
-      { cash: 10, bonds: 30, equities: 40, pe: 20 },
+      { cash: 10, bonds: 30, equities: 60, pe: 20 },
       defaultPortfolio,
       1_000_000,
       45,
     );
+    // Buckets sum = 100, NICHT 80
+    expect(p.buckets[0].allocation + p.buckets[1].allocation + p.buckets[2].allocation).toBe(100);
+    // PE-Commitment = 20 % vom Startkapital
     expect(p.peFunds).toHaveLength(1);
     expect(p.peFunds![0].commitment).toBe(200_000);
     expect(p.peFunds![0].startAge).toBe(45);
@@ -246,6 +289,44 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
     expect(Number.isFinite(r.baseline.successRate)).toBe(true);
     expect(r.baseline.successRate).toBeGreaterThanOrEqual(0);
     expect(r.baseline.successRate).toBeLessThanOrEqual(100);
+  });
+
+  test("Optimum >= Baseline (kein negativer Score-Gap durch Sampling-Rauschen)", () => {
+    // Da Baseline IMMER explizit ins Suchgitter aufgenommen wird, MUSS das
+    // ranked[0] (mit derselben pathsPerEval und seed) mindestens so gut sein
+    // wie die Baseline. Sonst ist die Suche kaputt.
+    const r = optimizePortfolio(
+      defaultClient,
+      defaultInputs,
+      defaultPortfolio,
+      settings,
+      [],
+      {
+        pathsPerEval: 50,
+        peStepsCoarse: [0, 10],
+        refinementTopN: 2,
+      },
+    );
+    expect(r.ranked[0].score).toBeGreaterThanOrEqual(r.baseline.score);
+  });
+
+  test("Drawdown stammt aus Engine (r.maxDrawdown), nicht aus Cashflow-Pfad", () => {
+    // Erwartet: maxDrawdown ist als Anteil 0..1 gespeichert. Realistisch für
+    // ein Standard-3-Topf-Portfolio: 20–60 % Markt-Drawdown.
+    // FAILURE-Modus (Bug vorher): wäre nahe 1.0 (100 %), weil Median-Pfad
+    // bis €0 läuft und peak-to-trough auf dem Cashflow-Pfad gerechnet wurde.
+    const r = optimizePortfolio(
+      defaultClient,
+      defaultInputs,
+      defaultPortfolio,
+      settings,
+      [],
+      { pathsPerEval: 50, peStepsCoarse: [0], refinementTopN: 1 },
+    );
+    for (const entry of r.ranked) {
+      expect(entry.maxDrawdown).toBeGreaterThanOrEqual(0);
+      expect(entry.maxDrawdown).toBeLessThan(0.95);
+    }
   });
 
   test("Reproduzierbarkeit: gleicher Seed → identische Top-3", () => {
