@@ -19,11 +19,12 @@ import {
   ReferenceLine,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
+import { getLocalizedCrisis } from "@/lib/engine/historicalCrises";
 
 export function HistoricalAnalysisSection() {
   const { state } = useAppState();
   const { historicalResult, client } = state;
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   if (!historicalResult) {
     return (
@@ -44,11 +45,72 @@ export function HistoricalAnalysisSection() {
     success: s.success,
   }));
 
-  // Drawdowns als negative Zahlen — ein Verlust ist konventionell < 0.
-  const drawdownData = scenarios.map((s) => ({
-    startYear: s.startYear,
-    maxDrawdown: -Math.round(s.maxDrawdown * 100 * 10) / 10,
-  }));
+  // ──────────────────────────────────────────
+  // Stresstest-Daten
+  // ──────────────────────────────────────────
+  // Pro Startjahr: Portfolio-Verlust (= maxDrawdown, negativ) plus die
+  // Krise, in deren Kalenderjahr der schlimmste Einzelpunkt fiel.
+  // `worstYear` kommt aus der Engine (`historical.ts`) — Jahr mit dem
+  // niedrigsten Portfolio-Return innerhalb des Pfads.
+  const stressData = scenarios.map((s) => {
+    const crisis = getLocalizedCrisis(s.worstYear, locale);
+    const dd = -Math.round(s.maxDrawdown * 100 * 10) / 10;
+    return {
+      startYear: s.startYear,
+      maxDrawdown: dd,
+      worstYear: s.worstYear,
+      worstReturnPct: Math.round(s.worstReturn * 10) / 10,
+      crisisName: crisis?.name ?? t("hist.crisis.normalDecline"),
+      crisisDesc: crisis?.description ?? t("hist.crisis.normalDeclineDesc"),
+      // Farbintensität: tiefere Drawdowns kräftiger.
+      severity: Math.abs(dd) >= 30 ? "deep" : Math.abs(dd) >= 15 ? "mid" : "shallow",
+    };
+  });
+
+  // Eigener Tooltip für den Stresstest: Krisenname + Beschreibung +
+  // Portfolio-Verlust + schlechtestes Einzeljahr im Pfad.
+  // Wird unten an die `Tooltip`-Komponente von Recharts als `content` übergeben.
+  type StressDatum = (typeof stressData)[number];
+  function StressTooltip({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: Array<{ payload: StressDatum }>;
+  }) {
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
+    return (
+      <div
+        className="rounded-md border border-slate-200 bg-white shadow-md p-3 max-w-xs text-[12px] leading-snug"
+        data-design-id="stress-tooltip"
+      >
+        <div className="font-semibold text-slate-900">
+          {t("hist.stress.startYearLabel")}: {d.startYear}
+        </div>
+        <div className="mt-1 text-rose-700 font-bold text-base">
+          {d.maxDrawdown.toFixed(1)} %
+        </div>
+        <div className="mt-2 text-slate-700">
+          <span className="font-semibold">{d.crisisName}</span>
+          <span className="text-slate-400"> · {d.worstYear}</span>
+        </div>
+        <div className="mt-1 text-slate-500">{d.crisisDesc}</div>
+        {Number.isFinite(d.worstReturnPct) && (
+          <div className="mt-2 text-slate-400 text-[11px]">
+            {t("hist.stress.worstYearReturn")}: {d.worstReturnPct.toFixed(1)} %
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Bar-Farbe je nach Drawdown-Tiefe — visuelle Heatmap-Funktion.
+  const barColor = (severity: string) => {
+    if (severity === "deep") return "#A60B16";   // tiefes Bordeaux
+    if (severity === "mid") return "#D31220";    // SHC-Rot
+    return "#F08A92";                            // helles Rosa
+  };
 
   const successColor = overallSuccessRate >= 90
     ? "text-[#5a8a50]"
@@ -244,38 +306,67 @@ export function HistoricalAnalysisSection() {
         </CardContent>
       </Card>
 
-      <Card data-design-id="hist-drawdown-chart-card">
+      <Card data-design-id="hist-stress-chart-card">
         <CardHeader>
-          <CardTitle data-design-id="hist-drawdown-chart-title">{t("hist.drawdownByStart")}</CardTitle>
+          <CardTitle data-design-id="hist-stress-chart-title">{t("hist.stressByStart")}</CardTitle>
+          <p className="text-xs text-slate-500 mt-1" data-design-id="hist-stress-chart-subtitle">
+            {t("hist.stressByStartSubtitle")}
+          </p>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={drawdownData} margin={{ top: 10, right: 20, left: 20, bottom: 10 }}>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart
+              data={stressData}
+              margin={{ top: 10, right: 20, left: 20, bottom: 10 }}
+              data-design-id="hist-stress-chart"
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="startYear"
                 tick={{ fontSize: 10 }}
+                label={{
+                  value: t("hist.stress.startYearLabel"),
+                  position: "insideBottom",
+                  offset: -2,
+                  style: { fontSize: 11, fill: "#64748b" },
+                }}
               />
               <YAxis
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v) => `${v}%`}
                 domain={["auto", 0]}
+                label={{
+                  value: t("hist.stress.lossLabel"),
+                  angle: -90,
+                  position: "insideLeft",
+                  style: { fontSize: 11, fill: "#64748b" },
+                }}
               />
-              <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
-              <Tooltip
-                formatter={(value) => `${(Number(value) || 0).toFixed(1)}%`}
-                contentStyle={{ fontSize: 12, borderRadius: 8 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="maxDrawdown"
-                stroke="#D31220"
-                strokeWidth={2}
-                dot={{ r: 3, fill: "#D31220" }}
-                name={t("hist.maxDD")}
-              />
-            </LineChart>
+              <ReferenceLine y={0} stroke="#475569" strokeWidth={1.5} />
+              <Tooltip content={<StressTooltip />} cursor={{ fill: "rgba(211,18,32,0.06)" }} />
+              <Bar dataKey="maxDrawdown" name={t("hist.stress.lossLabel")} radius={[0, 0, 3, 3]}>
+                {stressData.map((d, idx) => (
+                  <Cell key={`stress-${idx}`} fill={barColor(d.severity)} />
+                ))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
+
+          {/* Legende: erklärt Farbcodierung der Balken */}
+          <div className="flex flex-wrap gap-4 mt-3 text-[11px] text-slate-600" data-design-id="stress-legend">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#F08A92" }} />
+              {t("hist.stress.legendShallow")}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#D31220" }} />
+              {t("hist.stress.legendMid")}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#A60B16" }} />
+              {t("hist.stress.legendDeep")}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
