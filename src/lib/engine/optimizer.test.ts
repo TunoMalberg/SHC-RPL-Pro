@@ -150,6 +150,31 @@ describe("computeObjective", () => {
     const a = computeObjective("success_wealth", 80, 1_000_000, 0, 0);
     expect(a).toBeCloseTo(0.8 * 6, 6); // log10(1e6) = 6
   });
+
+  test("'success_wealth' Mean-Fallback bei Median = 0 (marginale Pläne)", () => {
+    // Marginaler Plan: Erfolg 35 %, Median = 0 €, Mean = 700.000 €,
+    // Startkapital 1 M €. Ohne Mean-Fallback wäre Score = 0 (alle Pläne
+    // gleich); mit Fallback: Score = 0.35 × 0.7 = 0.245.
+    const score = computeObjective("success_wealth", 35, 0, 0, 1_000_000, 700_000);
+    expect(score).toBeCloseTo(0.35 * 0.7, 6);
+  });
+
+  test("'success_wealth' Mean-Fallback differenziert PE-Verbesserung bei p<50 %", () => {
+    // Beispiel aus Audit: gleiche c/b/e, PE 0 % vs PE 25 %.
+    // Beide haben Median = 0, aber Mean unterscheidet sich.
+    const pe0 = computeObjective("success_wealth", 37.56, 0, 0.407, 1_000_000, 710_000);
+    const pe25 = computeObjective("success_wealth", 40.98, 0, 0.407, 1_000_000, 760_000);
+    expect(pe25).toBeGreaterThan(pe0);
+    // Improvement: kombinierter Effekt aus +3.42 Pp Erfolg und +5 % Mean
+    expect((pe25 - pe0) / pe0).toBeGreaterThan(0.10); // ~14 %
+  });
+
+  test("'success_wealth' bevorzugt Median wenn > 0 (gesunder Plan)", () => {
+    // Bei Erfolg > 50 % ist Median > 0 → Mean wird ignoriert.
+    // Score = 0.8 × 1.5 = 1.2 (egal welcher Mean übergeben wird).
+    const a = computeObjective("success_wealth", 80, 1_500_000, 0, 1_000_000, 999_999_999);
+    expect(a).toBeCloseTo(1.2, 6);
+  });
 });
 
 describe("wilsonScoreInterval", () => {

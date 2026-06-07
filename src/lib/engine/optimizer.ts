@@ -411,6 +411,7 @@ export function evaluateAllocation(
     r.medianFinalWealth,
     ddFraction,
     inputs.initialCapital,
+    r.meanFinalWealth,
   );
 
   return {
@@ -545,6 +546,7 @@ export function computeObjective(
   medianFinalWealth: number,
   maxDrawdown: number,
   initialCapital: number = 0,
+  meanFinalWealth?: number,
 ): number {
   const success01 = successRate / 100;
   switch (objective) {
@@ -560,21 +562,26 @@ export function computeObjective(
     }
 
     case "success_wealth": {
-      // NEU (wissenschaftlich sauberer):
-      //   Score = p × (W_median / W_initial)
+      // Score = p × (W_eff / W_initial), wo W_eff:
+      //   - bevorzugt der Median (zentrale Tendenz, robust gegen Ausreißer)
+      //   - bei Plänen mit Erfolg < 50 % ist der Median = 0 €. Dann fällt
+      //     der Score auf null und KEINE Allokation wird unterscheidbar.
+      //     Lösung: Fallback auf den Mean (= probabilitätsgewichtetes
+      //     Erwartungs­vermögen, wo gescheiterte Pfade als 0 in den
+      //     Mittelwert eingehen). Das macht den Score bei marginalen Plänen
+      //     wieder monoton in den eigentlichen Verbesserungen (Asset-Mix,
+      //     PE-Quote, Rebalancing).
       //
-      // Interpretation: erwartetes (= mit Erfolgswkt. gewichtetes) Median-
-      // Vermögensvielfaches des Startkapitals. Ein Score von 1.5 bedeutet:
-      // im Erfolgsfall (gewichtet mit p) bleibt am Lebensende 1.5× das
-      // Startkapital übrig. Symmetrisch, einheitsfrei, ohne ad-hoc
-      // log-Skalierung. Nullschwelle (Score < 0) ist mathematisch
-      // ausgeschlossen, da W_median ≥ 0 und p ∈ [0, 1].
+      // Interpretation: „erwartetes Vermögensvielfaches am Lebensende,
+      // gewichtet mit Erfolgswahrscheinlichkeit". Score = 1.5 bedeutet:
+      // Vermögen bleibt im Erwartungswert auf 1.5× Startkapital.
       //
-      // Fallback: Bei initialCapital ≤ 0 (UI-Defaultwerte) → log-Skalierung
-      // wie zuvor, damit der Score nicht NaN wird.
+      // Fallback Fallback: initialCapital ≤ 0 → log-Skala (UI-Defaultwerte).
       if (initialCapital > 0) {
-        const wealthMultiple = Math.max(0, medianFinalWealth) / initialCapital;
-        return success01 * wealthMultiple;
+        const wMedian = Math.max(0, medianFinalWealth);
+        const wMean = Math.max(0, meanFinalWealth ?? 0);
+        const wEff = wMedian > 0 ? wMedian : wMean;
+        return success01 * (wEff / initialCapital);
       }
       const w = Math.max(1, medianFinalWealth);
       return success01 * Math.log10(w);
