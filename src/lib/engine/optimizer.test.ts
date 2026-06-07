@@ -12,6 +12,7 @@ import {
   currentAllocationOf,
   buildPortfolioFromAllocation,
   optimizePortfolio,
+  wilsonScoreInterval,
 } from "./optimizer";
 import { defaultClient, defaultInputs, defaultPortfolio } from "../defaults";
 import type { SimulationSettings } from "../types";
@@ -133,11 +134,63 @@ describe("computeObjective", () => {
     expect(computeObjective("success_dd", 90, 1_000_000, 1.5)).toBe(0);
   });
 
-  test("'success_wealth' belohnt höheres Endvermögen, aber log-skaliert", () => {
-    const a = computeObjective("success_wealth", 80, 1_000_000, 0);
-    const b = computeObjective("success_wealth", 80, 10_000_000, 0);
-    // log10(1e6)=6, log10(1e7)=7; b/a = 7/6 ≈ 1.167
-    expect(b / a).toBeCloseTo(7 / 6, 2);
+  test("'success_wealth' = p × (W_median / W_initial), wenn initialCapital > 0", () => {
+    // Erfolg 80 %, Median 1.5 M, Startkapital 1 M → Score = 0.8 × 1.5 = 1.2
+    const score = computeObjective("success_wealth", 80, 1_500_000, 0, 1_000_000);
+    expect(score).toBeCloseTo(1.2, 6);
+  });
+
+  test("'success_wealth' bei doppeltem Endvermögen → doppelter Score (linear)", () => {
+    const a = computeObjective("success_wealth", 80, 1_000_000, 0, 1_000_000);
+    const b = computeObjective("success_wealth", 80, 2_000_000, 0, 1_000_000);
+    expect(b / a).toBeCloseTo(2.0, 6);
+  });
+
+  test("'success_wealth' Fallback (kein Startkapital) → log-Skala", () => {
+    const a = computeObjective("success_wealth", 80, 1_000_000, 0, 0);
+    expect(a).toBeCloseTo(0.8 * 6, 6); // log10(1e6) = 6
+  });
+});
+
+describe("wilsonScoreInterval", () => {
+  test("p=0.5, n=1000: SE ≈ 1.6 Pp, CI-Halbweite ≈ 3.1 Pp", () => {
+    const ci = wilsonScoreInterval(0.5, 1000);
+    expect(ci.low).toBeGreaterThan(0.45);
+    expect(ci.low).toBeLessThan(0.48);
+    expect(ci.high).toBeGreaterThan(0.52);
+    expect(ci.high).toBeLessThan(0.55);
+    // Mitte muss bei p liegen (für p=0.5 ist Wilson-Mitte exakt 0.5)
+    expect((ci.low + ci.high) / 2).toBeCloseTo(0.5, 2);
+  });
+
+  test("p=0 robustes Verhalten (Wilson > 0)", () => {
+    const ci = wilsonScoreInterval(0, 1000);
+    expect(ci.low).toBe(0);
+    expect(ci.high).toBeGreaterThan(0);
+    expect(ci.high).toBeLessThan(0.01);
+  });
+
+  test("p=1 robustes Verhalten (Wilson < 1)", () => {
+    const ci = wilsonScoreInterval(1, 1000);
+    expect(ci.high).toBe(1);
+    expect(ci.low).toBeLessThan(1);
+    expect(ci.low).toBeGreaterThan(0.99);
+  });
+
+  test("Größeres n → schmaleres Intervall (1/√n)", () => {
+    const ci1k = wilsonScoreInterval(0.5, 1000);
+    const ci5k = wilsonScoreInterval(0.5, 5000);
+    const w1k = ci1k.high - ci1k.low;
+    const w5k = ci5k.high - ci5k.low;
+    // Verhältnis sollte ungefähr √5 ≈ 2.24 sein
+    expect(w1k / w5k).toBeGreaterThan(2.0);
+    expect(w1k / w5k).toBeLessThan(2.5);
+  });
+
+  test("n=0 → degeneriertes [0, 1]", () => {
+    const ci = wilsonScoreInterval(0.5, 0);
+    expect(ci.low).toBe(0);
+    expect(ci.high).toBe(1);
   });
 });
 
@@ -245,84 +298,67 @@ describe("buildPortfolioFromAllocation", () => {
 
 describe("optimizePortfolio — End-to-End (langsam)", () => {
   const settings: SimulationSettings = {
-    numSimulations: 100, // wird intern auf pathsPerEval umgesetzt
+    numSimulations: 100, // Default wird intern überschrieben
     timeStepMonths: 12,
     mode: "fixed_withdrawal",
     randomSeed: 42,
   };
 
+  // Stark reduzierte Pfadzahlen, damit Test-Suite < 10 s bleibt.
+  const fastOpts = {
+    pathsPhase12: 50,
+    pathsPhase3: 100,
+    peStepsCoarse: [0, 10],
+    refinementTopN: 2,
+    reEvalTopN: 5,
+  };
+
   test("liefert sortierte Liste mit ranked.length > 0", () => {
-    const r = optimizePortfolio(
-      defaultClient,
-      defaultInputs,
-      defaultPortfolio,
-      settings,
-      [],
-      {
-        pathsPerEval: 50, // klein für Test
-        peStepsCoarse: [0, 10], // reduziert für Test-Speed
-        refinementTopN: 2,
-      },
-    );
+    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
     expect(r.ranked.length).toBeGreaterThan(10);
     expect(r.evaluations).toBe(r.ranked.length);
-    // Sortierung absteigend nach Score
     for (let i = 1; i < r.ranked.length; i++) {
       expect(r.ranked[i - 1].score).toBeGreaterThanOrEqual(r.ranked[i].score);
     }
   });
 
-  test("Baseline ist im Ergebnis vorhanden und vergleichbar (gleiche Pfadzahl)", () => {
-    const r = optimizePortfolio(
-      defaultClient,
-      defaultInputs,
-      defaultPortfolio,
-      settings,
-      [],
-      {
-        pathsPerEval: 50,
-        peStepsCoarse: [0],
-        refinementTopN: 1,
-      },
-    );
+  test("Baseline wird mit pathsPhase3 (höchste Genauigkeit) bewertet", () => {
+    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
     expect(r.baseline).toBeDefined();
+    expect(r.baseline.pathsUsed).toBe(fastOpts.pathsPhase3);
     expect(Number.isFinite(r.baseline.successRate)).toBe(true);
-    expect(r.baseline.successRate).toBeGreaterThanOrEqual(0);
-    expect(r.baseline.successRate).toBeLessThanOrEqual(100);
   });
 
-  test("Optimum >= Baseline (kein negativer Score-Gap durch Sampling-Rauschen)", () => {
-    // Da Baseline IMMER explizit ins Suchgitter aufgenommen wird, MUSS das
-    // ranked[0] (mit derselben pathsPerEval und seed) mindestens so gut sein
-    // wie die Baseline. Sonst ist die Suche kaputt.
-    const r = optimizePortfolio(
-      defaultClient,
-      defaultInputs,
-      defaultPortfolio,
-      settings,
-      [],
-      {
-        pathsPerEval: 50,
-        peStepsCoarse: [0, 10],
-        refinementTopN: 2,
-      },
-    );
+  test("Phase 3: Top-N Einträge wurden mit pathsPhase3 re-evaluiert", () => {
+    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    // Die Top-N (= reEvalTopN) Einträge müssen pathsUsed === pathsPhase3 haben.
+    // Achtung: ranked[] ist nach Score sortiert, nicht nach pathsUsed.
+    const reEvaluated = r.ranked.filter((x) => x.pathsUsed === fastOpts.pathsPhase3);
+    // Mindestens 'reEvalTopN' Einträge wurden mit Phase 3 bewertet
+    // (plus Baseline, falls nicht in Top-N).
+    expect(reEvaluated.length).toBeGreaterThanOrEqual(fastOpts.reEvalTopN);
+    // Restliche Einträge nutzen pathsPhase12.
+    const lowPaths = r.ranked.filter((x) => x.pathsUsed === fastOpts.pathsPhase12);
+    expect(lowPaths.length).toBeGreaterThan(0);
+  });
+
+  test("Wilson-CI ist befüllt und konsistent (low ≤ rate ≤ high)", () => {
+    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    for (const entry of r.ranked) {
+      expect(entry.successRateCiLow).toBeLessThanOrEqual(entry.successRate);
+      expect(entry.successRateCiHigh).toBeGreaterThanOrEqual(entry.successRate);
+      expect(entry.successRateCiLow).toBeGreaterThanOrEqual(0);
+      expect(entry.successRateCiHigh).toBeLessThanOrEqual(100);
+    }
+  });
+
+  test("Optimum >= Baseline (Score-Monotonie über alle Phasen)", () => {
+    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
     expect(r.ranked[0].score).toBeGreaterThanOrEqual(r.baseline.score);
   });
 
-  test("Drawdown stammt aus Engine (r.maxDrawdown), nicht aus Cashflow-Pfad", () => {
-    // Erwartet: maxDrawdown ist als Anteil 0..1 gespeichert. Realistisch für
-    // ein Standard-3-Topf-Portfolio: 20–60 % Markt-Drawdown.
-    // FAILURE-Modus (Bug vorher): wäre nahe 1.0 (100 %), weil Median-Pfad
-    // bis €0 läuft und peak-to-trough auf dem Cashflow-Pfad gerechnet wurde.
-    const r = optimizePortfolio(
-      defaultClient,
-      defaultInputs,
-      defaultPortfolio,
-      settings,
-      [],
-      { pathsPerEval: 50, peStepsCoarse: [0], refinementTopN: 1 },
-    );
+  test("Drawdown stammt aus Engine, alle realistisch (< 0.95)", () => {
+    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
     for (const entry of r.ranked) {
       expect(entry.maxDrawdown).toBeGreaterThanOrEqual(0);
       expect(entry.maxDrawdown).toBeLessThan(0.95);
@@ -330,12 +366,7 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
   });
 
   test("Reproduzierbarkeit: gleicher Seed → identische Top-3", () => {
-    const opts = {
-      pathsPerEval: 50,
-      peStepsCoarse: [0],
-      refinementTopN: 1,
-      randomSeed: 123,
-    };
+    const opts = { ...fastOpts, randomSeed: 123 };
     const a = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], opts);
     const b = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], opts);
     for (let i = 0; i < 3; i++) {
@@ -344,5 +375,10 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
       expect(a.ranked[i].equities).toBe(b.ranked[i].equities);
       expect(a.ranked[i].score).toBeCloseTo(b.ranked[i].score, 6);
     }
+  });
+
+  test("Default-Objective ist 'success_wealth'", () => {
+    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    expect(r.objective).toBe("success_wealth");
   });
 });

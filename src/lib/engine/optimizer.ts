@@ -1,39 +1,73 @@
 /**
- * Portfolio-Optimizer (Pro-Mode-Feature)
+ * Portfolio-Optimizer (Pro-Mode-Feature) — wissenschaftliche Methodik
  *
- * Sucht über einen 4-dimensionalen Allokations-Raum (Cash, Anleihen, Aktien
- * — als Anteil des LIQUIDEN Portfolios, summieren auf 100 % — sowie PE als
- * separates Commitment in % des Startkapitals) das Portfolio mit der
- * höchsten Erfolgsquote.
+ * ──────────────────────────────────────────────────────────────────
+ * SUCHRAUM
+ * ──────────────────────────────────────────────────────────────────
+ * (cash, bonds, equities) ∈ Simplex (Summe = 100 %, Anteile des LIQUIDEN
+ *                                    Portfolios — Buckets summieren immer
+ *                                    auf 100 %, das ist die Engine-Konvention)
+ * pe ∈ {0, 5, 10, 15, 20, 25} %    (separates Commitment in % vom
+ *                                    Startkapital, Capital Calls aus Cash)
  *
- * WICHTIG: Mental-Modell der Engine
- *   - bucket.allocation SUMMIERT IMMER AUF 100 % (Anteile am liquiden Topf).
- *   - peFund.commitment ist ein zusätzliches € Commitment, das über Capital
- *     Calls aus dem Cash-Bucket gezogen wird. Es "verbraucht" also Liquidität,
- *     ändert aber nicht die Bucket-Allokationen.
- *   - Daher: Optimizer-Suche enumeriert (c, b, e) ∈ Simplex sum=100 UND
- *     getrennt davon pe ∈ {0, 5, 10, 15, 20, 25} %. Das sind zwei unabhängige
- *     Achsen — nicht ein 4-Simplex.
+ * Beide Achsen sind orthogonal — kein 4-Simplex.
  *
- * Suchstrategie: Coarse-to-Fine
- *   Phase 1: 10 %-Grid (c,b,e) × pe ∈ {0, 10, 20}  → ~165 Kombinationen
- *   Phase 2: 5 %-Grid um die Top-N + um die Baseline → ~30-100 Kombinationen
+ * ──────────────────────────────────────────────────────────────────
+ * SUCHSTRATEGIE: Two-Stage Ranking-and-Selection (Kim & Nelson 2001)
+ * ──────────────────────────────────────────────────────────────────
+ * Phase 1 — Coarse Grid:
+ *   10 %-Raster auf (c, b, e), pe ∈ {0, 10, 20}, plus Baseline.
+ *   ≈ 165 Allokationen × 1000 MC-Pfade.
  *
- * Pro Kombination wird `runMonteCarloSimulation` mit reduzierter Pfadzahl
- * (Default 200) aufgerufen. Das ist 25× schneller als die Standard-Sim
- * (5000 Pfade) und liefert für das *Ranking* hinreichend stabile
- * Erfolgsquoten (95 %-KI ≈ ±3 Pp bei Erfolgsquote ~50 %).
+ * Phase 2 — Fine Refinement:
+ *   5 %-Raster ±10 % um Top-3 von Phase 1 + um Baseline.
+ *   pe ∈ {0, 5, 10, 15, 20, 25}.
+ *   ≈ 50–100 zusätzliche Allokationen × 1000 MC-Pfade.
  *
- * Zielfunktionen:
- *   'success'         : reine Erfolgsquote
- *   'success_dd'      : Erfolg mit Drawdown-Penalty (DD > 35 % wird abgewertet)
- *   'success_wealth'  : Erfolg × normalisiertes Median-Endvermögen
+ * Phase 3 — Re-Evaluation der Top-10 (defeats Winner's Curse):
+ *   Top-10 nach Phase 1+2 werden mit 5000 MC-Pfaden re-evaluiert.
+ *   Damit wird der Optimization Bias (Goldfarb & Iyengar 2003) reduziert,
+ *   der bei naive max-of-N-Selection auf 215 verrauschten Schätzern
+ *   ~1–2 Pp Überschätzung des wahren Optimums erzeugen würde.
  *
- * Wichtig: Die Engine bleibt unverändert. Der Optimizer ist eine reine
- * Hülle, die viele Konfigurationen durchprobiert. Damit ist der Code im
- * gesamten App-Stack mathematisch konsistent — wenn die Hauptsim für ein
- * Portfolio 87 % Erfolg sagt, sagt sie das auch hier (mit ggf. ±3 Pp
- * Sample-Rauschen wegen kleinerer Pfadzahl).
+ * ──────────────────────────────────────────────────────────────────
+ * VARIANCE REDUCTION
+ * ──────────────────────────────────────────────────────────────────
+ * - Common Random Numbers (CRN): identischer randomSeed über alle
+ *   Allokationen. Damit werden Allokationen auf IDENTISCHEN
+ *   Marktszenarien verglichen — paarweise Differenzen sind ~5–10×
+ *   präziser als unabhängige Samples (Glasserman 2004, Ch. 4).
+ * - Antithetic variates und Stratified Sampling: nicht implementiert
+ *   (würde Engine-Eingriff erfordern).
+ *
+ * ──────────────────────────────────────────────────────────────────
+ * STATISTISCHE INFERENZE
+ * ──────────────────────────────────────────────────────────────────
+ * - 95 %-Konfidenzintervall der Erfolgsquote (Wilson Score Interval —
+ *   robuster als Wald-Approximation bei Quoten nahe 0 oder 1; Wilson
+ *   1927; Brown, Cai & DasGupta 2001).
+ * - Multiple-Testing-Hinweis: Bei ≈215 simultanen Vergleichen kann ein
+ *   beobachteter Vorsprung von 1–2 Pp durch Mehrfachvergleichs-Inflation
+ *   erklärt werden (Romano-Wolf 2005). Phase 3 reduziert dies, ersetzt
+ *   aber keine formale Korrektur.
+ *
+ * ──────────────────────────────────────────────────────────────────
+ * ZIELFUNKTIONEN
+ * ──────────────────────────────────────────────────────────────────
+ * 'success'        : reine Erfolgsquote p ∈ [0, 1]
+ * 'success_dd'     : p, abgewertet bei Markt-Drawdown > 35 % (lineare Strafe)
+ * 'success_wealth' : DEFAULT. p × (W_median / W_initial) — interpretierbar
+ *                    als „erwartetes Vermögensvielfaches, gewichtet mit
+ *                    Erfolgswahrscheinlichkeit". Symmetrisch, einheitsfrei,
+ *                    ökonomisch interpretierbar.
+ *
+ * ──────────────────────────────────────────────────────────────────
+ * KONSISTENZ MIT HAUPT-SIMULATION
+ * ──────────────────────────────────────────────────────────────────
+ * Der Optimizer ruft `runMonteCarloSimulation` ohne jede Code-Änderung
+ * auf. Wenn die Hauptsim für ein Portfolio X % Erfolg meldet, meldet
+ * der Optimizer dasselbe (modulo Stichprobenrauschen aus reduzierter
+ * Pfadzahl). Damit ist der gesamte App-Stack mathematisch konsistent.
  */
 
 import { runMonteCarloSimulation } from "./montecarlo";
@@ -53,12 +87,22 @@ import type {
 export type OptimizerObjective = "success" | "success_dd" | "success_wealth";
 
 export interface OptimizerOptions {
-  /** Zielfunktion (Default: 'success'). */
+  /** Zielfunktion (Default: 'success_wealth' — Erfolg × Vermögensvielfaches). */
   objective?: OptimizerObjective;
-  /** MC-Pfade pro Allokation (Default 200). Höher = stabiler, langsamer. */
-  pathsPerEval?: number;
+  /**
+   * MC-Pfade in Phase 1+2 (Default 1000). Liefert SE ≈ 1.6 Pp bei p=0.5.
+   * Reduziert nur für schnelle Tests sinnvoll.
+   */
+  pathsPhase12?: number;
+  /**
+   * MC-Pfade in Phase 3 (Re-Evaluation Top-10). Default 5000 — passend zur
+   * Haupt-Simulation. Defeats Winner's Curse.
+   */
+  pathsPhase3?: number;
   /** Top-N-Kandidaten für Phase-2-Verfeinerung (Default 3). */
   refinementTopN?: number;
+  /** Top-N für Phase-3 Re-Evaluation mit hoher Präzision (Default 10). */
+  reEvalTopN?: number;
   /** Globaler Seed für reproduzierbare Optimierungs-Läufe. */
   randomSeed?: number;
   /**
@@ -67,11 +111,7 @@ export interface OptimizerOptions {
    * können in der Praxis nicht rebalanced werden.
    */
   minCashPct?: number;
-  /**
-   * Erlaubte PE-Stufen in % (Default [0, 10, 20]; in Phase 2 verfeinert).
-   * Bei MIFID 'defensive' wird das automatisch auf [0] reduziert (siehe
-   * `applyMifidGuards`).
-   */
+  /** Erlaubte PE-Stufen in Phase 1 (Default [0, 10, 20]). */
   peStepsCoarse?: number[];
   /**
    * Optionaler Progress-Callback (0..1). Wird ungefähr 10× während des Laufs
@@ -92,11 +132,17 @@ export interface AllocationCandidate {
 }
 
 export interface AllocationResult extends AllocationCandidate {
-  /** Erfolgsquote in % aus der Mini-MC. */
+  /** Erfolgsquote in % (0..100). */
   successRate: number;
+  /** 95 %-Wilson-Score-CI: untere Schranke der Erfolgsquote in %. */
+  successRateCiLow: number;
+  /** 95 %-Wilson-Score-CI: obere Schranke der Erfolgsquote in %. */
+  successRateCiHigh: number;
+  /** MC-Pfade, mit denen diese Allokation bewertet wurde (1000 oder 5000). */
+  pathsUsed: number;
   /** Median-Endvermögen in €. */
   medianFinalWealth: number;
-  /** Maximaler Drawdown im Median-Pfad, als Anteil (0..1). */
+  /** Markt-Drawdown (reine Marktrendite-Komponente, ohne Cashflow-Drift), 0..1. */
   maxDrawdown: number;
   /** Score gemäß gewählter Zielfunktion (höher = besser). */
   score: number;
@@ -105,13 +151,18 @@ export interface AllocationResult extends AllocationCandidate {
 export interface OptimizerResult {
   /** Verwendete Konfiguration. */
   objective: OptimizerObjective;
-  pathsPerEval: number;
-  /** Alle bewerteten Allokationen, **nach Score absteigend** sortiert. */
+  pathsPhase12: number;
+  pathsPhase3: number;
+  /**
+   * Alle bewerteten Allokationen, **nach Score absteigend** sortiert.
+   * Top-N (= reEvalTopN) wurden mit pathsPhase3 (5000) re-evaluiert,
+   * der Rest mit pathsPhase12 (1000). Siehe `pathsUsed` pro Eintrag.
+   */
   ranked: AllocationResult[];
   /**
-   * Bewertung der aktuellen Berater-Allokation (= Ausgangs-Portfolio). Mit
-   * derselben Pfadzahl, gleichem Seed → fair vergleichbar mit den `ranked`-
-   * Einträgen.
+   * Bewertung der aktuellen Berater-Allokation (= Ausgangs-Portfolio).
+   * Wird IMMER mit pathsPhase3 (5000) bewertet, damit der angezeigte
+   * Vergleich „Optimum vs. Aktuell" auf gleicher statistischer Basis steht.
    */
   baseline: AllocationResult;
   /** Anzahl ausgewerteter Allokationen (= ranked.length). */
@@ -134,101 +185,125 @@ export function optimizePortfolio(
   options: OptimizerOptions = {},
 ): OptimizerResult {
   const t0 = Date.now();
-  const objective = options.objective ?? "success";
-  const pathsPerEval = options.pathsPerEval ?? 200;
+  const objective = options.objective ?? "success_wealth";
+  const pathsPhase12 = options.pathsPhase12 ?? 1000;
+  const pathsPhase3 = options.pathsPhase3 ?? 5000;
   const minCashPct = options.minCashPct ?? 5;
   const refinementTopN = options.refinementTopN ?? 3;
+  const reEvalTopN = options.reEvalTopN ?? 10;
   const seed = options.randomSeed ?? settings.randomSeed ?? 42;
   const peStepsCoarse = options.peStepsCoarse ?? [0, 10, 20];
 
-  const evaluatedKey = new Set<string>();
+  const evaluatedKey = new Map<string, AllocationResult>();
   const all: AllocationResult[] = [];
-  const evaluator = (alloc: AllocationCandidate): AllocationResult | null => {
+
+  /**
+   * Bewertet eine Allokation und schreibt sie in `all` (oder ersetzt eine
+   * vorherige Bewertung mit höherer Pfadzahl in `all`, wenn die neue
+   * Bewertung präziser ist — wichtig für Phase 3).
+   */
+  const evaluator = (
+    alloc: AllocationCandidate,
+    paths: number,
+  ): AllocationResult | null => {
     const key = `${alloc.cash}-${alloc.bonds}-${alloc.equities}-${alloc.pe}`;
-    if (evaluatedKey.has(key)) return null;
-    evaluatedKey.add(key);
+    const previous = evaluatedKey.get(key);
+    // Nur neu bewerten, wenn noch nicht bewertet ODER die neue Bewertung
+    // präziser ist (mehr Pfade).
+    if (previous && previous.pathsUsed >= paths) return previous;
+
     const r = evaluateAllocation(
       alloc,
       client,
       inputs,
       basePortfolio,
-      { ...settings, numSimulations: pathsPerEval, randomSeed: seed },
+      { ...settings, numSimulations: paths, randomSeed: seed },
       liquidityEvents,
       objective,
     );
-    all.push(r);
+    if (previous) {
+      // In-place ersetzen: gleiche Position in `all`.
+      const idx = all.indexOf(previous);
+      if (idx >= 0) all[idx] = r;
+    } else {
+      all.push(r);
+    }
+    evaluatedKey.set(key, r);
     return r;
   };
 
-  // ── Baseline IMMER zuerst auswerten ─────────────────────────────
-  // Garantiert, dass die aktuelle Allokation im Suchraum erscheint und mit
-  // identischer Pfadzahl + Seed bewertet wird. Sonst kann (durch Sampling-
-  // Rauschen) das beste gefundene Optimum schlechter als die Baseline
-  // erscheinen, obwohl der Suchraum die Baseline mathematisch enthält.
-  options.onProgress?.(0.05, "baseline");
+  // ── Phase 0: Baseline (Phase-3-Genauigkeit, da das die Vergleichs-
+  // referenz für die UI ist) ──────────────────────────────────────
+  options.onProgress?.(0.02, "baseline");
   const baselineAlloc = currentAllocationOf(basePortfolio, inputs.initialCapital);
-  evaluator(baselineAlloc);
+  evaluator(baselineAlloc, pathsPhase3);
 
-  // ── Phase 1: 10 %-Grid ──────────────────────────────────────────
-  options.onProgress?.(0.08, "phase1_start");
+  // ── Phase 1: 10 %-Grid mit pathsPhase12 (1000 Pfade) ────────────
+  options.onProgress?.(0.05, "phase1_start");
   const coarseGrid = enumerateAllocations(10, peStepsCoarse, minCashPct);
   for (let i = 0; i < coarseGrid.length; i++) {
-    evaluator(coarseGrid[i]);
+    evaluator(coarseGrid[i], pathsPhase12);
     if (options.onProgress && i % 20 === 0) {
-      options.onProgress(0.08 + 0.62 * (i / coarseGrid.length), "phase1_running");
+      options.onProgress(0.05 + 0.55 * (i / coarseGrid.length), "phase1_running");
     }
   }
-  options.onProgress?.(0.7, "phase1_done");
+  options.onProgress?.(0.6, "phase1_done");
 
-  // ── Phase 2: 5 %-Grid um die Top-N + um die Baseline ────────────
-  // Baseline wird IMMER als Refinement-Center hinzugefügt — auch wenn ihr
-  // Score nicht in den Top-N liegt — damit das 5%-Raster die Region um die
-  // aktuelle Allokation ebenfalls abdeckt. Sonst übersieht der Optimizer
-  // ggf. minimale Anpassungen, die die Baseline schlagen würden.
+  // ── Phase 2: 5 %-Grid um Top-N + Baseline (1000 Pfade) ──────────
+  // Baseline wird auch als Refinement-Center genutzt, falls minimale
+  // Anpassungen sie schlagen würden.
   const phase1Sorted = [...all].sort((a, b) => b.score - a.score);
   const topCandidates = phase1Sorted.slice(0, Math.max(1, refinementTopN));
-  const baselineEval = all.find(
-    (r) =>
-      r.cash === baselineAlloc.cash &&
-      r.bonds === baselineAlloc.bonds &&
-      r.equities === baselineAlloc.equities &&
-      r.pe === baselineAlloc.pe,
+  const baselineEval = evaluatedKey.get(
+    `${baselineAlloc.cash}-${baselineAlloc.bonds}-${baselineAlloc.equities}-${baselineAlloc.pe}`,
   );
   const centers: AllocationResult[] =
     baselineEval && !topCandidates.includes(baselineEval)
       ? [...topCandidates, baselineEval]
       : topCandidates;
 
-  const finerPeSteps = uniqueSorted(
-    centers.flatMap((c) => [
+  const finerPeSteps = uniqueSorted([
+    0, 5, 10, 15, 20, 25,
+    ...centers.flatMap((c) => [
       Math.max(0, c.pe - 5),
       c.pe,
       Math.min(25, c.pe + 5),
     ]),
-  );
+  ]);
   const refinement = neighborhoodGrid(centers, 5, minCashPct, finerPeSteps);
   for (let i = 0; i < refinement.length; i++) {
-    evaluator(refinement[i]);
+    evaluator(refinement[i], pathsPhase12);
     if (options.onProgress && i % 5 === 0) {
-      options.onProgress(0.7 + 0.27 * (i / refinement.length), "phase2_running");
+      options.onProgress(0.6 + 0.20 * (i / refinement.length), "phase2_running");
+    }
+  }
+  options.onProgress?.(0.8, "phase2_done");
+
+  // ── Phase 3: Re-Evaluation Top-N mit pathsPhase3 (5000) ─────────
+  // Defeats Winner's Curse: nach naiver max-of-N-Selection auf 215
+  // verrauschten Schätzern ist der "Sieger" um ~1–2 Pp überschätzt.
+  // Re-Evaluation mit 5× mehr Pfaden reduziert das.
+  const phase2Sorted = [...all].sort((a, b) => b.score - a.score);
+  const reEvalSet = phase2Sorted.slice(0, Math.max(1, reEvalTopN));
+  for (let i = 0; i < reEvalSet.length; i++) {
+    evaluator(reEvalSet[i], pathsPhase3);
+    if (options.onProgress) {
+      options.onProgress(0.8 + 0.18 * (i / reEvalSet.length), "phase3_running");
     }
   }
   options.onProgress?.(0.99, "done");
 
   // Finalize Baseline-Referenz aus dem (jetzt garantiert vorhandenen) Eintrag.
-  const baseline = all.find(
-    (r) =>
-      r.cash === baselineAlloc.cash &&
-      r.bonds === baselineAlloc.bonds &&
-      r.equities === baselineAlloc.equities &&
-      r.pe === baselineAlloc.pe,
+  const baseline = evaluatedKey.get(
+    `${baselineAlloc.cash}-${baselineAlloc.bonds}-${baselineAlloc.equities}-${baselineAlloc.pe}`,
   )!;
 
   options.onProgress?.(1, "done");
 
   return {
     objective,
-    pathsPerEval,
+    pathsPhase12,
+    pathsPhase3,
     ranked: [...all].sort((a, b) => b.score - a.score),
     baseline,
     evaluations: all.length,
@@ -324,21 +399,60 @@ export function evaluateAllocation(
   const portfolio = buildPortfolioFromAllocation(alloc, basePortfolio, inputs.initialCapital, client.currentAge);
   const r = runMonteCarloSimulation(client, inputs, portfolio, settings, liquidityEvents);
 
-  // FIX: r.maxDrawdown ist bereits der reine Markt-Drawdown (in % von 0–100,
-  // ohne Cashflow-Effekte). Vorher wurde computeMaxDrawdownInPath(medianPath)
-  // verwendet — das mischte den geplanten Vermögens-Spend-Down (Vermögen →
-  // €0 am Lebensende) mit Markt-Drawdown und produzierte „Drawdowns" von
-  // 90–100 % auf jedem Portfolio. Das Ranking war damit unsinnig.
-  const ddFraction = r.maxDrawdown / 100; // engine returns %, internally we want 0..1
+  // r.maxDrawdown ist seit 2026-Q2 reiner Markt-Drawdown ohne Cashflow.
+  const ddFraction = r.maxDrawdown / 100;
 
-  const score = computeObjective(objective, r.successRate, r.medianFinalWealth, ddFraction);
+  // 95 %-Wilson-Score-CI auf der Erfolgsquote.
+  const ci = wilsonScoreInterval(r.successRate / 100, settings.numSimulations);
+
+  const score = computeObjective(
+    objective,
+    r.successRate,
+    r.medianFinalWealth,
+    ddFraction,
+    inputs.initialCapital,
+  );
+
   return {
     ...alloc,
     successRate: r.successRate,
+    successRateCiLow: ci.low * 100,
+    successRateCiHigh: ci.high * 100,
+    pathsUsed: settings.numSimulations,
     medianFinalWealth: r.medianFinalWealth,
     maxDrawdown: ddFraction,
     score,
   };
+}
+
+/**
+ * Wilson-Score-Konfidenzintervall (95 %, z=1.96) für eine Binomial-Quote.
+ * Robust an den Rändern p≈0 und p≈1 (anders als Wald-Approximation).
+ *
+ * Wilson, E.B. (1927): "Probable inference, the law of succession, and
+ * statistical inference". JASA 22(158): 209–212.
+ *
+ * @param p Beobachtete Quote ∈ [0, 1]
+ * @param n Stichprobengröße
+ * @returns {low, high} ∈ [0, 1]
+ */
+export function wilsonScoreInterval(
+  p: number,
+  n: number,
+): { low: number; high: number } {
+  if (n <= 0) return { low: 0, high: 1 };
+  const z = 1.959963984540054; // Φ⁻¹(0.975) — exakter als 1.96
+  const z2 = z * z;
+  const denom = 1 + z2 / n;
+  const center = (p + z2 / (2 * n)) / denom;
+  const halfwidth = (z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / denom;
+  // Floating-point-Toleranz: Werte unter 1e-12 nahe 0/1 hart clampen.
+  const eps = 1e-12;
+  let low = Math.max(0, center - halfwidth);
+  let high = Math.min(1, center + halfwidth);
+  if (low < eps) low = 0;
+  if (high > 1 - eps) high = 1;
+  return { low, high };
 }
 
 /**
@@ -418,12 +532,19 @@ export function computeMaxDrawdownInPath(path: number[]): number {
 
 /**
  * Score-Berechnung pro Zielfunktion. Höher = besser.
+ *
+ * Ökonomisch interpretierbare Skalen:
+ *   - 'success'        : Wahrscheinlichkeit ∈ [0, 1]
+ *   - 'success_dd'     : Wahrscheinlichkeit, Drawdown-bestraft ∈ [0, 1]
+ *   - 'success_wealth' : erwartetes Vermögensvielfaches ∈ [0, ∞)
+ *                        (typisch 0.5–5 bei normalen Plänen)
  */
 export function computeObjective(
   objective: OptimizerObjective,
   successRate: number,
   medianFinalWealth: number,
   maxDrawdown: number,
+  initialCapital: number = 0,
 ): number {
   const success01 = successRate / 100;
   switch (objective) {
@@ -439,12 +560,24 @@ export function computeObjective(
     }
 
     case "success_wealth": {
-      // Erfolg × normalisiertes Endvermögen. Wir log-skalieren das Vermögen,
-      // damit ein 10× größeres Endvermögen ~Faktor 2.3 stärker gewichtet
-      // wird statt 10×; sonst dominieren extreme Outlier.
+      // NEU (wissenschaftlich sauberer):
+      //   Score = p × (W_median / W_initial)
+      //
+      // Interpretation: erwartetes (= mit Erfolgswkt. gewichtetes) Median-
+      // Vermögensvielfaches des Startkapitals. Ein Score von 1.5 bedeutet:
+      // im Erfolgsfall (gewichtet mit p) bleibt am Lebensende 1.5× das
+      // Startkapital übrig. Symmetrisch, einheitsfrei, ohne ad-hoc
+      // log-Skalierung. Nullschwelle (Score < 0) ist mathematisch
+      // ausgeschlossen, da W_median ≥ 0 und p ∈ [0, 1].
+      //
+      // Fallback: Bei initialCapital ≤ 0 (UI-Defaultwerte) → log-Skalierung
+      // wie zuvor, damit der Score nicht NaN wird.
+      if (initialCapital > 0) {
+        const wealthMultiple = Math.max(0, medianFinalWealth) / initialCapital;
+        return success01 * wealthMultiple;
+      }
       const w = Math.max(1, medianFinalWealth);
-      const logW = Math.log10(w); // typisch 5–8 für €100k–€100M
-      return success01 * logW;
+      return success01 * Math.log10(w);
     }
   }
 }

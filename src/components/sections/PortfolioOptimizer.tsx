@@ -62,24 +62,18 @@ import {
   ReferenceLine,
 } from "recharts";
 
-type SearchMode = "fast" | "standard" | "thorough";
-
-const SEARCH_MODES: Record<
-  SearchMode,
-  { pathsPerEval: number; refinementTopN: number }
-> = {
-  fast: { pathsPerEval: 100, refinementTopN: 2 },
-  standard: { pathsPerEval: 200, refinementTopN: 3 },
-  thorough: { pathsPerEval: 400, refinementTopN: 5 },
-};
+// Pfade fest verdrahtet — wissenschaftliche Standardkonfiguration:
+// Phase 1+2: 1000 Pfade (SE ≈ 1.6 Pp bei p=0.5)
+// Phase 3 (Re-Eval Top-10): 5000 Pfade (defeats Winner's Curse)
+const PATHS_PHASE12 = 1000;
+const PATHS_PHASE3 = 5000;
 
 export function PortfolioOptimizerSection() {
   const { state, dispatch } = useAppState();
   const { client, inputs, portfolio, settings, liquidityEvents } = state;
   const { t } = useI18n();
 
-  const [objective, setObjective] = useState<OptimizerObjective>("success");
-  const [searchMode, setSearchMode] = useState<SearchMode>("standard");
+  const [objective, setObjective] = useState<OptimizerObjective>("success_wealth");
   const [running, setRunning] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
@@ -117,7 +111,6 @@ export function PortfolioOptimizerSection() {
     await new Promise((r) => setTimeout(r, 30));
 
     try {
-      const { pathsPerEval, refinementTopN } = SEARCH_MODES[searchMode];
       const r = optimizePortfolio(
         client,
         inputs,
@@ -126,14 +119,14 @@ export function PortfolioOptimizerSection() {
         liquidityEvents,
         {
           objective,
-          pathsPerEval,
-          refinementTopN,
+          pathsPhase12: PATHS_PHASE12,
+          pathsPhase3: PATHS_PHASE3,
+          refinementTopN: 3,
+          reEvalTopN: 10,
           randomSeed: settings.randomSeed ?? 42,
           minCashPct: 5,
           peStepsCoarse: [0, 10, 20],
           onProgress: (pct, label) => {
-            // Synchron aufgerufen — kann den UI-Update nicht direkt anstoßen,
-            // aber wir setzen state und der nächste Browser-Frame liest ihn.
             setProgressPct(Math.round(pct * 100));
             setProgressLabel(t(`opt.progress.${label}`) || label);
           },
@@ -164,7 +157,7 @@ export function PortfolioOptimizerSection() {
     } finally {
       setRunning(false);
     }
-  }, [client, inputs, portfolio, settings, liquidityEvents, objective, searchMode, t]);
+  }, [client, inputs, portfolio, settings, liquidityEvents, objective, t]);
 
   const applyAllocation = useCallback(
     (alloc: AllocationResult) => {
@@ -251,44 +244,29 @@ export function PortfolioOptimizerSection() {
           <CardTitle className="text-lg">{t("opt.configTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div data-design-id="opt-objective-field">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                {t("opt.objective")}
-              </label>
-              <Select value={objective} onValueChange={(v) => setObjective(v as OptimizerObjective)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="success">{t("opt.obj.success")}</SelectItem>
-                  <SelectItem value="success_dd">{t("opt.obj.successDd")}</SelectItem>
-                  <SelectItem value="success_wealth">{t("opt.obj.successWealth")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-400 mt-1">
-                {objective === "success" && t("opt.obj.successHint")}
-                {objective === "success_dd" && t("opt.obj.successDdHint")}
-                {objective === "success_wealth" && t("opt.obj.successWealthHint")}
-              </p>
-            </div>
+          <div data-design-id="opt-objective-field">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              {t("opt.objective")}
+            </label>
+            <Select value={objective} onValueChange={(v) => setObjective(v as OptimizerObjective)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="success_wealth">{t("opt.obj.successWealth")}</SelectItem>
+                <SelectItem value="success">{t("opt.obj.success")}</SelectItem>
+                <SelectItem value="success_dd">{t("opt.obj.successDd")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-400 mt-1">
+              {objective === "success" && t("opt.obj.successHint")}
+              {objective === "success_dd" && t("opt.obj.successDdHint")}
+              {objective === "success_wealth" && t("opt.obj.successWealthHint")}
+            </p>
+          </div>
 
-            <div data-design-id="opt-search-mode-field">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                {t("opt.searchMode")}
-              </label>
-              <Select value={searchMode} onValueChange={(v) => setSearchMode(v as SearchMode)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fast">{t("opt.mode.fast")}</SelectItem>
-                  <SelectItem value="standard">{t("opt.mode.standard")}</SelectItem>
-                  <SelectItem value="thorough">{t("opt.mode.thorough")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-400 mt-1">
-                {searchMode === "fast" && t("opt.mode.fastHint")}
-                {searchMode === "standard" && t("opt.mode.standardHint")}
-                {searchMode === "thorough" && t("opt.mode.thoroughHint")}
-              </p>
-            </div>
+          {/* Wissenschaftliche Methodik (kompakt) */}
+          <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600 leading-relaxed" data-design-id="opt-methodology">
+            <span className="font-semibold text-slate-700">{t("opt.methodTitle")}:</span>{" "}
+            {t("opt.methodBody")}
           </div>
 
           <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600">
@@ -350,6 +328,12 @@ export function PortfolioOptimizerSection() {
                 <p className="text-[10px] text-slate-400 mt-0.5">
                   {t("opt.kpi.gap")}: {(result.ranked[0].successRate - result.baseline.successRate).toFixed(1)} Pp
                 </p>
+                {/* Signifikanz-Indikator: überlappen die 95 %-CIs? */}
+                {result.ranked[0].successRateCiLow <= result.baseline.successRateCiHigh ? (
+                  <p className="text-[10px] text-amber-700 mt-0.5">{t("opt.kpi.notSig")}</p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-0.5">{t("opt.kpi.sig")}</p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -473,7 +457,10 @@ export function PortfolioOptimizerSection() {
                       <th className="text-right py-2 px-2 font-semibold text-slate-600">{t("opt.col.bonds")}</th>
                       <th className="text-right py-2 px-2 font-semibold text-slate-600">{t("opt.col.equities")}</th>
                       <th className="text-right py-2 px-2 font-semibold text-slate-600">{t("opt.col.pe")}</th>
-                      <th className="text-right py-2 px-2 font-semibold text-slate-600">{t("opt.col.success")}</th>
+                      <th className="text-right py-2 px-2 font-semibold text-slate-600">
+                        {t("opt.col.success")}
+                        <span className="block text-[10px] font-normal text-slate-400">{t("opt.col.successCi")}</span>
+                      </th>
                       <th className="text-right py-2 px-2 font-semibold text-slate-600">{t("opt.col.dd")}</th>
                       <th className="text-right py-2 px-2 font-semibold text-slate-600">{t("opt.col.median")}</th>
                       <th className="text-right py-2 px-2 font-semibold text-slate-600"></th>
@@ -489,8 +476,13 @@ export function PortfolioOptimizerSection() {
                             : "border-b border-slate-100 hover:bg-slate-50"
                         }
                       >
-                        <td className="py-2 px-2 font-bold">
-                          {idx === 0 ? "🏆 1" : idx + 1}
+                        <td className="py-2 px-2 font-bold align-top">
+                          <div>{idx === 0 ? "🏆 1" : idx + 1}</div>
+                          {r.pathsUsed >= PATHS_PHASE3 && (
+                            <div className="text-[9px] font-normal text-emerald-700 leading-none mt-1">
+                              ✓ {(r.pathsUsed / 1000).toFixed(0)}k
+                            </div>
+                          )}
                         </td>
                         <td className="py-2 px-2 text-right tabular-nums">{r.cash}%</td>
                         <td className="py-2 px-2 text-right tabular-nums">{r.bonds}%</td>
@@ -498,8 +490,11 @@ export function PortfolioOptimizerSection() {
                         <td className="py-2 px-2 text-right tabular-nums">
                           {r.pe > 0 ? <Badge variant="outline" className="border-[#8A83BE] text-[#8A83BE]">{r.pe}%</Badge> : <span className="text-slate-300">–</span>}
                         </td>
-                        <td className="py-2 px-2 text-right tabular-nums font-semibold text-[#5a8a50]">
-                          {r.successRate.toFixed(1)}%
+                        <td className="py-2 px-2 text-right tabular-nums">
+                          <div className="font-semibold text-[#5a8a50]">{r.successRate.toFixed(1)}%</div>
+                          <div className="text-[10px] text-slate-400 leading-none mt-0.5">
+                            [{r.successRateCiLow.toFixed(1)}–{r.successRateCiHigh.toFixed(1)}]
+                          </div>
                         </td>
                         <td className="py-2 px-2 text-right tabular-nums text-rose-700">
                           −{(r.maxDrawdown * 100).toFixed(1)}%
@@ -519,15 +514,23 @@ export function PortfolioOptimizerSection() {
                     ))}
                     {/* Baseline-Zeile */}
                     <tr className="bg-slate-50 border-t-2 border-slate-300 italic">
-                      <td className="py-2 px-2 text-slate-700">{t("opt.col.baseline")}</td>
+                      <td className="py-2 px-2 text-slate-700 align-top">
+                        <div>{t("opt.col.baseline")}</div>
+                        <div className="text-[9px] not-italic font-normal text-emerald-700 leading-none mt-1">
+                          ✓ {(result.baseline.pathsUsed / 1000).toFixed(0)}k
+                        </div>
+                      </td>
                       <td className="py-2 px-2 text-right tabular-nums">{result.baseline.cash}%</td>
                       <td className="py-2 px-2 text-right tabular-nums">{result.baseline.bonds}%</td>
                       <td className="py-2 px-2 text-right tabular-nums">{result.baseline.equities}%</td>
                       <td className="py-2 px-2 text-right tabular-nums">
                         {result.baseline.pe > 0 ? `${result.baseline.pe}%` : "–"}
                       </td>
-                      <td className="py-2 px-2 text-right tabular-nums font-semibold">
-                        {result.baseline.successRate.toFixed(1)}%
+                      <td className="py-2 px-2 text-right tabular-nums">
+                        <div className="font-semibold">{result.baseline.successRate.toFixed(1)}%</div>
+                        <div className="text-[10px] text-slate-400 leading-none mt-0.5 not-italic">
+                          [{result.baseline.successRateCiLow.toFixed(1)}–{result.baseline.successRateCiHigh.toFixed(1)}]
+                        </div>
                       </td>
                       <td className="py-2 px-2 text-right tabular-nums text-rose-700">
                         −{(result.baseline.maxDrawdown * 100).toFixed(1)}%
