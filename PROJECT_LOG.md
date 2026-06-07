@@ -78,6 +78,35 @@ Backoffice/CRM-Integration.
 
 **Stand:** 98/98 Tests grün, 32 747 Assertions, Build clean, deployed.
 
+### Iteration 3 (User-Wünsche 2026-06-07)
+
+#### 3a — Stresstest nach Startjahr (statt „Maximaler Drawdown")
+- Ersetzt im Tab **Historie** die alte „Max-Drawdown"-Linie durch ein **Bar­chart mit Krisen-Labels**.
+- `src/lib/engine/historicalCrises.ts`: Mapping Startjahr → Krise (1973 Ölkrise, 1987 Black Monday, 2000 Dotcom, 2008 GFC, 2020 Corona, 2022 Inflations­schock …, 13 Krisen 1973–2022) inkl. DE/EN-Beschreibung.
+- 14 neue Tests in `historicalCrises.test.ts`.
+- Bars zeigen nach unten, farbcodiert nach Schwere (rosa < 15 %, SHC-Rot 15–30 %, Bordeaux ≥ 30 %).
+- Custom-Tooltip mit Krisenname, Beschreibung und Worst-Year-Return.
+
+#### 3b — Portfolio-Optimierung im Pro-Modus (inkl. PE)
+- Neuer Tab **„Optimierung"** (Pro-Modus, zwischen Holdings und Simulation).
+- `src/lib/engine/optimizer.ts` — pure-function Optimizer:
+  - **Coarse-to-fine:** 10 %-Raster (Phase 1) → 5 %-Verfeinerung um Top-N (Phase 2).
+  - **PE-Anteil:** Phase 1 grob {0, 10, 20 %}, Phase 2 fein 0–25 %. Synthetischer PE-Fonds (IRR 10 %, TVPI 1,7×, Mgmt-Fee 2 %) wird beim Apply automatisch generiert.
+  - **3 Zielfunktionen:** `success` (Erfolgsquote), `success_dd` (mit Drawdown-Strafe), `success_wealth` (× log-skaliertes Endvermögen).
+  - **3 Suchstrategien** (Schnell 100 / Standard 200 / Genau 400 Pfade pro Allokation).
+  - Ruft intern `runMonteCarloSimulation` mit reduzierter Pfadanzahl. Live-Progress via `onProgress`-Callback.
+  - Liefert ranked Top-N + Baseline (aktuelles Portfolio) zum Vergleich.
+- `src/components/sections/PortfolioOptimizer.tsx`:
+  - Konfigurations-Karte (Zielfunktion + Strategie + Live-Progressbar).
+  - **KPI-Strip:** Geprüfte Allokationen, Rechenzeit, Beste Erfolgsquote, Verbesserung gegenüber Baseline.
+  - **Effizienzgrenze (ScatterChart):** X = Drawdown, Y = Erfolgsquote, Farbe = PE-Anteil. Optimum als goldener Stern, aktuelles Portfolio als schwarzer Diamant.
+  - **Top-10 Tabelle** mit „Übernehmen"-Button pro Zeile → schreibt Allokation + ggf. synthetischen PE-Fonds via `SET_PORTFOLIO`-Dispatch.
+- 24 neue Tests in `optimizer.test.ts` (Allokations-Enumeration, Nachbarschaftsraster, Drawdown-Berechnung, alle 3 Objective-Funktionen, End-to-End-Reproduzierbarkeit mit `seed=42`).
+- ~70 neue `opt.*` i18n-Keys in DE und EN.
+
+**Stand Iter 3:** 136/136 Tests grün, 33 272 Assertions, Build clean, live unter https://app.veyder-malberg.com (Vercel-Deploy `retirement-planner-3u3nigl2r.vercel.app`).
+Lokal-Commit: `1d80198` — Push auf GitHub steht aus (Sandbox hat keine GitHub-Credentials; Bank/Banker führen `git pull` + push manuell aus oder pushen aus dem lokalen Workspace).
+
 ---
 
 ## 4 · Bekannte offene Risiken (in Iter-Reihenfolge)
