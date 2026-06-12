@@ -102,14 +102,27 @@ export function runMonteCarloSimulation(
   const pensionPerStep = inputs.monthlyPension * settings.timeStepMonths;
   const accumulationSteps = Math.ceil(accumulationYears * stepsPerYear);
   const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
-  // Wenn der Berater "Entnahmewunsch bis Pensionsbeginn inflationieren"
-  // wählt, wird die Entnahme (heutige Kaufkraft) ab Tag 1 der Simulation
-  // inflationsbereinigt — unabhängig von `useRealValues`, das nur die
-  // Sparphase betrifft. Effekt: an Tag 1 der Pension entspricht die
-  // Auszahlung dem zukünftigen Nominalwert (z. B. 18 k → 26 k bei
-  // 15 J × 2,5 %) und wächst danach weiter mit der Inflation.
-  const inflateWithdrawals =
-    inputs.useRealValues || inputs.inflateWithdrawalToRetirement === true;
+  // Steuerung Entnahme- und Pensions-Inflation:
+  //
+  // FIX (2026-Q4): vorher war der Ausdruck
+  //   inflateWithdrawals = useRealValues || inflateWithdrawalToRetirement
+  // → da `useRealValues` standardmäßig true ist, hat der Schieber
+  //   `inflateWithdrawalToRetirement` faktisch nie etwas geändert
+  //   (vom OR überschattet).
+  //
+  // Korrekte Semantik (jetzt entkoppelt):
+  //   - `useRealValues`                  → steuert NUR die Sparphase
+  //                                         (Sparrate wächst mit Inflation)
+  //   - `inflateWithdrawalToRetirement`  → steuert NUR Entnahme + Pension
+  //                                         (heutige Kaufkraft → mit Infl.
+  //                                         hochgerechnet, sodass an Tag 1
+  //                                         der Pension der zukünftige
+  //                                         Nominalbetrag entnommen wird).
+  //
+  // Default für die Entnahme-Inflation ist seit 2026-Q4 ON — die
+  // realistische Annahme für Beratungsgespräche, weil Berater mit
+  // heutigen Kaufkraft-Beträgen rechnen.
+  const inflateWithdrawals = inputs.inflateWithdrawalToRetirement !== false;
 
   // PE-Timeline (Topf 4). Drei Modi:
   //  - 'simple'    : klassische Compound-Balance NAV.
@@ -671,12 +684,11 @@ export function runDetailedSingleSimulation(
   let cumulativeInflation = 1;
   let highWatermark = inputs.initialCapital;
   let failed = false;
-  // Identische Logik wie in `runMonteCarloSimulation`: die neue Option
-  // „Entnahmewunsch an Inflation bis Pensionsbeginn anpassen" wirkt wie
-  // `useRealValues` für Entnahme + Pension, lässt die Sparphase aber
-  // unangetastet (dort entscheidet weiterhin `useRealValues`).
-  const inflateWithdrawalsTrace =
-    inputs.useRealValues || inputs.inflateWithdrawalToRetirement === true;
+  // Spiegelt die Semantik in `runMonteCarloSimulation` (siehe FIX 2026-Q4):
+  // entkoppelt — `useRealValues` betrifft nur die Sparphase,
+  // `inflateWithdrawalToRetirement` exklusiv die Entnahme + Pension.
+  // Default seit 2026-Q4: Entnahme-Inflation ON.
+  const inflateWithdrawalsTrace = inputs.inflateWithdrawalToRetirement !== false;
 
   const rows: DetailedYearRow[] = [];
 

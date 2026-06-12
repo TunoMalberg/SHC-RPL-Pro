@@ -169,9 +169,10 @@ export function FinancialInputsSection() {
             </div>
           </div>
 
-          {/* Neue Option: Entnahmewunsch bis Pensionsantritt inflationieren.
-              Wirkt unabhängig von „Reale Werte"; bei beidem-an entsteht keine
-              Doppelinflation, weil die Engine den ODER-Pfad evaluiert. */}
+          {/* Entnahmewunsch bis Pensionsantritt inflationieren.
+              Seit FIX 2026-Q4 ist dieser Schalter UNABHÄNGIG von „Reale Werte".
+              `useRealValues` betrifft die Sparphase, dieser Schalter
+              ausschließlich Entnahme + Pension. Default seit 2026-Q4 = ON. */}
           <div
             className="mt-5 pt-5 border-t border-slate-100 flex flex-col md:flex-row md:items-start gap-3"
             data-design-id="inflate-to-retirement-toggle"

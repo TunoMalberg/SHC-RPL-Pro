@@ -32,7 +32,11 @@ export const defaultInputs: FinancialInputs = {
   pensionStartAge: 65,
   inflationRate: 2.5,
   useRealValues: true,
-  inflateWithdrawalToRetirement: false,
+  // Default ON: Berater geben Entnahmewünsche typischerweise in heutiger
+  // Kaufkraft an. Engine inflationiert dann bis Pensionsbeginn, sodass
+  // der zukünftige Nominalbetrag entnommen wird. Siehe Engine-Kommentar
+  // in montecarlo.ts (FIX 2026-Q4).
+  inflateWithdrawalToRetirement: true,
 };
 
 // Default KESt rate (Austrian capital gains tax) applied to (gross return − costs)
