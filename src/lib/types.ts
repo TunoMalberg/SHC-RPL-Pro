@@ -113,10 +113,39 @@ export interface PEFund {
  */
 export type PEModelingMode = 'simple' | 'realistic' | 'full';
 
+export type RebalancingFrequency = 'monthly' | 'quarterly' | 'annually' | 'none';
+
+/**
+ * Abweichendes Entnahme-Portfolio (Ruhestandsphase).
+ *
+ * Ermöglicht eine andere strategische Gewichtung + eigenes Rebalancing/
+ * Cash-Puffer in der Entnahmephase als in der Ansparphase. Die Rendite-,
+ * Volatilitäts- und Kosten-Annahmen je Anlageklasse bleiben identisch
+ * (sie stammen weiterhin aus `PortfolioConfig.buckets`) — nur die
+ * Gewichtung und die Rebalancing-Parameter unterscheiden sich.
+ *
+ * Beim Übergang (Pensionsantritt) schichtet die Engine einmalig auf diese
+ * Zielgewichte um. Der dabei realisierte Gewinnanteil löst KESt aus
+ * (konsistent mit dem High-Watermark-Steuermodell der Engine).
+ *
+ * `undefined` auf der `PortfolioConfig` = ein einheitliches Portfolio für
+ * beide Phasen (Default, vollständig rückwärtskompatibel).
+ */
+export interface WithdrawalPhaseOverride {
+  /** Zielgewichte der Entnahmephase in % [Cash, Anleihen, Aktien]. Summe = 100. */
+  allocations: [number, number, number];
+  /** Rebalancing-Frequenz in der Entnahmephase. */
+  rebalancingFrequency: RebalancingFrequency;
+  /** Rebalancing-Schwelle in % (Abweichung von Zielgewicht). */
+  rebalancingThreshold: number;
+  /** Cash-Puffer in Jahresentnahmen (1–5). */
+  cashYearsTarget: number;
+}
+
 export interface PortfolioConfig {
   buckets: [AssetBucket, AssetBucket, AssetBucket];
   correlationMatrix: number[][];
-  rebalancingFrequency: 'monthly' | 'quarterly' | 'annually' | 'none';
+  rebalancingFrequency: RebalancingFrequency;
   rebalancingThreshold: number;
   cashYearsTarget: number; // 1-3 years of withdrawals held as cash in withdrawal phase
   kestRate: number; // Austrian KESt / capital gains tax rate in percent (default 27.5)
@@ -125,6 +154,12 @@ export interface PortfolioConfig {
   peFunds?: PEFund[];
   /** PE-Modellierungs-Modus. Default 'realistic'. */
   peModelingMode?: PEModelingMode;
+  /**
+   * Optionales, abweichendes Entnahme-Portfolio. Wenn gesetzt, nutzt die
+   * Engine ab Pensionsantritt diese Gewichte + Rebalancing-Parameter.
+   * `undefined` = einheitliches Portfolio für beide Phasen (Default).
+   */
+  withdrawalPhase?: WithdrawalPhaseOverride;
 }
 
 export interface SimulationSettings {

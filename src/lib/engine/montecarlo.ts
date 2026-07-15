@@ -68,6 +68,60 @@ function applyPECashflowsToBuckets(
   return hw;
 }
 
+/**
+ * Einmalige Umschichtung des liquiden Portfolios (Cash/Anleihen/Aktien) auf
+ * die Zielgewichte der Entnahmephase bei Pensionsantritt.
+ *
+ * Steuerlogik (konsistent mit dem High-Watermark-KESt-Modell der Engine):
+ *   - Der eingebettete (noch unversteuerte) Gewinn ist `total − highWatermark`.
+ *   - Beim Umschichten wird nur der Anteil realisiert, der tatsächlich
+ *     „umgeschlagen" wird. Der Turnover ist das klassische Portfolio-
+ *     Turnover-Maß: ½·Σ|w_ziel − w_ist| ∈ [0, 1].
+ *   - KESt fällt auf den realisierten Gewinnanteil an
+ *     (`realizedGain = embeddedGain × turnover`, `tax = realizedGain × kest`).
+ *   - Der verbleibende unrealisierte Gewinn bleibt steuerlich gestundet →
+ *     der High-Watermark wird entsprechend nachgezogen.
+ *
+ * Mutiert `bucketValues` in place und gibt den neuen High-Watermark zurück.
+ *
+ * @param bucketValues  [Cash, Anleihen, Aktien] — wird in place überschrieben
+ * @param targetWeights Zielgewichte der Entnahmephase (Summe ≈ 1)
+ * @param highWatermark aktueller steuerlicher Höchststand
+ * @param kestRate      KESt-Satz als Bruch (z. B. 0.275)
+ * @returns neuer High-Watermark nach der Umschichtung
+ */
+export function switchToWithdrawalAllocation(
+  bucketValues: number[],
+  targetWeights: number[],
+  highWatermark: number,
+  kestRate: number,
+): number {
+  const total = bucketValues[0] + bucketValues[1] + bucketValues[2];
+  if (total <= 0) return highWatermark;
+
+  // Turnover = ½·Σ|w_ziel − w_ist|
+  let turnover = 0;
+  for (let i = 0; i < 3; i++) {
+    const wIst = bucketValues[i] / total;
+    turnover += Math.abs(targetWeights[i] - wIst);
+  }
+  turnover *= 0.5;
+
+  const embeddedGain = Math.max(0, total - highWatermark);
+  const realizedGain = embeddedGain * turnover;
+  const tax = realizedGain * kestRate;
+  const totalAfter = total - tax;
+
+  // Auf Zielgewichte umschichten (nach Steuer).
+  for (let i = 0; i < 3; i++) {
+    bucketValues[i] = targetWeights[i] * totalAfter;
+  }
+
+  // Verbleibender (nicht realisierter) Gewinn bleibt gestundet.
+  const remainingUnrealizedGain = embeddedGain - realizedGain;
+  return Math.max(0, totalAfter - remainingUnrealizedGain);
+}
+
 export function runMonteCarloSimulation(
   client: ClientProfile,
   inputs: FinancialInputs,
@@ -80,8 +134,26 @@ export function runMonteCarloSimulation(
   const totalYears = accumulationYears + withdrawalYears;
   const stepsPerYear = 12 / settings.timeStepMonths;
   const totalSteps = Math.ceil(totalYears * stepsPerYear);
+  const accumulationSteps = Math.ceil(accumulationYears * stepsPerYear);
 
-  const weights = portfolio.buckets.map((b) => b.allocation / 100);
+  // ── Phasen-Portfolios ───────────────────────────────────────────
+  // Ansparphase nutzt `portfolio.buckets`-Gewichte; die Entnahmephase
+  // kann (optional) abweichende Gewichte + Rebalancing/Cash-Puffer haben.
+  // Rendite/Vola/Kosten je Topf sind IDENTISCH (kommen aus buckets).
+  const accWeights = portfolio.buckets.map((b) => b.allocation / 100);
+  const wd = portfolio.withdrawalPhase;
+  const wdWeights = wd
+    ? wd.allocations.map((a) => a / 100)
+    : accWeights;
+  const accRebalFreq = portfolio.rebalancingFrequency;
+  const accRebalThreshold = portfolio.rebalancingThreshold;
+  const accCashYears = portfolio.cashYearsTarget ?? 2;
+  const wdRebalFreq = wd ? wd.rebalancingFrequency : accRebalFreq;
+  const wdCashYears = wd ? wd.cashYearsTarget : accCashYears;
+  // Startgewichte: bei bereits pensionierten Klienten (keine Ansparphase)
+  // direkt die Entnahmegewichte, sonst die Ansparphase-Gewichte.
+  const startWeights = accumulationSteps > 0 || !wd ? accWeights : wdWeights;
+
   // KORREKTUR (2025-11-11): Mittelwert = Brutto-Rendite abzüglich laufender Kosten.
   // KESt wird NICHT mehr als kontinuierlicher Drag in den Mittelwert gezogen,
   // sondern erst ausgelöst, wenn ein neuer Höchststand erreicht wird (siehe unten).
@@ -100,8 +172,6 @@ export function runMonteCarloSimulation(
   const savingsPerStep = inputs.monthlySavings * settings.timeStepMonths;
   const withdrawalPerStep = inputs.desiredMonthlyWithdrawal * settings.timeStepMonths;
   const pensionPerStep = inputs.monthlyPension * settings.timeStepMonths;
-  const accumulationSteps = Math.ceil(accumulationYears * stepsPerYear);
-  const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
   // Steuerung Entnahme- und Pensions-Inflation:
   //
   // FIX (2026-Q4): vorher war der Ausdruck
@@ -199,7 +269,10 @@ export function runMonteCarloSimulation(
   for (let sim = 0; sim < settings.numSimulations; sim++) {
     const rng = new SeededRandom(baseSeed + sim);
     const peTimeline = peTimelineForSim(sim);
-    let bucketValues = weights.map((w) => w * inputs.initialCapital);
+    let bucketValues = startWeights.map((w) => w * inputs.initialCapital);
+    // Phasenwechsel-Flag: garantiert, dass die einmalige Umschichtung auf
+    // das Entnahme-Portfolio (inkl. Switch-KESt) genau einmal passiert.
+    let switchedToWithdrawal = false;
     // PE-NAV zu Beginn = 0 (Fonds starten zu definierten Altersstufen).
     let peNavCurrent = hasPE ? peTimeline[0].totalNav : 0;
     const path: number[] = [inputs.initialCapital + peNavCurrent];
@@ -224,7 +297,8 @@ export function runMonteCarloSimulation(
       // Reine Marktrendite des Schritts = strategische Allokation × Topf-Renditen.
       // KESt wird hier NICHT abgezogen — der Marktindex misst Brutto-Marktrisiko.
       // (KESt ist eine deterministische Steuer auf Gewinne und keine Marktbewegung.)
-      const marketStepReturn = weights.reduce((s, w, i) => s + w * returns[i], 0);
+      const mktWeights = step < accumulationSteps ? accWeights : wdWeights;
+      const marketStepReturn = mktWeights.reduce((s, w, i) => s + w * returns[i], 0);
       marketIndex *= 1 + marketStepReturn;
       if (marketIndex > marketPeak) marketPeak = marketIndex;
       const ddNow = marketPeak > 0 ? (marketPeak - marketIndex) / marketPeak : 0;
@@ -249,6 +323,18 @@ export function runMonteCarloSimulation(
         }
       }
 
+      // ── Phasenwechsel: einmalige Umschichtung auf das Entnahme-
+      //    Portfolio bei Pensionsantritt (nur wenn wd definiert). ─────
+      if (wd && !switchedToWithdrawal && !isAccumulation && accumulationSteps > 0) {
+        highWatermark = switchToWithdrawalAllocation(
+          bucketValues,
+          wdWeights,
+          highWatermark,
+          kestRate,
+        );
+        switchedToWithdrawal = true;
+      }
+
       if (isAccumulation) {
         const adjustedSavings = inputs.useRealValues
           ? savingsPerStep * cumulativeInflation
@@ -256,7 +342,7 @@ export function runMonteCarloSimulation(
             Math.pow(1 + inputs.annualSavingsIncrease / 100 / stepsPerYear, step);
 
         for (let i = 0; i < 3; i++) {
-          bucketValues[i] += weights[i] * adjustedSavings;
+          bucketValues[i] += accWeights[i] * adjustedSavings;
         }
         // Einzahlung hebt den Höchststand 1:1 (kein Steuerereignis).
         highWatermark += adjustedSavings;
@@ -312,8 +398,9 @@ export function runMonteCarloSimulation(
         if (currentAgeAtStep >= leStepAge && prevAge < leStepAge) {
           const amount = le.amount;
           if (amount > 0) {
+            const injectWeights = step < accumulationSteps ? accWeights : wdWeights;
             for (let i = 0; i < 3; i++) {
-              bucketValues[i] += weights[i] * amount;
+              bucketValues[i] += injectWeights[i] * amount;
             }
             highWatermark += amount;
           } else {
@@ -332,14 +419,14 @@ export function runMonteCarloSimulation(
       const shouldRebalance = checkRebalancing(
         step,
         stepsPerYear,
-        portfolio.rebalancingFrequency
+        step < accumulationSteps ? accRebalFreq : wdRebalFreq
       );
       if (shouldRebalance) {
         if (step < accumulationSteps) {
           bucketValues = rebalancePortfolio(
             bucketValues,
-            weights,
-            portfolio.rebalancingThreshold
+            accWeights,
+            accRebalThreshold
           );
         } else {
           const annualWithdrawalForTarget = inflateWithdrawals
@@ -354,7 +441,7 @@ export function runMonteCarloSimulation(
           const result = rebalanceThreeBuckets(
             bucketValues,
             netAnnualWithdrawal / stepsPerYear,
-            cashYearsTarget,
+            wdCashYears,
             returns[2]
           );
           bucketValues = result.values;
@@ -654,13 +741,22 @@ export function runDetailedSingleSimulation(
   const withdrawalYears = Math.max(0, client.lifeExpectancy - client.retirementAge);
   const totalYears = accumulationYears + withdrawalYears;
 
-  const weights = portfolio.buckets.map((b) => b.allocation / 100);
+  // Phasen-Portfolios (siehe runMonteCarloSimulation).
+  const accWeights = portfolio.buckets.map((b) => b.allocation / 100);
+  const wd = portfolio.withdrawalPhase;
+  const wdWeights = wd ? wd.allocations.map((a) => a / 100) : accWeights;
+  const accRebalFreq = portfolio.rebalancingFrequency;
+  const accRebalThreshold = portfolio.rebalancingThreshold;
+  const accCashYears = portfolio.cashYearsTarget ?? 2;
+  const wdRebalFreq = wd ? wd.rebalancingFrequency : accRebalFreq;
+  const wdCashYears = wd ? wd.cashYearsTarget : accCashYears;
+  const startWeights = accumulationYears > 0 || !wd ? accWeights : wdWeights;
+
   // KORREKTUR (2025-11-11): Brutto minus Kosten — KESt läuft über Watermark.
   const annualMeans = portfolio.buckets.map(
     (b) => (b.expectedReturn - b.costs) / 100
   );
   const annualVols = portfolio.buckets.map((b) => b.volatility / 100);
-  const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
   const kestRate = (portfolio.kestRate ?? 27.5) / 100;
 
   const corrMatrix = portfolio.correlationMatrix;
@@ -680,10 +776,11 @@ export function runDetailedSingleSimulation(
       : [];
   const hasPE = peTimeline.length > 0;
 
-  let bucketValues = weights.map((w) => w * inputs.initialCapital);
+  let bucketValues = startWeights.map((w) => w * inputs.initialCapital);
   let cumulativeInflation = 1;
   let highWatermark = inputs.initialCapital;
   let failed = false;
+  let switchedToWithdrawal = false;
   // Spiegelt die Semantik in `runMonteCarloSimulation` (siehe FIX 2026-Q4):
   // entkoppelt — `useRealValues` betrifft nur die Sparphase,
   // `inflateWithdrawalToRetirement` exklusiv die Entnahme + Pension.
@@ -752,10 +849,20 @@ export function runDetailedSingleSimulation(
       cashflowLabel = "Sparrate";
 
       for (let i = 0; i < 3; i++) {
-        bucketValues[i] += weights[i] * adjustedSavings;
+        bucketValues[i] += accWeights[i] * adjustedSavings;
       }
       highWatermark += adjustedSavings;
     } else {
+      // Phasenwechsel: einmalige Umschichtung auf das Entnahme-Portfolio.
+      if (wd && !switchedToWithdrawal && accumulationYears > 0) {
+        highWatermark = switchToWithdrawalAllocation(
+          bucketValues,
+          wdWeights,
+          highWatermark,
+          kestRate,
+        );
+        switchedToWithdrawal = true;
+      }
       const annualWithdrawal = inflateWithdrawalsTrace
         ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
         : inputs.desiredMonthlyWithdrawal * 12;
@@ -814,8 +921,9 @@ export function runDetailedSingleSimulation(
         liquidityEventLabel += (liquidityEventLabel ? "; " : "") + le.description;
       }
       if (liquidityEventAmount > 0) {
+        const injectWeights = isAccumulation ? accWeights : wdWeights;
         for (let i = 0; i < 3; i++) {
-          bucketValues[i] += weights[i] * liquidityEventAmount;
+          bucketValues[i] += injectWeights[i] * liquidityEventAmount;
         }
         highWatermark += liquidityEventAmount;
       } else if (liquidityEventAmount < 0) {
@@ -842,7 +950,7 @@ export function runDetailedSingleSimulation(
     const beforeRebalBonds = bucketValues[1];
     const beforeRebalEquities = bucketValues[2];
 
-    const shouldRebalance = checkRebalancingYearly(y, portfolio.rebalancingFrequency);
+    const shouldRebalance = checkRebalancingYearly(y, isAccumulation ? accRebalFreq : wdRebalFreq);
     let rebalanced = false;
     let rebalCashDelta = 0;
     let rebalBondsDelta = 0;
@@ -851,7 +959,7 @@ export function runDetailedSingleSimulation(
 
     if (shouldRebalance) {
       if (isAccumulation) {
-        const newValues = rebalancePortfolio(bucketValues, weights, portfolio.rebalancingThreshold);
+        const newValues = rebalancePortfolio(bucketValues, accWeights, accRebalThreshold);
         if (newValues[0] !== bucketValues[0] || newValues[1] !== bucketValues[1] || newValues[2] !== bucketValues[2]) {
           rebalanced = true;
           rebalCashDelta = newValues[0] - beforeRebalCash;
@@ -872,7 +980,7 @@ export function runDetailedSingleSimulation(
         const result = rebalanceThreeBuckets(
           bucketValues,
           netAnnualForTarget,
-          cashYearsTarget,
+          wdCashYears,
           returns[2]
         );
         if (result.rebalanced) {

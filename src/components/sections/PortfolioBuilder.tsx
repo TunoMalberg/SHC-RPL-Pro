@@ -1,14 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { AssetBucket, PortfolioConfig, MifidProfile } from "@/lib/types";
+import type { AssetBucket, PortfolioConfig, MifidProfile, WithdrawalPhaseOverride } from "@/lib/types";
 import { computePortfolioReturn, computePortfolioVolatility, computeSharpeRatio } from "@/lib/engine/portfolio";
 import { fmtPct } from "@/lib/format";
 import { PrivateEquityBucket } from "./PrivateEquityBucket";
@@ -32,6 +34,73 @@ export function PortfolioBuilderSection() {
   const { portfolio } = state;
   const { t } = useI18n();
   const isPro = state.uiMode === "pro";
+
+  // ── Zwei-Phasen-Portfolio ─────────────────────────────────────────
+  // `editPhase` steuert nur die UI (welche Phase gerade editiert wird);
+  // die Datenhaltung liegt in `portfolio.buckets` (Ansparphase) bzw.
+  // `portfolio.withdrawalPhase` (Entnahmephase).
+  const wd = portfolio.withdrawalPhase;
+  const twoPhase = !!wd;
+  const [editPhase, setEditPhase] = useState<"accumulation" | "withdrawal">(
+    "accumulation",
+  );
+  const editingWithdrawal = twoPhase && editPhase === "withdrawal";
+
+  // Gewichte der aktuell editierten Phase.
+  const accAllocations: [number, number, number] = [
+    portfolio.buckets[0].allocation,
+    portfolio.buckets[1].allocation,
+    portfolio.buckets[2].allocation,
+  ];
+  const activeAllocations: [number, number, number] = editingWithdrawal
+    ? [...wd!.allocations]
+    : accAllocations;
+
+  // Aktive Rebalancing-Parameter (Anspar- vs. Entnahmephase).
+  const activeCashYears = editingWithdrawal ? wd!.cashYearsTarget : portfolio.cashYearsTarget;
+  const activeRebalFreq = editingWithdrawal ? wd!.rebalancingFrequency : portfolio.rebalancingFrequency;
+  const activeRebalThreshold = editingWithdrawal ? wd!.rebalancingThreshold : portfolio.rebalancingThreshold;
+
+  const patchWithdrawal = (patch: Partial<WithdrawalPhaseOverride>) => {
+    if (!wd) return;
+    dispatch({ type: "SET_PORTFOLIO", payload: { withdrawalPhase: { ...wd, ...patch } } });
+  };
+
+  // Rebalancing-Parameter der aktiven Phase setzen.
+  const setActiveCashYears = (v: number) =>
+    editingWithdrawal
+      ? patchWithdrawal({ cashYearsTarget: v })
+      : dispatch({ type: "SET_PORTFOLIO", payload: { cashYearsTarget: v } });
+  const setActiveRebalFreq = (v: PortfolioConfig["rebalancingFrequency"]) =>
+    editingWithdrawal
+      ? patchWithdrawal({ rebalancingFrequency: v })
+      : dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingFrequency: v } });
+  const setActiveRebalThreshold = (v: number) =>
+    editingWithdrawal
+      ? patchWithdrawal({ rebalancingThreshold: v })
+      : dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingThreshold: v } });
+
+  const toggleTwoPhase = (on: boolean) => {
+    if (on) {
+      // Entnahme-Portfolio mit den aktuellen Anspar-Werten vorbefüllen,
+      // dann direkt zum Editieren der Entnahmephase springen.
+      dispatch({
+        type: "SET_PORTFOLIO",
+        payload: {
+          withdrawalPhase: {
+            allocations: [...accAllocations],
+            rebalancingFrequency: portfolio.rebalancingFrequency,
+            rebalancingThreshold: portfolio.rebalancingThreshold,
+            cashYearsTarget: portfolio.cashYearsTarget,
+          },
+        },
+      });
+      setEditPhase("withdrawal");
+    } else {
+      dispatch({ type: "SET_PORTFOLIO", payload: { withdrawalPhase: undefined } });
+      setEditPhase("accumulation");
+    }
+  };
 
   const updateBucket = (index: number, field: keyof AssetBucket, value: number | string) => {
     const newBuckets = [...portfolio.buckets] as PortfolioConfig["buckets"];
@@ -71,28 +140,45 @@ export function PortfolioBuilderSection() {
     });
   };
 
-  const updateAllocation = (index: number, newValue: number) => {
-    const newBuckets = [...portfolio.buckets] as PortfolioConfig["buckets"];
-    const diff = newValue - newBuckets[index].allocation;
-    newBuckets[index] = { ...newBuckets[index], allocation: newValue };
-    const otherIndices = [0, 1, 2].filter((i) => i !== index);
-    const otherTotal = otherIndices.reduce((s, i) => s + newBuckets[i].allocation, 0);
+  // Re-normalisiert drei Gewichte auf 100 %, nachdem `index` auf `newValue`
+  // gesetzt wurde (proportionale Verteilung der Differenz auf die anderen).
+  const renormalize = (
+    current: [number, number, number],
+    index: number,
+    newValue: number,
+  ): [number, number, number] => {
+    const out: [number, number, number] = [...current];
+    const diff = newValue - out[index];
+    out[index] = newValue;
+    const others = [0, 1, 2].filter((i) => i !== index);
+    const otherTotal = others.reduce((s, i) => s + out[i], 0);
     if (otherTotal > 0) {
-      for (const i of otherIndices) {
-        const ratio = newBuckets[i].allocation / otherTotal;
-        newBuckets[i] = { ...newBuckets[i], allocation: Math.max(0, Math.round(newBuckets[i].allocation - diff * ratio)) };
+      for (const i of others) {
+        const ratio = out[i] / otherTotal;
+        out[i] = Math.max(0, Math.round(out[i] - diff * ratio));
       }
     }
-    const total = newBuckets.reduce((s, b) => s + b.allocation, 0);
+    const total = out.reduce((s, a) => s + a, 0);
     if (total !== 100) {
       const adjust = 100 - total;
-      for (const i of otherIndices) {
-        if (newBuckets[i].allocation + adjust >= 0) {
-          newBuckets[i] = { ...newBuckets[i], allocation: newBuckets[i].allocation + adjust };
+      for (const i of others) {
+        if (out[i] + adjust >= 0) {
+          out[i] += adjust;
           break;
         }
       }
     }
+    return out;
+  };
+
+  const updateAllocation = (index: number, newValue: number) => {
+    if (editingWithdrawal && wd) {
+      const allocs = renormalize([...wd.allocations], index, newValue);
+      dispatch({ type: "SET_PORTFOLIO", payload: { withdrawalPhase: { ...wd, allocations: allocs } } });
+      return;
+    }
+    const allocs = renormalize(accAllocations, index, newValue);
+    const newBuckets = portfolio.buckets.map((b, i) => ({ ...b, allocation: allocs[i] })) as PortfolioConfig["buckets"];
     dispatch({ type: "SET_PORTFOLIO", payload: { buckets: newBuckets } });
   };
 
@@ -104,16 +190,26 @@ export function PortfolioBuilderSection() {
   };
 
   const applyMifidPreset = (profile: MifidProfile) => {
-    const [cashAlloc, bondsAlloc, eqAlloc] = MIFID_PRESETS[profile];
-    const newBuckets = portfolio.buckets.map((b, i) => {
-      const alloc = [cashAlloc, bondsAlloc, eqAlloc][i];
-      return { ...b, allocation: alloc };
-    }) as PortfolioConfig["buckets"];
+    const preset = MIFID_PRESETS[profile];
+    // Preset wirkt auf die gerade editierte Phase.
+    if (editingWithdrawal && wd) {
+      patchWithdrawal({ allocations: [...preset] });
+      return;
+    }
+    const newBuckets = portfolio.buckets.map((b, i) => ({ ...b, allocation: preset[i] })) as PortfolioConfig["buckets"];
     dispatch({ type: "SET_PORTFOLIO", payload: { buckets: newBuckets, mifidProfile: profile } });
   };
 
-  const portReturn = computePortfolioReturn(portfolio) * 100;
-  const portVol = computePortfolioVolatility(portfolio) * 100;
+  // Kennzahlen für die aktuell editierte Phase berechnen (bei Entnahme-
+  // Editierung mit den Entnahme-Gewichten, gleiche Rendite-/Vola-Annahmen).
+  const metricPortfolio: PortfolioConfig = editingWithdrawal
+    ? {
+        ...portfolio,
+        buckets: portfolio.buckets.map((b, i) => ({ ...b, allocation: activeAllocations[i] })) as PortfolioConfig["buckets"],
+      }
+    : portfolio;
+  const portReturn = computePortfolioReturn(metricPortfolio) * 100;
+  const portVol = computePortfolioVolatility(metricPortfolio) * 100;
   const riskFree = portfolio.buckets[0].netReturn / 100;
   const sharpe = computeSharpeRatio(portReturn / 100, portVol / 100, riskFree);
 
@@ -143,6 +239,111 @@ export function PortfolioBuilderSection() {
         <h2 className="text-2xl font-bold text-slate-900" data-design-id="portfolio-builder-title">{t("portfolio.title")}</h2>
         <p className="text-slate-500 mt-1" data-design-id="portfolio-builder-subtitle">{t("portfolio.subtitle")}</p>
       </div>
+
+      {/* Zwei-Phasen-Portfolio: Schalter + Phasen-Umschalter */}
+      <Card className="border-[#8A83BE]/40 bg-[#8A83BE]/5" data-design-id="two-phase-card">
+        <CardContent className="pt-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <Switch
+              id="twoPhaseSwitch"
+              checked={twoPhase}
+              onCheckedChange={toggleTwoPhase}
+              data-design-id="two-phase-switch"
+            />
+            <div className="flex-1">
+              <Label htmlFor="twoPhaseSwitch" className="cursor-pointer font-semibold text-[#4a4483]">
+                {t("portfolio.twoPhaseTitle")}
+              </Label>
+              <p className="text-xs text-slate-500 mt-0.5">{t("portfolio.twoPhaseDesc")}</p>
+            </div>
+          </div>
+
+          {twoPhase && (
+            <>
+              {/* Segmentierter Phasen-Umschalter */}
+              <div
+                className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1"
+                data-design-id="phase-switcher"
+              >
+                <button
+                  type="button"
+                  onClick={() => setEditPhase("accumulation")}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                    editPhase === "accumulation"
+                      ? "bg-white text-[#3a7cb8] shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                  data-design-id="phase-tab-accumulation"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <span>📈</span>
+                    <span>{t("portfolio.phaseAccumulation")}</span>
+                  </div>
+                  <div className="text-[10px] font-normal opacity-70 mt-0.5">
+                    {t("portfolio.phaseAccumulationSub").replace("{age}", String(state.client.retirementAge))}
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditPhase("withdrawal")}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                    editPhase === "withdrawal"
+                      ? "bg-white text-[#5a8a50] shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                  data-design-id="phase-tab-withdrawal"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <span>🏖️</span>
+                    <span>{t("portfolio.phaseWithdrawal")}</span>
+                  </div>
+                  <div className="text-[10px] font-normal opacity-70 mt-0.5">
+                    {t("portfolio.phaseWithdrawalSub").replace("{age}", String(state.client.retirementAge))}
+                  </div>
+                </button>
+              </div>
+
+              {/* Vergleichs-Balken beider Phasen */}
+              <div className="space-y-2" data-design-id="phase-comparison">
+                {([
+                  { label: t("portfolio.phaseAccumulation"), allocs: accAllocations, active: editPhase === "accumulation" },
+                  { label: t("portfolio.phaseWithdrawal"), allocs: [...wd!.allocations] as [number, number, number], active: editPhase === "withdrawal" },
+                ]).map((row) => (
+                  <div key={row.label} className={`rounded-lg p-2 transition-all ${row.active ? "bg-white ring-1 ring-slate-200" : "opacity-70"}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-semibold text-slate-600">{row.label}</span>
+                      <span className="text-[10px] text-slate-400 tabular-nums">
+                        {row.allocs[0]}% / {row.allocs[1]}% / {row.allocs[2]}%
+                      </span>
+                    </div>
+                    <div className="flex h-3 rounded overflow-hidden">
+                      {row.allocs.map((a, i) => (
+                        <div key={i} className={BUCKET_COLORS[i].fill} style={{ width: `${a}%` }} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Hinweis: KESt beim Umschichten */}
+              <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                <span className="text-sm">ℹ️</span>
+                <p className="text-[11px] text-amber-800 leading-relaxed">{t("portfolio.twoPhaseSwitchTaxHint")}</p>
+              </div>
+
+              {/* Kontext-Banner: welche Phase gerade editiert wird */}
+              <div
+                className={`rounded-lg px-3 py-2 text-xs font-medium ${
+                  editingWithdrawal ? "bg-[#8FB687]/15 text-[#5a8a50]" : "bg-[#87BBE6]/15 text-[#3a7cb8]"
+                }`}
+                data-design-id="phase-edit-banner"
+              >
+                {editingWithdrawal ? t("portfolio.editingWithdrawal") : t("portfolio.editingAccumulation")}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* MiFID II Risk Profile Selector */}
       <Card className="border-[#87BBE6]/40 bg-[#87BBE6]/5" data-design-id="mifid-selector-card">
@@ -188,16 +389,21 @@ export function PortfolioBuilderSection() {
 
       <Card className="border-slate-200" data-design-id="allocation-bar-card">
         <CardContent className="pt-6">
+          {twoPhase && (
+            <div className="mb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+              {editingWithdrawal ? t("portfolio.phaseWithdrawal") : t("portfolio.phaseAccumulation")}
+            </div>
+          )}
           <div className="flex h-8 rounded-lg overflow-hidden mb-3" data-design-id="allocation-bar">
             {portfolio.buckets.map((b, i) => (
-              <div key={b.name} className={`${BUCKET_COLORS[i].fill} flex items-center justify-center text-white text-xs font-bold transition-all`} style={{ width: `${b.allocation}%` }}>
-                {b.allocation > 8 && `${b.allocation}%`}
+              <div key={b.name} className={`${BUCKET_COLORS[i].fill} flex items-center justify-center text-white text-xs font-bold transition-all`} style={{ width: `${activeAllocations[i]}%` }}>
+                {activeAllocations[i] > 8 && `${activeAllocations[i]}%`}
               </div>
             ))}
           </div>
           <div className="flex justify-between text-xs text-slate-500">
             {portfolio.buckets.map((b, i) => (
-              <span key={b.name} className={BUCKET_COLORS[i].accent}>{bucketLabel(i)}: {b.allocation}%</span>
+              <span key={b.name} className={BUCKET_COLORS[i].accent}>{bucketLabel(i)}: {activeAllocations[i]}%</span>
             ))}
           </div>
         </CardContent>
@@ -236,9 +442,14 @@ export function PortfolioBuilderSection() {
                 />
               </div>
               <div data-design-id={`bucket-allocation-${index}`}>
-                <Label className="text-xs">{t("portfolio.allocation")}</Label>
-                <Slider value={[bucket.allocation]} onValueChange={([val]) => updateAllocation(index, val)} max={100} min={0} step={1} className="my-2" />
-                <div className="text-right text-sm font-bold">{bucket.allocation}%</div>
+                <Label className="text-xs flex items-center justify-between">
+                  <span>{t("portfolio.allocation")}</span>
+                  {editingWithdrawal && (
+                    <span className="text-[9px] text-[#5a8a50] font-semibold">{t("portfolio.phaseWithdrawal")}</span>
+                  )}
+                </Label>
+                <Slider value={[activeAllocations[index]]} onValueChange={([val]) => updateAllocation(index, val)} max={100} min={0} step={1} className="my-2" />
+                <div className="text-right text-sm font-bold">{activeAllocations[index]}%</div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div data-design-id={`bucket-return-${index}`}>
@@ -261,6 +472,11 @@ export function PortfolioBuilderSection() {
                   <Input type="number" value={bucket.taxDrag} onChange={(e) => updateBucket(index, "taxDrag", e.target.value)} step={0.1} className="h-8 text-sm" />
                 </div>
               </div>
+              {editingWithdrawal && (
+                <p className="text-[10px] text-slate-400 leading-snug border-t border-slate-100 pt-2">
+                  {t("portfolio.sharedAssumptionsHint")}
+                </p>
+              )}
               <div className={`text-center py-2 rounded ${BUCKET_COLORS[index].border} bg-white/60`} data-design-id={`bucket-net-return-${index}`}>
                 <div className="text-xs text-slate-500">{t("portfolio.netReturn")}</div>
                 <div className={`text-lg font-bold ${BUCKET_COLORS[index].accent}`}>{fmtPct(bucket.netReturn)}</div>
@@ -367,18 +583,24 @@ export function PortfolioBuilderSection() {
               </div>
               <div className="text-amber-700 text-xs space-y-0.5 border-t border-amber-200 pt-2">
                 <p><strong>{t("portfolio.strategyAccumulation")}</strong> {t("portfolio.strategyAccumulationDesc")}</p>
-                <p><strong>{t("portfolio.strategyWithdrawal")}</strong> {portfolio.cashYearsTarget} {t("portfolio.strategyWithdrawalDesc")}</p>
+                <p><strong>{t("portfolio.strategyWithdrawal")}</strong> {activeCashYears} {t("portfolio.strategyWithdrawalDesc")}</p>
                 <p><strong>{t("portfolio.strategyRefill")}</strong> {t("portfolio.strategyRefillDesc")}</p>
               </div>
             </div>
             )}
 
+            {twoPhase && (
+              <div className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${editingWithdrawal ? "bg-[#8FB687]/15 text-[#5a8a50]" : "bg-[#87BBE6]/15 text-[#3a7cb8]"}`}>
+                {editingWithdrawal ? t("portfolio.phaseWithdrawal") : t("portfolio.phaseAccumulation")}
+              </div>
+            )}
+
             <div data-design-id="cash-years-target-field">
               <Label>{t("portfolio.cashYearsLabel")}</Label>
-              <Slider value={[portfolio.cashYearsTarget]} onValueChange={([val]) => dispatch({ type: "SET_PORTFOLIO", payload: { cashYearsTarget: val } })} max={5} min={1} step={1} />
+              <Slider value={[activeCashYears]} onValueChange={([val]) => setActiveCashYears(val)} max={5} min={1} step={1} />
               <div className="flex justify-between text-xs text-slate-500">
                 <span>{t("portfolio.cashYearsOffensive")}</span>
-                <span className="font-bold text-[#5a8a50]">{portfolio.cashYearsTarget} {portfolio.cashYearsTarget === 1 ? t("portfolio.year") : t("portfolio.yearsPlural")}</span>
+                <span className="font-bold text-[#5a8a50]">{activeCashYears} {activeCashYears === 1 ? t("portfolio.year") : t("portfolio.yearsPlural")}</span>
                 <span>{t("portfolio.cashYearsConservative")}</span>
               </div>
               {!isPro && (
@@ -396,7 +618,7 @@ export function PortfolioBuilderSection() {
             {isPro && (
             <div data-design-id="rebalancing-frequency-field">
               <Label>{t("portfolio.rebalFreq")}</Label>
-              <Select value={portfolio.rebalancingFrequency} onValueChange={(v) => dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingFrequency: v as PortfolioConfig["rebalancingFrequency"] } })}>
+              <Select value={activeRebalFreq} onValueChange={(v) => setActiveRebalFreq(v as PortfolioConfig["rebalancingFrequency"])}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="monthly">{t("portfolio.rebalMonthly")}</SelectItem>
@@ -410,8 +632,8 @@ export function PortfolioBuilderSection() {
             {isPro && (
             <div data-design-id="rebalancing-threshold-field">
               <Label>{t("portfolio.rebalThreshold")}</Label>
-              <Slider value={[portfolio.rebalancingThreshold]} onValueChange={([val]) => dispatch({ type: "SET_PORTFOLIO", payload: { rebalancingThreshold: val } })} max={20} min={1} step={1} />
-              <div className="text-right text-sm text-slate-500">{t("portfolio.rebalThresholdHint")} {portfolio.rebalancingThreshold}%</div>
+              <Slider value={[activeRebalThreshold]} onValueChange={([val]) => setActiveRebalThreshold(val)} max={20} min={1} step={1} />
+              <div className="text-right text-sm text-slate-500">{t("portfolio.rebalThresholdHint")} {activeRebalThreshold}%</div>
             </div>
             )}
 
