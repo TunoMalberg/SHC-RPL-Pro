@@ -359,6 +359,21 @@ export function computePESchedule(
   return buildSchedule(rawFund, kestRate, applyJCurve);
 }
 
+/**
+ * Schedule-Computation mit expliziter IRR/TVPI-Realisierung (für das
+ * rollierende PE-Programm im Modus 'full': jedes Vintage zieht eine
+ * eigene Realisierung, das Schedule wird darauf kalibriert).
+ * J-Curve-Overlay ist aktiv (Stochastik impliziert 'full').
+ */
+export function computePEScheduleWithRealization(
+  rawFund: PEFund,
+  kestRate: number,
+  irrPct: number,
+  tvpi: number,
+): PESchedule {
+  return buildSchedule(rawFund, kestRate, true, irrPct, tvpi);
+}
+
 // ---------- Aggregation: Timeline aus Schedules ----------
 
 function aggregateSchedulesToTimeline(
@@ -438,7 +453,7 @@ function drawTVPI(rng: SeededRandom, target: number, vol: number): number {
  * Zieht eine Realisierung (IRR, TVPI) für einen Fonds gemäss
  * (mu_irr, sigma_irr), (mu_tvpi, sigma_tvpi) und Loss-Wahrscheinlichkeit.
  */
-function drawFundRealization(
+export function drawFundRealization(
   rng: SeededRandom,
   fund: PEFund,
 ): { irrPct: number; tvpi: number; isLoss: boolean } {

@@ -26,6 +26,11 @@ import {
   type PETimelineEntry,
   type PEEnsemble,
 } from "./privateEquity";
+import {
+  computeRemainingWithdrawals,
+  createPEProgramRuntime,
+  type PEProgramRuntime,
+} from "./peProgram";
 import { PE_STOCHASTIC_ENSEMBLE_SIZE } from "../defaults";
 
 /**
@@ -233,6 +238,31 @@ export function runMonteCarloSimulation(
     return peTimelineDefault;
   };
 
+  // Rollierendes PE-Programm (Zielquote). Läuft ADDITIV zum Bestand
+  // (statische peFunds-Timeline oben bleibt unberührt). Jeder Pfad
+  // entscheidet jährlich selbst über neue Commitments (Pacing + Guards
+  // in peProgram.ts); ohne Programm bleibt alles bit-identisch.
+  const peProgramCfg =
+    portfolio.peProgram?.enabled && portfolio.peProgram.targetQuotaPct > 0
+      ? portfolio.peProgram
+      : null;
+  const peRuntime: PEProgramRuntime | null = peProgramCfg
+    ? createPEProgramRuntime(
+        peProgramCfg,
+        portfolio,
+        totalYears,
+        kestRate,
+        peMode,
+        settings.randomSeed ?? 42,
+      )
+    : null;
+  // Restliche Netto-Entnahmen je Jahr (deterministisch → einmal vorab).
+  const remainingWithdrawals = peRuntime
+    ? computeRemainingWithdrawals(client, inputs, totalYears)
+    : null;
+  // Programm-NAV je [Pfad][Jahr] für Cross-Path-Perzentile des PE-Charts.
+  const peProgNavMatrix: number[][] | null = peRuntime ? [] : null;
+
   const allFinalValues: number[] = [];
   const allPaths: number[][] = [];
   // Best/Worst-Simulationsindex (niedrigstes/höchstes Endvermögen) —
@@ -275,6 +305,10 @@ export function runMonteCarloSimulation(
     let switchedToWithdrawal = false;
     // PE-NAV zu Beginn = 0 (Fonds starten zu definierten Altersstufen).
     let peNavCurrent = hasPE ? peTimeline[0].totalNav : 0;
+    // Rollierendes PE-Programm: eigener Pfad-Zustand + separater NAV.
+    const peState = peRuntime ? peRuntime.newPathState(sim) : null;
+    let peProgNavCurrent = 0;
+    const peProgNavYears: number[] | null = peState ? [] : null;
     const path: number[] = [inputs.initialCapital + peNavCurrent];
     // Reiner Marktindex (startet bei 1) — nur Renditen, keine Cash-Flows.
     let marketIndex = 1;
@@ -323,6 +357,39 @@ export function runMonteCarloSimulation(
         }
       }
 
+      // Rollierendes PE-Programm: jährliche Commitment-Entscheidung +
+      // Cashflows (nach dem Bestand-Block, damit `liquid` die Bestand-
+      // Calls bereits konservativ berücksichtigt).
+      if (peState && peRuntime && remainingWithdrawals && step % stepsPerYear === 0) {
+        const yIdx = Math.floor(step / stepsPerYear);
+        const liquidNow =
+          bucketValues[0] + bucketValues[1] + bucketValues[2];
+        const staticPeNavAtPeak = hasPE
+          ? peTimeline[Math.min(yIdx + peRuntime.tPeak, peTimeline.length - 1)]
+              ?.totalNav ?? 0
+          : 0;
+        const remainingNow = remainingWithdrawals[yIdx] ?? 0;
+        const remainingNext = remainingWithdrawals[yIdx + 1] ?? 0;
+        const prog = peState.processYear({
+          yearIdx: yIdx,
+          liquid: liquidNow,
+          staticPeNavNow: peNavCurrent,
+          staticPeNavAtPeak,
+          netAnnualWithdrawal: Math.max(0, remainingNow - remainingNext),
+          remainingWithdrawalsNominal: remainingNow,
+          isWithdrawalPhase: !isAccumulation,
+        });
+        highWatermark = applyPECashflowsToBuckets(
+          bucketValues,
+          prog.call,
+          prog.distNet,
+          highWatermark,
+        );
+        peProgNavCurrent = prog.nav;
+        // Gesamt-PE-NAV (Bestand + Programm) für Cross-Path-Perzentile.
+        peProgNavYears?.push(peNavCurrent + peProgNavCurrent);
+      }
+
       // ── Phasenwechsel: einmalige Umschichtung auf das Entnahme-
       //    Portfolio bei Pensionsantritt (nur wenn wd definiert). ─────
       if (wd && !switchedToWithdrawal && !isAccumulation && accumulationSteps > 0) {
@@ -366,7 +433,8 @@ export function runMonteCarloSimulation(
         // Erfolgskriterium inkl. PE-NAV (Wunsch des Auftraggebers:
         // "PE immer in der Erfolgsquote ja"). PE-NAV ist illiquide,
         // wird hier aber zur Vermögensbestimmung zugerechnet.
-        const totalWithPE = totalPortfolio + peNavCurrent;
+        // Programm-NAV (rollierendes PE-Programm) zählt ebenfalls.
+        const totalWithPE = totalPortfolio + peNavCurrent + peProgNavCurrent;
         if (totalWithPE <= netWithdrawal && !failed) {
           failed = true;
           failureStep = step;
@@ -463,14 +531,15 @@ export function runMonteCarloSimulation(
       // Jahres bleibt NAV konstant; aktualisiert wird zu Beginn jedes
       // neuen Jahres oben). Pfadwert = liquide + PE-NAV.
       const totalLiquid = Math.max(0, bucketValues.reduce((a, b) => a + b, 0));
-      path.push(totalLiquid + peNavCurrent);
+      path.push(totalLiquid + peNavCurrent + peProgNavCurrent);
     }
 
     const finalLiquid = Math.max(0, bucketValues.reduce((a, b) => a + b, 0));
-    const finalValue = finalLiquid + peNavCurrent;
+    const finalValue = finalLiquid + peNavCurrent + peProgNavCurrent;
     allFinalValues.push(finalValue);
     allPaths.push(path);
     marketDrawdowns.push(marketMaxDD);
+    if (peProgNavYears && peProgNavMatrix) peProgNavMatrix.push(peProgNavYears);
 
     // Best/Worst-Sim-Index nach Endvermögen tracken.
     if (finalValue > bestFinalValue) {
@@ -519,24 +588,46 @@ export function runMonteCarloSimulation(
   // PE-NAV-Pfad pro Jahr.
   // - simple/realistic: ein einziger NAV-Pfad (deterministisch).
   // - full            : Median + p25/p75 aus dem Ensemble.
-  const pePath: number[] = hasPE
+  // - Programm-Modus  : Cross-Path-Perzentile über alle MC-Pfade
+  //                     (Gesamt-PE-NAV = Bestand + Programm-Vintages;
+  //                     die Commitments sind pfadabhängig).
+  let pePath: number[] = hasPE
     ? Array.from({ length: totalSteps + 1 }, (_, step) => {
         const yIdx = Math.min(Math.floor(step / stepsPerYear), peTimelineDefault.length - 1);
         return peTimelineDefault[yIdx]?.totalNav ?? 0;
       })
     : [];
-  const pePathP25: number[] | undefined = peEnsemble
+  let pePathP25: number[] | undefined = peEnsemble
     ? Array.from({ length: totalSteps + 1 }, (_, step) => {
         const yIdx = Math.min(Math.floor(step / stepsPerYear), peEnsemble.navP25.length - 1);
         return peEnsemble.navP25[yIdx] ?? 0;
       })
     : undefined;
-  const pePathP75: number[] | undefined = peEnsemble
+  let pePathP75: number[] | undefined = peEnsemble
     ? Array.from({ length: totalSteps + 1 }, (_, step) => {
         const yIdx = Math.min(Math.floor(step / stepsPerYear), peEnsemble.navP75.length - 1);
         return peEnsemble.navP75[yIdx] ?? 0;
       })
     : undefined;
+  if (peProgNavMatrix && peProgNavMatrix.length > 0 && peProgNavMatrix[0].length > 0) {
+    const yearCount = peProgNavMatrix[0].length;
+    const p25ByYear = new Array<number>(yearCount).fill(0);
+    const p50ByYear = new Array<number>(yearCount).fill(0);
+    const p75ByYear = new Array<number>(yearCount).fill(0);
+    for (let y = 0; y < yearCount; y++) {
+      const col = peProgNavMatrix
+        .map((row) => row[y] ?? 0)
+        .sort((a, b) => a - b);
+      p25ByYear[y] = percentile(col, 25);
+      p50ByYear[y] = percentile(col, 50);
+      p75ByYear[y] = percentile(col, 75);
+    }
+    const yearAt = (step: number): number =>
+      Math.min(Math.floor(step / stepsPerYear), yearCount - 1);
+    pePath = Array.from({ length: totalSteps + 1 }, (_, step) => p50ByYear[yearAt(step)]);
+    pePathP25 = Array.from({ length: totalSteps + 1 }, (_, step) => p25ByYear[yearAt(step)]);
+    pePathP75 = Array.from({ length: totalSteps + 1 }, (_, step) => p75ByYear[yearAt(step)]);
+  }
 
   const annualWithdrawals: number[] = [];
   const annualPortfolioValues: number[] = [];
@@ -592,7 +683,7 @@ export function runMonteCarloSimulation(
     yearLabels,
     annualWithdrawals,
     annualPortfolioValues,
-    pePath: hasPE ? pePath : undefined,
+    pePath: hasPE || peRuntime ? pePath : undefined,
     pePathP25,
     pePathP75,
     peSuccessRate: peEnsemble ? peEnsemble.successRate : undefined,
@@ -776,6 +867,30 @@ export function runDetailedSingleSimulation(
       : [];
   const hasPE = peTimeline.length > 0;
 
+  // Rollierendes PE-Programm — identische Integration wie in
+  // runMonteCarloSimulation (gleicher Seed-Strom via simIndex, daher
+  // reproduziert der Trace exakt die Programm-Entscheidungen des
+  // MC-Pfads mit demselben Index).
+  const peProgramCfg =
+    portfolio.peProgram?.enabled && portfolio.peProgram.targetQuotaPct > 0
+      ? portfolio.peProgram
+      : null;
+  const peRuntime = peProgramCfg
+    ? createPEProgramRuntime(
+        peProgramCfg,
+        portfolio,
+        totalYears,
+        kestRate,
+        peMode,
+        settings.randomSeed ?? 42,
+      )
+    : null;
+  const peState = peRuntime ? peRuntime.newPathState(simIndex) : null;
+  const remainingWithdrawals = peRuntime
+    ? computeRemainingWithdrawals(client, inputs, totalYears)
+    : null;
+  let peProgNavFinal = 0;
+
   let bucketValues = startWeights.map((w) => w * inputs.initialCapital);
   let cumulativeInflation = 1;
   let highWatermark = inputs.initialCapital;
@@ -829,6 +944,41 @@ export function runDetailedSingleSimulation(
         peDistNet,
         highWatermark,
       );
+    }
+
+    // Rollierendes PE-Programm (nach dem Bestand-Block, wie in der MC-Engine).
+    let peCommitted: number | undefined;
+    let peUnfunded: number | undefined;
+    if (peState && peRuntime && remainingWithdrawals) {
+      const liquidNow = bucketValues[0] + bucketValues[1] + bucketValues[2];
+      const staticPeNavAtPeak = hasPE
+        ? peTimeline[Math.min(y + peRuntime.tPeak, peTimeline.length - 1)]
+            ?.totalNav ?? 0
+        : 0;
+      const remainingNow = remainingWithdrawals[y] ?? 0;
+      const remainingNext = remainingWithdrawals[y + 1] ?? 0;
+      const prog = peState.processYear({
+        yearIdx: y,
+        liquid: liquidNow,
+        staticPeNavNow: peNavThisYear,
+        staticPeNavAtPeak,
+        netAnnualWithdrawal: Math.max(0, remainingNow - remainingNext),
+        remainingWithdrawalsNominal: remainingNow,
+        isWithdrawalPhase: !isAccumulation,
+      });
+      highWatermark = applyPECashflowsToBuckets(
+        bucketValues,
+        prog.call,
+        prog.distNet,
+        highWatermark,
+      );
+      peCall += prog.call;
+      peDistGross += prog.distGross;
+      peDistNet += prog.distNet;
+      peNavThisYear += prog.nav;
+      peProgNavFinal = prog.nav;
+      peCommitted = prog.committed;
+      peUnfunded = prog.unfunded;
     }
 
     let cashflow = 0;
@@ -1042,18 +1192,22 @@ export function runDetailedSingleSimulation(
       endEquities,
       endTotal,
       cumulativeInflation,
-      peCall: hasPE ? peCall : undefined,
-      peDistGross: hasPE ? peDistGross : undefined,
-      peDistNet: hasPE ? peDistNet : undefined,
-      peNav: hasPE ? peNavThisYear : undefined,
+      peCall: hasPE || peState ? peCall : undefined,
+      peDistGross: hasPE || peState ? peDistGross : undefined,
+      peDistNet: hasPE || peState ? peDistNet : undefined,
+      peNav: hasPE || peState ? peNavThisYear : undefined,
+      peCommitted,
+      peUnfunded,
     });
   }
 
   // PE-NAV am Ende: letzter Eintrag der Timeline (Index = totalYears,
-  // sofern vorhanden, sonst der letzte erreichbare Eintrag).
-  const peNavFinal = hasPE
-    ? peTimeline[Math.min(totalYears, peTimeline.length - 1)]?.totalNav ?? 0
-    : 0;
+  // sofern vorhanden, sonst der letzte erreichbare Eintrag) +
+  // Programm-NAV des letzten Jahres.
+  const peNavFinal =
+    (hasPE
+      ? peTimeline[Math.min(totalYears, peTimeline.length - 1)]?.totalNav ?? 0
+      : 0) + peProgNavFinal;
   const finalWealth = bucketValues.reduce((a, b) => a + b, 0) + peNavFinal;
 
   return {

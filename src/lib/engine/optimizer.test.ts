@@ -312,12 +312,33 @@ describe("buildPortfolioFromAllocation", () => {
     );
     // Buckets sum = 100, NICHT 80
     expect(p.buckets[0].allocation + p.buckets[1].allocation + p.buckets[2].allocation).toBe(100);
-    // PE-Commitment = 20 % vom Startkapital
-    expect(p.peFunds).toHaveLength(1);
-    expect(p.peFunds![0].commitment).toBe(200_000);
-    expect(p.peFunds![0].startAge).toBe(45);
-    expect(p.peFunds![0].irr).toBe(10);
-    expect(p.peFunds![0].tvpi).toBe(1.7);
+    // PE-Achse = Zielquote → rollierendes Programm statt Einzelfonds.
+    expect(p.peFunds).toEqual([]);
+    expect(p.peProgram).toBeDefined();
+    expect(p.peProgram!.enabled).toBe(true);
+    expect(p.peProgram!.targetQuotaPct).toBe(20);
+    expect(p.peProgram!.fundTemplate.irr).toBe(10);
+    expect(p.peProgram!.fundTemplate.tvpi).toBe(1.7);
+  });
+
+  test("pe = 0: kein Programm gesetzt", () => {
+    const p = buildPortfolioFromAllocation(
+      { cash: 20, bonds: 30, equities: 50, pe: 0 },
+      defaultPortfolio,
+      1_000_000,
+      45,
+    );
+    expect(p.peProgram).toBeUndefined();
+  });
+
+  test("Round-Trip: currentAllocationOf liest die Programm-Zielquote zurück", () => {
+    const p = buildPortfolioFromAllocation(
+      { cash: 10, bonds: 30, equities: 60, pe: 15 },
+      defaultPortfolio,
+      1_000_000,
+      45,
+    );
+    expect(currentAllocationOf(p, 1_000_000).pe).toBe(15);
   });
 });
 

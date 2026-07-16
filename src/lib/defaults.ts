@@ -3,6 +3,7 @@ import type {
   ClientProfile,
   FinancialInputs,
   PEFund,
+  PEProgram,
   PortfolioConfig,
   SimulationSettings,
 } from "./types";
@@ -152,6 +153,39 @@ export function makeDefaultPEFund(startAge: number, index = 0): PEFund {
     irrVolatility: PE_DEFAULT_IRR_VOL,
     tvpiVolatility: PE_DEFAULT_TVPI_VOL,
     lossProbability: PE_DEFAULT_LOSS_PROB,
+  };
+}
+
+/**
+ * Default-Werte für ein neues rollierendes PE-Programm.
+ * - Zielquote 15 % des Gesamtvermögens (NAV-Basis)
+ * - Vintage-Rhythmus 1 Jahr
+ * - Liquiditätspuffer 3 Jahresentnahmen (Ansparphase-Guard)
+ * - Entnahme-Deckung 100 % der restlichen Netto-Entnahmen
+ * - Max. 10 % des Gesamtvermögens je Vintage
+ * - Fonds-Template = Industrie-Defaults (wie makeDefaultPEFund)
+ */
+export function makeDefaultPEProgram(): PEProgram {
+  return {
+    enabled: true,
+    targetQuotaPct: 15,
+    vintageCadenceYears: 1,
+    liquidityBufferYears: 3,
+    withdrawalCoveragePct: 100,
+    maxVintageQuotaPct: 10,
+    fundTemplate: {
+      callRatio: 80,
+      irr: 10,
+      tvpi: 1.7,
+      investmentPeriod: 5,
+      fundDuration: 14,
+      mgmtFeeRate: PE_DEFAULT_MGMT_FEE,
+      postPeriodFeeRate: PE_DEFAULT_POSTPERIOD_FEE,
+      setupCostPct: PE_DEFAULT_SETUP_COST,
+      irrVolatility: PE_DEFAULT_IRR_VOL,
+      tvpiVolatility: PE_DEFAULT_TVPI_VOL,
+      lossProbability: PE_DEFAULT_LOSS_PROB,
+    },
   };
 }
 

@@ -113,6 +113,47 @@ export interface PEFund {
  */
 export type PEModelingMode = 'simple' | 'realistic' | 'full';
 
+/**
+ * Rollierendes PE-Programm mit Zielquote.
+ *
+ * Statt einzelner, manuell gepflegter Fonds steuert das Programm die
+ * PE-Quote über wiederkehrende Commitments (Vintages): Die Engine
+ * entscheidet pro MC-Pfad jährlich (im Vintage-Rhythmus), ob und in
+ * welcher Höhe ein neues Commitment gezeichnet wird, um die Zielquote
+ * (% des Gesamtvermögens auf NAV-Basis) zu erreichen und zu halten.
+ *
+ * Illiquiditäts-Schutz: In der Entnahmephase wird nur committet, wenn
+ * das liquide Vermögen nach dem Commitment die restlichen geplanten
+ * Entnahmen noch deckt (Deckungs-Check). Reiche Pfade halten so die
+ * Quote, arme Pfade stoppen automatisch — die PE-Quote sinkt dann
+ * pfad-adaptiv über den natürlichen Runoff (Distributions), bevor
+ * Entnahmen unmöglich werden.
+ *
+ * Programm-Vintages sind Laufzeitobjekte der Engine und erscheinen
+ * nicht in `peFunds`; manuell gepflegte Fonds laufen parallel als
+ * Bestand weiter und zählen in die Ist-Quote.
+ */
+export interface PEProgram {
+  /** Programm aktiv? */
+  enabled: boolean;
+  /** Ziel-PE-Quote in % des Gesamtvermögens (NAV-Basis: liquide + PE-NAV). 1–40. */
+  targetQuotaPct: number;
+  /** Vintage-Rhythmus in Jahren (1–3). Default 1. */
+  vintageCadenceYears: number;
+  /** Liquiditäts-Guard Ansparphase: liquide ≥ offene Abrufe + N Jahres-Nettoentnahmen. Default 3. */
+  liquidityBufferYears: number;
+  /**
+   * Deckungs-Check Entnahmephase: Commitment nur, wenn
+   * liquide − offene Abrufe ≥ (Coverage %) × restliche nominale Netto-Entnahmen.
+   * Default 100.
+   */
+  withdrawalCoveragePct: number;
+  /** Kappung je Vintage in % des Gesamtvermögens. Default 10. */
+  maxVintageQuotaPct: number;
+  /** Fondsparameter aller Vintages (ein Template statt N Einzel-Fonds). */
+  fundTemplate: Omit<PEFund, 'id' | 'name' | 'commitment' | 'startAge'>;
+}
+
 export type RebalancingFrequency = 'monthly' | 'quarterly' | 'annually' | 'none';
 
 /**
@@ -154,6 +195,11 @@ export interface PortfolioConfig {
   peFunds?: PEFund[];
   /** PE-Modellierungs-Modus. Default 'realistic'. */
   peModelingMode?: PEModelingMode;
+  /**
+   * Rollierendes PE-Programm mit Zielquote. `undefined` oder
+   * `enabled: false` = kein Programm (nur manuelle `peFunds`).
+   */
+  peProgram?: PEProgram;
   /**
    * Optionales, abweichendes Entnahme-Portfolio. Wenn gesetzt, nutzt die
    * Engine ab Pensionsantritt diese Gewichte + Rebalancing-Parameter.
@@ -305,6 +351,10 @@ export interface DetailedYearRow {
   peDistNet?: number;
   /** Aggregierter NAV aller PE-Fonds am Ende des Jahres. */
   peNav?: number;
+  /** Neues Commitment des rollierenden PE-Programms in diesem Jahr (€). */
+  peCommitted?: number;
+  /** Offene (noch nicht abgerufene) Commitments des Programms am Jahresende (€). */
+  peUnfunded?: number;
 }
 
 export interface DetailedSimTrace {

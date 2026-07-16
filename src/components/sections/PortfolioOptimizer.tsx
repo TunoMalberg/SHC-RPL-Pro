@@ -15,9 +15,11 @@
  *   - Effizienzgrenze: Streupunkte (Drawdown vs. Erfolgsquote), gefärbt
  *     nach PE-Anteil. Aktuelles Berater-Portfolio als großer schwarzer
  *     Punkt. Top-1 als großer goldener Stern.
- *   - Apply schreibt die Bucket-Allokationen + ggf. einen synthetischen
- *     PE-Fonds in den Store. Berater kann danach im normalen Flow eine
- *     volle 5000-Pfade-Simulation laufen lassen.
+ *   - Apply schreibt die Bucket-Allokationen + ggf. ein rollierendes
+ *     PE-Programm (Zielquote, jährliche Vintages) in den Store — exakt
+ *     dieselbe Konfiguration, mit der der Score berechnet wurde. Berater
+ *     kann danach im normalen Flow eine volle 5000-Pfade-Simulation
+ *     laufen lassen.
  *
  * Nicht im Optimizer:
  *   - Korrelationsmatrix-Tuning (separate Pro-Funktionalität)
@@ -44,12 +46,12 @@ import { logger } from "@/lib/logger";
 import { validatePlanInputs } from "@/lib/validation";
 import { toast } from "sonner";
 import {
+  makeOptimizerPEProgram,
   optimizePortfolio,
   type AllocationResult,
   type OptimizerObjective,
   type OptimizerResult,
 } from "@/lib/engine/optimizer";
-import type { PEFund } from "@/lib/types";
 import {
   ScatterChart,
   Scatter,
@@ -167,29 +169,15 @@ export function PortfolioOptimizerSection() {
         { ...portfolio.buckets[2], allocation: alloc.equities },
       ] as typeof portfolio.buckets;
 
-      const peFunds: PEFund[] =
-        alloc.pe > 0
-          ? [
-              {
-                id: "optimizer-pe",
-                name: t("opt.peFundName") || "Optimierter PE-Fonds",
-                commitment: Math.max(0, inputs.initialCapital * alloc.pe / 100),
-                callRatio: 80,
-                irr: 10,
-                tvpi: 1.7,
-                investmentPeriod: 5,
-                fundDuration: 14,
-                startAge: client.currentAge,
-                mgmtFeeRate: 2.0,
-                postPeriodFeeRate: 1.5,
-                setupCostPct: 1.0,
-              },
-            ]
-          : [];
-
+      // PE-Achse = Zielquote → rollierendes Programm (identische Fabrik
+      // wie im Optimizer-Scoring, damit Score == übernommene Realität).
       dispatch({
         type: "SET_PORTFOLIO",
-        payload: { buckets: newBuckets, peFunds },
+        payload: {
+          buckets: newBuckets,
+          peFunds: [],
+          peProgram: alloc.pe > 0 ? makeOptimizerPEProgram(alloc.pe) : undefined,
+        },
       });
 
       toast.success(
@@ -198,7 +186,7 @@ export function PortfolioOptimizerSection() {
         { description: t("opt.appliedHint") || "Wechseln Sie zur Simulation für eine volle Analyse." },
       );
     },
-    [portfolio, client.currentAge, inputs.initialCapital, dispatch, t],
+    [portfolio, dispatch, t],
   );
 
   // Scatter-Daten für Effizienzgrenze

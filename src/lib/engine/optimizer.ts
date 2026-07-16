@@ -7,8 +7,11 @@
  * (cash, bonds, equities) ∈ Simplex (Summe = 100 %, Anteile des LIQUIDEN
  *                                    Portfolios — Buckets summieren immer
  *                                    auf 100 %, das ist die Engine-Konvention)
- * pe ∈ {0, 5, 10, 15, 20, 25} %    (separates Commitment in % vom
- *                                    Startkapital, Capital Calls aus Cash)
+ * pe ∈ {0, 5, 10, 15, 20, 25} %    (ZIELQUOTE in % des Gesamtvermögens,
+ *                                    laufend gehalten über ein rollierendes
+ *                                    PE-Programm mit jährlichen Vintages —
+ *                                    Pacing + Liquiditäts-Guards siehe
+ *                                    peProgram.ts. Capital Calls aus Cash.)
  *
  * Beide Achsen sind orthogonal — kein 4-Simplex.
  *
@@ -71,13 +74,14 @@
  */
 
 import { runMonteCarloSimulation } from "./montecarlo";
+import { makeDefaultPEProgram } from "../defaults";
 import type {
   ClientProfile,
   FinancialInputs,
   LiquidityEvent,
+  PEProgram,
   PortfolioConfig,
   SimulationSettings,
-  PEFund,
 } from "../types";
 
 // ──────────────────────────────────────────
@@ -127,7 +131,7 @@ export interface AllocationCandidate {
   bonds: number;
   /** Aktien-Allokation in % (0–100). */
   equities: number;
-  /** PE-Commitment in % des Startkapitals (0–25). */
+  /** PE-Zielquote in % des Gesamtvermögens (0–25), gehalten über ein rollierendes Programm. */
   pe: number;
 }
 
@@ -457,17 +461,33 @@ export function wilsonScoreInterval(
 }
 
 /**
+ * Erzeugt das rollierende PE-Programm des Optimizers für eine Zielquote.
+ * Template = branchenübliche Mid-Market-Defaults (IRR 10 %, TVPI 1.7×,
+ * callRatio 80 %, 5/14 Jahre, Fees 2.0/1.5/1.0) — identisch zu
+ * `makeDefaultPEProgram`, nur die Zielquote variiert.
+ *
+ * WICHTIG: Diese Fabrik wird sowohl im Scoring
+ * (`buildPortfolioFromAllocation`) als auch im Adopt-Flow
+ * (PortfolioOptimizer → „Portfolio übernehmen") verwendet, damit der
+ * bewertete Score exakt dem übernommenen Portfolio entspricht.
+ */
+export function makeOptimizerPEProgram(targetQuotaPct: number): PEProgram {
+  return {
+    ...makeDefaultPEProgram(),
+    targetQuotaPct: Math.max(0, Math.min(40, targetQuotaPct)),
+  };
+}
+
+/**
  * Baut die `PortfolioConfig` für die Engine. Buckets werden auf die neuen
  * Allokationen gesetzt (cash/bonds/equities). Wenn `pe > 0`, wird ein
- * synthetischer PE-Fonds mit Default-Parametern erzeugt:
- *   - Commitment = initialCapital × pe/100
- *   - IRR 10 %, TVPI 1.7×, callRatio 80 %, investmentPeriod 5 Jahre,
- *     fundDuration 14 Jahre, startAge = currentAge
- * Diese Werte sind branchenübliche Defaults für Mid-Market-PE-Fonds.
+ * rollierendes PE-Programm mit Zielquote `pe` % gesetzt (jährliche
+ * Vintages, Pacing + Liquiditäts-Guards — siehe peProgram.ts).
  *
- * Wichtig: bestehende `basePortfolio.peFunds` werden ersetzt — der
- * Optimizer arbeitet mit *einer einzelnen* synthetischen PE-Position, um
- * den Vergleich zwischen Allokationen sauber zu halten.
+ * Wichtig: bestehende `basePortfolio.peFunds` und ein etwaiges
+ * bestehendes Programm werden ersetzt — der Optimizer bewertet die
+ * PE-Achse isoliert, um den Vergleich zwischen Allokationen sauber
+ * zu halten.
  */
 export function buildPortfolioFromAllocation(
   alloc: AllocationCandidate,
@@ -484,31 +504,11 @@ export function buildPortfolioFromAllocation(
     { ...basePortfolio.buckets[2], allocation: alloc.equities },
   ] as PortfolioConfig["buckets"];
 
-  // Synthetischer PE-Fund (siehe oben für Begründung der Defaults)
-  const peFunds: PEFund[] =
-    alloc.pe > 0
-      ? [
-          {
-            id: "optimizer-pe",
-            name: "Optimizer PE",
-            commitment: Math.max(0, initialCapital * alloc.pe / 100),
-            callRatio: 80,
-            irr: 10,
-            tvpi: 1.7,
-            investmentPeriod: 5,
-            fundDuration: 14,
-            startAge: currentAge,
-            mgmtFeeRate: 2.0,
-            postPeriodFeeRate: 1.5,
-            setupCostPct: 1.0,
-          },
-        ]
-      : [];
-
   return {
     ...basePortfolio,
     buckets,
-    peFunds,
+    peFunds: [],
+    peProgram: alloc.pe > 0 ? makeOptimizerPEProgram(alloc.pe) : undefined,
     peModelingMode: basePortfolio.peModelingMode ?? "realistic",
   };
 }
@@ -615,12 +615,20 @@ export function currentAllocationOf(
     else cash += delta;
   }
 
-  const peCommitments = (basePortfolio.peFunds ?? []).reduce(
-    (acc, f) => acc + (f.commitment ?? 0),
-    0,
-  );
+  // PE-Achse: bevorzugt die Zielquote eines aktiven rollierenden
+  // Programms; sonst Legacy-Heuristik (Summe der Einzel-Commitments
+  // relativ zum Startkapital).
+  let peRaw: number;
+  if (basePortfolio.peProgram?.enabled) {
+    peRaw = basePortfolio.peProgram.targetQuotaPct;
+  } else {
+    const peCommitments = (basePortfolio.peFunds ?? []).reduce(
+      (acc, f) => acc + (f.commitment ?? 0),
+      0,
+    );
+    peRaw = initialCapital > 0 ? (peCommitments / initialCapital) * 100 : 0;
+  }
   // Auf 5 %-Vielfache runden (Suchraster ist 5 %), Clamp 0..25.
-  const peRaw = initialCapital > 0 ? (peCommitments / initialCapital) * 100 : 0;
   const pe = Math.min(25, Math.max(0, Math.round(peRaw / 5) * 5));
 
   return { cash, bonds, equities, pe };

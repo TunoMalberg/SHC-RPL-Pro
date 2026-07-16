@@ -314,6 +314,27 @@ const de: Record<string, string> = {
   "portfolio.peEnsembleMedianIRR": "Median realisierte IRR",
   "portfolio.peEnsembleMedianTVPI": "Median realisierter TVPI",
   "portfolio.peEnsembleSize": "Szenarien",
+  // Rollierendes PE-Programm (Zielquote)
+  "portfolio.peProgramTitle": "Rollierendes PE-Programm",
+  "portfolio.peProgramSubtitle":
+    "Baut die PE-Zielquote über wiederkehrende Commitments (Vintages) auf und hält sie. In der Entnahmephase wird nur weiter gezeichnet, solange das liquide Vermögen die restlichen Entnahmen deckt — sonst sinkt die Quote automatisch über den natürlichen Runoff (Illiquiditäts-Schutz).",
+  "portfolio.peProgramEnable": "Programm aktiv",
+  "portfolio.peProgramTargetQuota": "Zielquote (% Gesamtvermögen)",
+  "portfolio.peProgramCadence": "Vintage-Rhythmus (Jahre)",
+  "portfolio.peProgramBuffer": "Liquiditätspuffer (Jahresentnahmen)",
+  "portfolio.peProgramCoverage": "Entnahme-Deckung (% restl. Entnahmen)",
+  "portfolio.peProgramMaxVintage": "Max. je Vintage (% Vermögen)",
+  "portfolio.peProgramTemplateTitle": "Fonds-Template (gilt für alle Vintages)",
+  "portfolio.peProgramPreviewTitle": "Vorschau (Erwartungspfad)",
+  "portfolio.peProgramPreviewHint":
+    "Deterministische Projektion — tatsächliche Commitments sind pfadabhängig.",
+  "portfolio.peProgramQuota": "Ist-Quote",
+  "portfolio.peProgramTarget": "Zielquote",
+  "portfolio.peProgramNav": "PE-NAV (Programm + Bestand)",
+  "portfolio.peProgramVintages": "Geplante Vintages",
+  "portfolio.peProgramSumCommit": "Σ Commitments (Plan)",
+  "portfolio.peProgramRetirement": "Pensionsantritt",
+  "portfolio.peProgramBestandTitle": "Bestehende Beteiligungen (Bestand)",
 
   // Private Equity – outputs (Results & Detailed)
   "results.peCardTitle": "Private-Equity-Beitrag",
@@ -875,7 +896,7 @@ const de: Record<string, string> = {
   "opt.tooltip.success": "Erfolgsquote",
   "opt.tooltip.dd": "Max. Drawdown",
   "opt.tooltip.median": "Median-Endvermögen",
-  "opt.tooltip.pe": "PE-Anteil",
+  "opt.tooltip.pe": "PE-Zielquote",
   "opt.tableTitle": "Top 5 vs. Flop 5 Allokationen",
   "opt.tableSubtitle": "Sortiert nach Score der gewählten Zielfunktion. Die Top-5 werden mit 5.000 Pfaden re-evaluiert, die Flop-5 zeigen die Bandbreite der schlechtesten Konfigurationen — nützlich, um die Spannweite einzuordnen. „Übernehmen“ schreibt die Allokation in das aktuelle Portfolio.",
   "opt.flopBadge": "Schlechteste Konfigurationen",
@@ -883,7 +904,7 @@ const de: Record<string, string> = {
   "opt.col.cash": "Cash",
   "opt.col.bonds": "Anleihen",
   "opt.col.equities": "Aktien",
-  "opt.col.pe": "PE",
+  "opt.col.pe": "PE-Ziel",
   "opt.col.success": "Erfolg",
   "opt.col.dd": "Max. DD",
   "opt.col.median": "Median Endv.",
@@ -896,7 +917,7 @@ const de: Record<string, string> = {
   "opt.failed": "Optimierung fehlgeschlagen",
   "opt.validationFailed": "Eingaben unvollständig oder ungültig",
   "opt.noCapital": "Startkapital muss > 0 sein",
-  "opt.disclaimer": "Hinweis: Optimierung mit reduzierter Pfadanzahl zur Geschwindigkeit. Vor finaler Empfehlung im Beratungstermin: Top-Allokation übernehmen und volle 5.000-Pfade-Simulation durchführen. Synthetischer PE-Fonds verwendet konservative Default-Annahmen (IRR 10 %, TVPI 1,7×, Mgmt-Fee 2 %) — ggf. durch realen Fonds ersetzen.",
+  "opt.disclaimer": "Hinweis: Optimierung mit reduzierter Pfadanzahl zur Geschwindigkeit. Vor finaler Empfehlung im Beratungstermin: Top-Allokation übernehmen und volle 5.000-Pfade-Simulation durchführen. Der PE-Anteil wird als rollierendes Programm mit Zielquote modelliert (jährliche Vintages, Liquiditäts-Guards; IRR 10 %, TVPI 1,7×, Mgmt-Fee 2 %) — Parameter im Portfolio-Tab anpassbar.",
 };
 
 /* ──────────────────────────────────────────
@@ -1195,6 +1216,27 @@ const en: Record<string, string> = {
   "portfolio.peEnsembleMedianIRR": "Median realised IRR",
   "portfolio.peEnsembleMedianTVPI": "Median realised TVPI",
   "portfolio.peEnsembleSize": "Scenarios",
+  // Rolling PE program (target quota)
+  "portfolio.peProgramTitle": "Rolling PE program",
+  "portfolio.peProgramSubtitle":
+    "Builds and maintains the target PE quota through recurring commitments (vintages). During the withdrawal phase, new commitments are only made while liquid assets still cover the remaining withdrawals — otherwise the quota declines automatically via natural runoff (illiquidity protection).",
+  "portfolio.peProgramEnable": "Program active",
+  "portfolio.peProgramTargetQuota": "Target quota (% total wealth)",
+  "portfolio.peProgramCadence": "Vintage cadence (years)",
+  "portfolio.peProgramBuffer": "Liquidity buffer (annual withdrawals)",
+  "portfolio.peProgramCoverage": "Withdrawal coverage (% remaining)",
+  "portfolio.peProgramMaxVintage": "Max per vintage (% wealth)",
+  "portfolio.peProgramTemplateTitle": "Fund template (applies to all vintages)",
+  "portfolio.peProgramPreviewTitle": "Preview (expected path)",
+  "portfolio.peProgramPreviewHint":
+    "Deterministic projection — actual commitments are path-dependent.",
+  "portfolio.peProgramQuota": "Actual quota",
+  "portfolio.peProgramTarget": "Target quota",
+  "portfolio.peProgramNav": "PE NAV (program + existing)",
+  "portfolio.peProgramVintages": "Planned vintages",
+  "portfolio.peProgramSumCommit": "Σ commitments (plan)",
+  "portfolio.peProgramRetirement": "Retirement",
+  "portfolio.peProgramBestandTitle": "Existing holdings",
 
   // Private Equity – outputs (Results & Detailed)
   "results.peCardTitle": "Private Equity contribution",
@@ -1750,7 +1792,7 @@ const en: Record<string, string> = {
   "opt.tooltip.success": "Success rate",
   "opt.tooltip.dd": "Max drawdown",
   "opt.tooltip.median": "Median final wealth",
-  "opt.tooltip.pe": "PE share",
+  "opt.tooltip.pe": "PE target quota",
   "opt.tableTitle": "Top 5 vs. Flop 5 allocations",
   "opt.tableSubtitle": "Sorted by score of the chosen objective. Top-5 are re-evaluated with 5,000 paths; Flop-5 show the range of the worst configurations — useful to gauge the spread. \"Apply\" writes the allocation into the current portfolio.",
   "opt.flopBadge": "Worst configurations",
@@ -1758,7 +1800,7 @@ const en: Record<string, string> = {
   "opt.col.cash": "Cash",
   "opt.col.bonds": "Bonds",
   "opt.col.equities": "Equities",
-  "opt.col.pe": "PE",
+  "opt.col.pe": "PE target",
   "opt.col.success": "Success",
   "opt.col.dd": "Max DD",
   "opt.col.median": "Median FW",
@@ -1771,7 +1813,7 @@ const en: Record<string, string> = {
   "opt.failed": "Optimization failed",
   "opt.validationFailed": "Inputs incomplete or invalid",
   "opt.noCapital": "Starting capital must be > 0",
-  "opt.disclaimer": "Note: optimization runs with reduced path count for speed. Before final advisory recommendation: apply the top allocation and run the full 5,000-path simulation. The synthetic PE fund uses conservative default assumptions (IRR 10 %, TVPI 1.7×, mgmt fee 2 %) — replace with a real fund if needed.",
+  "opt.disclaimer": "Note: optimization runs with reduced path count for speed. Before final advisory recommendation: apply the top allocation and run the full 5,000-path simulation. The PE axis is modeled as a rolling program with target quota (annual vintages, liquidity guards; IRR 10 %, TVPI 1.7×, mgmt fee 2 %) — parameters adjustable in the portfolio tab.",
 };
 
 const translations: Record<Locale, Record<string, string>> = { de, en };

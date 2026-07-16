@@ -193,7 +193,11 @@ export function ResultsDashboard() {
     });
   }
 
-  const hasPE = peSummary !== null && (result.pePath?.length ?? 0) > 0;
+  // PE vorhanden, sobald die Engine einen NAV-Pfad liefert — deckt sowohl
+  // Bestand-Fonds als auch das rollierende PE-Programm ab (Programm-only-
+  // Portfolios haben peFunds = [] aber einen pePath). Die KPI-Karte unten
+  // bleibt zusätzlich an peSummary (= Bestand-Fonds) gebunden.
+  const hasPE = (result.pePath?.length ?? 0) > 0;
   const hasPEStoch =
     hasPE && (result.pePathP25?.length ?? 0) > 0 && (result.pePathP75?.length ?? 0) > 0;
 
