@@ -15,9 +15,11 @@ import { ExportPanel } from "@/components/sections/ExportPanel";
 import { ClientView } from "@/components/sections/ClientView";
 import { HoldingsBucket } from "@/components/sections/HoldingsBucket";
 import { PortfolioOptimizerSection } from "@/components/sections/PortfolioOptimizer";
+import { ComparisonView } from "@/components/sections/ComparisonView";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ModeToggle } from "@/components/ModeToggle";
 import { ModeChooserModal } from "@/components/ModeChooserModal";
+import { ValuationBadge } from "@/components/ValuationBadge";
 import Image from "next/image";
 
 const ALL_TABS = [
@@ -28,6 +30,9 @@ const ALL_TABS = [
   { id: "optimizer", labelKey: "tab.optimizer", icon: "/icons/rot/Wagge.png", proOnly: true },
   { id: "simulation", labelKey: "tab.simulation", icon: "/icons/rot/Computer.png" },
   { id: "results", labelKey: "tab.results", icon: "/icons/rot/Ziel.png" },
+  // Vergleichsansicht (CR 15/17): Nicht investieren vs. bestehende
+  // Veranlagung vs. Zielstrategie — Klassik + Pro.
+  { id: "compare", labelKey: "tab.compare", icon: "/icons/rot/Wagge.png" },
   { id: "historical", labelKey: "tab.historical", icon: "/icons/rot/Uhr.png" },
   { id: "scenarios", labelKey: "tab.scenarios", icon: "/icons/rot/Pfeil.png" },
   { id: "detailed", labelKey: "tab.detailed", icon: "/icons/rot/Uhr.png" },
@@ -43,10 +48,12 @@ export default function RetirementPlannerApp() {
     (tab) => state.uiMode === "pro" || !tab.proOnly,
   );
   // Tailwind-Klassen für Grid-Spalten je nach Tab-Anzahl.
-  // Klassik: 10 Tabs → md:grid-cols-10
-  // Pro: +holdings +optimizer = 12 Tabs → md:grid-cols-12
+  // Klassik: 11 Tabs (inkl. „Vergleich") → md:grid-cols-11
+  // Pro: +holdings +optimizer = 13 Tabs → arbitrary value (Tailwind-Default
+  // endet bei grid-cols-12).
   const gridColsClass =
-    visibleTabs.length >= 12 ? "md:grid-cols-12"
+    visibleTabs.length >= 13 ? "md:grid-cols-[repeat(13,minmax(0,1fr))]"
+    : visibleTabs.length === 12 ? "md:grid-cols-12"
     : visibleTabs.length === 11 ? "md:grid-cols-11"
     : "md:grid-cols-10";
 
@@ -78,6 +85,8 @@ export default function RetirementPlannerApp() {
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-[#4D4A47]" data-design-id="app-meta">
+              {/* Bewertungsbasis dauerhaft sichtbar + umschaltbar (CR 6) */}
+              <ValuationBadge />
               <LanguageToggle />
               <span className="hidden md:inline-block px-2 py-1 bg-neutral-100 rounded-md font-medium">EUR</span>
               <span className="hidden md:inline-block px-2 py-1 bg-red-50 text-[#D31220] rounded-md font-medium">
@@ -141,6 +150,9 @@ export default function RetirementPlannerApp() {
           </TabsContent>
           <TabsContent value="results" data-design-id="tab-content-results">
             <ResultsDashboard />
+          </TabsContent>
+          <TabsContent value="compare" data-design-id="tab-content-compare">
+            <ComparisonView />
           </TabsContent>
           <TabsContent value="historical" data-design-id="tab-content-historical">
             <HistoricalAnalysisSection />

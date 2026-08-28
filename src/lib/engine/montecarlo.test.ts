@@ -18,7 +18,7 @@ import { defaultClient, defaultInputs, defaultPortfolio } from "../defaults";
 import type { ClientProfile, FinancialInputs, PortfolioConfig, SimulationSettings, LiquidityEvent } from "../types";
 
 const baseClient: ClientProfile = { ...defaultClient };
-const baseInputs: FinancialInputs = { ...defaultInputs };
+const baseInputs: FinancialInputs = { ...defaultInputs, desiredMonthlyWithdrawal: 3000 };
 const basePortfolio: PortfolioConfig = JSON.parse(JSON.stringify(defaultPortfolio));
 const baseSettings: SimulationSettings = {
   numSimulations: 500, // klein, damit Tests <1 s laufen
@@ -143,5 +143,51 @@ describe("runMonteCarloSimulation — Pension-Logik", () => {
     const r = runMonteCarloSimulation(client, earlyPension, basePortfolio, baseSettings, []);
     expect(r.medianFinalWealth).toBeGreaterThanOrEqual(0);
     expect(Number.isFinite(r.successRate)).toBe(true);
+  });
+});
+/* ── CR „Heutige Kaufkraft & Planungskorridor" ─────────────────────── */
+
+describe("runMonteCarloSimulation — duale Bewertung (CR 6)", () => {
+  test("valuation-Objekt: Deflatoren, reale Skalare, Jahresbezüge", () => {
+    const r = runMonteCarloSimulation(baseClient, baseInputs, basePortfolio, baseSettings, []);
+    expect(r.valuation).toBeDefined();
+    const v = r.valuation!;
+    expect(v.inflationRatePct).toBe(baseInputs.inflationRate);
+    expect(v.deflators.length).toBe(r.medianPath.length);
+    expect(v.deflators[0]).toBe(1);
+    // Enddeflator = (1+i)^(−Jahre)
+    const years = baseClient.lifeExpectancy - baseClient.currentAge;
+    expect(v.deflators[v.deflators.length - 1]).toBeCloseTo(
+      Math.pow(1 + baseInputs.inflationRate / 100, -years), 10,
+    );
+    // Reale Skalare exakt aus nominalen abgeleitet.
+    expect(v.medianFinalWealthReal).toBeCloseTo(
+      r.medianFinalWealth * v.deflators[v.deflators.length - 1], 6,
+    );
+    expect(v.percentilesReal.p50).toBeCloseTo(v.medianFinalWealthReal, 6);
+    expect(v.percentilesReal.p10).toBeLessThanOrEqual(v.percentilesReal.p90);
+    // Jahresbezüge (kein Nominalwert ohne Jahr, CR 6).
+    expect(v.horizonYear).toBe(baseClient.birthYear + baseClient.lifeExpectancy);
+    expect(v.retirementYear).toBe(baseClient.birthYear + baseClient.retirementAge);
+  });
+
+  test("requiredMonthlyWithdrawal = max(0, Wunsch − Pension); null ohne Wunsch (CR 4/19)", () => {
+    const r = runMonteCarloSimulation(baseClient, baseInputs, basePortfolio, baseSettings, []);
+    expect(r.requiredMonthlyWithdrawal).toBe(
+      Math.max(0, 3000 - baseInputs.monthlyPension),
+    );
+    const rNull = runMonteCarloSimulation(
+      baseClient, { ...baseInputs, desiredMonthlyWithdrawal: null },
+      basePortfolio, baseSettings, [],
+    );
+    expect(rNull.requiredMonthlyWithdrawal).toBeNull();
+    // Ohne Wunsch keine Entnahme → Plan scheitert nie.
+    expect(rNull.successRate).toBe(100);
+    // Floor bei Pension > Wunsch.
+    const rFloor = runMonteCarloSimulation(
+      baseClient, { ...baseInputs, desiredMonthlyWithdrawal: 500, monthlyPension: 2000 },
+      basePortfolio, baseSettings, [],
+    );
+    expect(rFloor.requiredMonthlyWithdrawal).toBe(0);
   });
 });

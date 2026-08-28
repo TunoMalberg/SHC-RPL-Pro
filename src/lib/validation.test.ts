@@ -170,3 +170,22 @@ describe("validatePlanInputs — Aggregator", () => {
     expect(r.errors.length).toBeGreaterThanOrEqual(3);
   });
 });
+/* ── CR 4: optionaler Entnahmewunsch ───────────────────────────────── */
+
+describe("validateInputs — optionaler Wunschbetrag (CR 4)", () => {
+  test("null ist gültig (Modus: berechnen, was möglich ist)", () => {
+    const r = validateInputs({ ...defaultInputs, desiredMonthlyWithdrawal: null }, defaultClient);
+    const withdrawalErrors = r.errors.filter((e) => e.path === "inputs.desiredMonthlyWithdrawal");
+    expect(withdrawalErrors.length).toBe(0);
+  });
+
+  test("negativer Betrag bleibt ein Fehler", () => {
+    const r = validateInputs({ ...defaultInputs, desiredMonthlyWithdrawal: -100 }, defaultClient);
+    expect(r.errors.some((e) => e.path === "inputs.desiredMonthlyWithdrawal" && e.severity === "error")).toBe(true);
+  });
+
+  test("NaN bleibt ein Fehler", () => {
+    const r = validateInputs({ ...defaultInputs, desiredMonthlyWithdrawal: Number.NaN }, defaultClient);
+    expect(r.errors.some((e) => e.path === "inputs.desiredMonthlyWithdrawal")).toBe(true);
+  });
+});

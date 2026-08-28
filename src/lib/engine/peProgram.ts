@@ -391,8 +391,8 @@ export function computeRemainingWithdrawals(
     if (y < accumulationYears) continue;
     const cumInflation = (1 + infl) ** (y + 1);
     const withdrawal = inflate
-      ? inputs.desiredMonthlyWithdrawal * 12 * cumInflation
-      : inputs.desiredMonthlyWithdrawal * 12;
+      ? (inputs.desiredMonthlyWithdrawal ?? 0) * 12 * cumInflation
+      : (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
     const age = client.currentAge + y;
     const pension =
       age >= inputs.pensionStartAge
@@ -479,8 +479,8 @@ export function planProgramVintagesDeterministic(
     let netWithdrawal = 0;
     if (!isAccumulation) {
       const withdrawal = inflate
-        ? inputs.desiredMonthlyWithdrawal * 12 * cumInflation
-        : inputs.desiredMonthlyWithdrawal * 12;
+        ? (inputs.desiredMonthlyWithdrawal ?? 0) * 12 * cumInflation
+        : (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
       const pension =
         age >= inputs.pensionStartAge
           ? inflate

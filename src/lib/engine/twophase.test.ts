@@ -22,7 +22,7 @@ import type {
 } from "../types";
 
 const baseClient: ClientProfile = { ...defaultClient };
-const baseInputs: FinancialInputs = { ...defaultInputs };
+const baseInputs: FinancialInputs = { ...defaultInputs, desiredMonthlyWithdrawal: 3000 };
 const clone = (p: PortfolioConfig): PortfolioConfig => JSON.parse(JSON.stringify(p));
 const basePortfolio: PortfolioConfig = clone(defaultPortfolio);
 const baseSettings: SimulationSettings = {

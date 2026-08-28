@@ -58,7 +58,9 @@ const DE = {
   yourNumbers: "Ihre Zahlen auf einen Blick",
   kpiStart: "Anfangskapital",
   kpiMonthly: "Monatliche Sparrate",
-  kpiTarget: "Gewünschte Entnahme",
+  kpiTarget: "Gewünschter Gesamtbetrag (heutige Kaufkraft)",
+  kpiTargetNone: "— (was möglich ist)",
+  kpiMedianReal: "Endvermögen in heutiger Kaufkraft (Median)",
   kpiRet: "Pensionsalter",
   kpiSuccess: "Erfolgsrate",
   kpiMedian: "Medianes Endvermögen",
@@ -150,7 +152,9 @@ const EN: typeof DE = {
   yourNumbers: "Your numbers at a glance",
   kpiStart: "Initial capital",
   kpiMonthly: "Monthly savings",
-  kpiTarget: "Target withdrawal",
+  kpiTarget: "Desired total (today's purchasing power)",
+  kpiTargetNone: "— (what is possible)",
+  kpiMedianReal: "Final wealth in today's purchasing power (median)",
   kpiRet: "Retirement age",
   kpiSuccess: "Success rate",
   kpiMedian: "Median final wealth",
@@ -605,10 +609,24 @@ export async function generateClientPdfReport(
   const kpis: Array<{ label: string; value: string; accent?: boolean }> = [
     { label: S.kpiStart, value: fmtEur(locale, inputs.initialCapital) },
     { label: S.kpiMonthly, value: fmtEur(locale, inputs.monthlySavings) + S.perMonth },
-    { label: S.kpiTarget, value: fmtEur(locale, inputs.desiredMonthlyWithdrawal) + S.perMonth },
+    {
+      label: S.kpiTarget,
+      value:
+        inputs.desiredMonthlyWithdrawal !== null
+          ? fmtEur(locale, inputs.desiredMonthlyWithdrawal) + S.perMonth
+          : S.kpiTargetNone,
+    },
     { label: S.kpiRet, value: `${client.retirementAge}` },
     { label: S.kpiSuccess, value: fmtPct(locale, result.successRate), accent: true },
-    { label: S.kpiMedian, value: fmtEur(locale, result.medianFinalWealth) },
+    // Nominalwert stets mit Jahresbezug, Realwert gekennzeichnet (CR 6).
+    {
+      label: `${S.kpiMedian} (${result.valuation?.horizonYear ?? client.birthYear + client.lifeExpectancy})`,
+      value: fmtEur(locale, result.medianFinalWealth),
+    },
+    {
+      label: S.kpiMedianReal,
+      value: fmtEur(locale, result.valuation?.medianFinalWealthReal ?? result.medianFinalWealth),
+    },
     { label: S.kpiP10, value: fmtEur(locale, p10) },
     { label: S.kpiP90, value: fmtEur(locale, p90) },
   ];

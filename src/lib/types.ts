@@ -25,7 +25,15 @@ export interface FinancialInputs {
   initialCapital: number;
   monthlySavings: number;
   annualSavingsIncrease: number;
-  desiredMonthlyWithdrawal: number;
+  /**
+   * Gewünschter monatlicher Gesamtbetrag in heutiger Kaufkraft (€).
+   *
+   * `null` = kein Wunschbetrag erfasst → Modus „berechnen, was möglich
+   * ist": Die Kundensicht zeigt je Variante die mögliche Monatsentnahme
+   * in heutiger Kaufkraft (Planungskorridor), ohne Einordnung gegen
+   * einen Wunschbetrag. (CR 4)
+   */
+  desiredMonthlyWithdrawal: number | null;
   monthlyPension: number;
   pensionStartAge: number;
   inflationRate: number;
@@ -222,6 +230,257 @@ export type SimulationMode =
   | 'required_savings'
   | 'scenario_comparison';
 
+/**
+ * Duale Bewertung (CR 6): Deflatoren + reale Skalare zum nominalen
+ * Ergebnis. Reale Serien werden per `deflateSeries(nominal, deflators)`
+ * abgeleitet (exakt, keine Array-Duplikate im Result).
+ */
+export interface ResultValuation {
+  /** Inflationsannahme in % p.a., mit der die Deflatoren gebaut wurden. */
+  inflationRatePct: number;
+  /** Schritte pro Jahr (12 / timeStepMonths). */
+  stepsPerYear: number;
+  /** Deflator je Simulationsschritt: real[s] = nominal[s] × deflators[s]. */
+  deflators: number[];
+  /** Kalenderjahr des Planungshorizonts (Lebenserwartung). */
+  horizonYear: number;
+  /** Kalenderjahr des Pensionsantritts. */
+  retirementYear: number;
+  /** Jahre vom Stichtag bis zum Planungshorizont. */
+  yearsToHorizon: number;
+  /** Median-Endvermögen in heutiger Kaufkraft. */
+  medianFinalWealthReal: number;
+  /** Mittleres Endvermögen in heutiger Kaufkraft. */
+  meanFinalWealthReal: number;
+  /** Endvermögens-Perzentile in heutiger Kaufkraft (p5…p95). */
+  percentilesReal: Record<string, number>;
+}
+
+export type CorridorScenarioKey = 'difficult' | 'typical' | 'favorable';
+
+/** Ein Korridor-Szenario (schwierige/typische/günstige Marktentwicklung). */
+export interface CorridorScenarioValue {
+  /** Perzentil der Simulationsverteilung (z. B. 25). */
+  percentile: number;
+  /** Ziel-Erfolgsquote der Bisektion (Dualität: 100 − Perzentil). */
+  targetSuccessRate: number;
+  /** Möglicher monatlicher Gesamtbetrag in heutiger Kaufkraft (€). */
+  totalMonthly: number;
+  /** Davon aus dem Vermögen: max(0, Gesamtbetrag − Pensionseinkünfte). */
+  fromWealthMonthly: number;
+  /** Nominaler Zwilling des Gesamtbetrags zum Pensionsantritt. */
+  totalMonthlyNominalAtRetirement: number;
+  /** Nominaler Zwilling des Vermögensanteils zum Pensionsantritt. */
+  fromWealthMonthlyNominalAtRetirement: number;
+}
+
+/**
+ * Planungskorridor (CR 9/10): mögliche Monatsentnahme in heutiger
+ * Kaufkraft je Marktentwicklung, mathematisch aus der Monte-Carlo-
+ * Verteilung hergeleitet (Bisektion mit Ziel-Erfolgsquote 100 − q).
+ */
+export interface CorridorResult {
+  /** Eingabebasis: 'real' (Standard) oder 'nominal' (Experten-Toggle OFF). */
+  basis: 'real' | 'nominal';
+  /** Kalenderjahr des Pensionsantritts (für Nominalangaben, CR 6). */
+  retirementYear: number;
+  /** Jahre vom Stichtag bis zum Pensionsantritt. */
+  yearsToRetirement: number;
+  scenarios: Record<CorridorScenarioKey, CorridorScenarioValue>;
+  /** Technische Parameter des Laufs (Transparenz, keine fachlichen Schwellen). */
+  simulationsUsed: number;
+  iterations: number;
+  seedUsed: number;
+}
+
+/**
+ * Baseline „Nicht investieren" (CR 12/17): deterministische Projektion
+ * mit 0 % nominaler Verzinsung. Strikt getrennt von bestehender
+ * Veranlagung und Zielstrategie.
+ */
+export interface BaselineResult {
+  /** Nominale Vermögensentwicklung je Jahr (Index 0 = heute). */
+  pathNominal: number[];
+  /** Entwicklung in heutiger Kaufkraft je Jahr. */
+  pathReal: number[];
+  /** Alter je Stützstelle. */
+  ages: number[];
+  finalWealthNominal: number;
+  finalWealthReal: number;
+  /** Kalenderjahr des Planungshorizonts (für Nominalangaben). */
+  horizonYear: number;
+  /** Alter, ab dem das Vermögen erschöpft ist (null = reicht bis Horizont). */
+  depletionAge: number | null;
+  /**
+   * Zielerreichung bei erfasstem Wunschbetrag — binär, da deterministisch
+   * (kein Kapitalmarktrisiko). null = kein Wunschbetrag erfasst.
+   */
+  goalReached: boolean | null;
+  /** Mögliche Monatsentnahme in heutiger Kaufkraft (deterministische Bisektion). */
+  sustainableMonthlyReal: number;
+  /** Nominaler Zwilling zum Pensionsantritt. */
+  sustainableMonthlyNominalAtRetirement: number;
+  retirementYear: number;
+}
+
+/** Einordnung des Bedarfs gegen den Planungskorridor (CR 10, keine Zusatz-Schwellen). */
+export type CorridorRanking =
+  | 'below_difficult'   // Bedarf ≤ Entnahme der schwierigen Marktentwicklung
+  | 'within_corridor'   // zwischen schwierig und günstig
+  | 'above_favorable';  // Bedarf > Entnahme der günstigen Marktentwicklung
+
+export type ComparisonVariantKind = 'no_invest' | 'current' | 'target';
+
+/** Eine Variante der Vergleichsansicht (CR 15). */
+export interface ComparisonVariantResult {
+  kind: ComparisonVariantKind;
+  /** Anzeigename (z. B. „Nicht investieren", MiFID-Profilname). */
+  label: string;
+  /** Erwartete Rendite nominal in % p.a. (0 bei Nicht investieren). */
+  expectedReturnNominalPct: number;
+  /** Erwartete Rendite real in % p.a. (Fisher). */
+  expectedReturnRealPct: number;
+  /** Median-Endvermögen nominal (Nicht investieren: deterministischer Endwert). */
+  finalWealthNominalMedian: number;
+  /** Median-Endvermögen in heutiger Kaufkraft. */
+  finalWealthRealMedian: number;
+  horizonYear: number;
+  /** Erfolgsquote in % — null bei Nicht investieren (binär) oder ohne Wunschbetrag. */
+  successRate: number | null;
+  /** Nur Nicht investieren: binäre Zielerreichung (null ohne Wunschbetrag). */
+  goalReached?: boolean | null;
+  /** Planungskorridor (nicht für die deterministische Baseline). */
+  corridor?: CorridorResult;
+  /** Zentrale Kennzahl: mögliche Monatsentnahme in heutiger Kaufkraft
+   *  (typische Marktentwicklung bzw. deterministisch bei Baseline). */
+  sustainableMonthlyReal: number;
+  /** Einordnung des Bedarfs (nur bei erfasstem Wunsch > 0 und Korridor). */
+  ranking?: CorridorRanking | null;
+  /** Deterministische Rechnung (Baseline) statt Monte-Carlo. */
+  deterministic: boolean;
+}
+
+/** Quelle der Zielstrategie in der Vergleichsansicht. */
+export interface ComparisonTargetSource {
+  type: 'mifid' | 'optimizer';
+  id: string;
+  label: string;
+}
+
+/** Ergebnis eines Vergleichslaufs (Tab „Vergleich"). */
+export interface ComparisonRunResult {
+  variants: ComparisonVariantResult[];
+  targetSource?: ComparisonTargetSource;
+  /** Differenz gewählte/bestehende Veranlagung vs. Nicht investieren am Horizont. */
+  diffVsNoInvest: {
+    nominal: number;
+    real: number;
+    /** Differenz der möglichen Monatsentnahme in heutiger Kaufkraft. */
+    monthlyReal: number;
+    horizonYear: number;
+  } | null;
+  /** ISO-Zeitstempel des Laufs. */
+  stichtag: string;
+}
+
+/**
+ * Vollständiger Berechnungsnachweis (CR 19). Wird nach jedem
+ * Simulationslauf assembliert und hängt am SimulationResult; als
+ * JSON exportierbar und im Experten-Bereich einsehbar.
+ */
+export interface CalculationTrace {
+  /** Stichtag des Laufs (ISO). */
+  stichtag: string;
+  /** Version der Anzeige-Konfiguration (displayConfig.ts). */
+  configVersion: string;
+  assumptions: {
+    buckets: {
+      name: string;
+      label: string;
+      allocationPct: number;
+      expectedReturnNominalPct: number;
+      expectedReturnRealPct: number;
+      volatilityPct: number;
+      costsPct: number;
+      taxDragPct: number;
+      netReturnPct: number;
+    }[];
+    correlationMatrix: number[][];
+    inflationRatePct: number;
+    kestRatePct: number;
+    /** Abweichendes Entnahme-Portfolio, falls konfiguriert. */
+    withdrawalPhase: WithdrawalPhaseOverride | null;
+  };
+  simulation: {
+    numSimulations: number;
+    timeStepMonths: number;
+    mode: SimulationMode;
+    seed: number | null;
+  };
+  valuation: {
+    /** Aktive Standard-Bewertungsbasis. */
+    defaultMode: 'real' | 'nominal';
+    /** Eingabebasis der monatlichen Beträge. */
+    inputBasis: 'real' | 'nominal';
+    formulaRealReturn: string;
+    /** Deflator je Simulationsschritt. */
+    deflators: number[];
+  };
+  /** Herleitung requiredMonthlyWithdrawal (CR 19). */
+  derivation: {
+    desiredMonthlyIncome: number | null;
+    externalMonthlyIncome: number;
+    /** = max(0, desired − external); null wenn kein Wunsch erfasst. */
+    requiredMonthlyWithdrawal: number | null;
+    formula: string;
+  };
+  /** Verwendete Korridor-Perzentile + Bisektionslogik. */
+  corridor: {
+    percentiles: { difficult: number; typical: number; favorable: number };
+    method: string;
+    technical: { maxSimulations: number; iterations: number };
+    result: CorridorResult | null;
+  };
+  /** Einordnung gegen „Benötigt aus dem Vermögen" (null im Modus „was möglich ist"). */
+  ranking: {
+    requiredFromWealthMonthly: number;
+    comparedAgainst: Record<CorridorScenarioKey, number>;
+    result: CorridorRanking;
+  } | null;
+  /** Cashflow-Zeitreihe (nominal, je Jahr). */
+  cashflows: {
+    ages: number[];
+    savingsNominal: number[];
+    grossWithdrawalsNominal: number[];
+    pensionNominal: number[];
+    netWithdrawalsNominal: number[];
+  };
+  /** Nominale und reale Ergebnis-Zeitreihen (Median + Korridor-Perzentile). */
+  series: {
+    ageLabels: number[];
+    medianNominal: number[];
+    medianReal: number[];
+    p25Nominal: number[];
+    p25Real: number[];
+    p75Nominal: number[];
+    p75Real: number[];
+  };
+  /** Liquiditätsereignisse, getrennt nach zusätzlichen Einnahmen/Ausgaben. */
+  liquidityEvents: {
+    additionalIncomes: LiquidityEvent[];
+    additionalExpenses: LiquidityEvent[];
+    totalIncomes: number;
+    totalExpenses: number;
+  };
+  /** Rundungsregeln der Anzeige. */
+  rounding: {
+    locale: string;
+    currency: string;
+    displayDecimals: number;
+    corridorRounding: string;
+  };
+}
+
 export interface SimulationResult {
   successRate: number;
   medianFinalWealth: number;
@@ -271,6 +530,24 @@ export interface SimulationResult {
    * (= Best-Case-Szenario). Wird im Reiter „Einzelpfad" genutzt.
    */
   bestSimIndex?: number;
+  /** Duale Bewertung: Deflatoren + reale Skalare (CR 6). */
+  valuation?: ResultValuation;
+  /** Planungskorridor: mögliche Monatsentnahme je Marktentwicklung (CR 9/10). */
+  corridor?: CorridorResult;
+  /**
+   * Benötigt aus dem Vermögen in heutiger Kaufkraft (monatlich):
+   * max(0, Gesamtbetrag − Pensionseinkünfte). null = kein Wunsch erfasst.
+   */
+  requiredMonthlyWithdrawal?: number | null;
+  /**
+   * Welche Entnahmeannahme dem Lauf zugrunde liegt:
+   * 'user' = erfasster Wunschbetrag, 'corridor_typical' = Modus
+   * „berechnen, was möglich ist" (Pfaddarstellung mit typischer
+   * Korridor-Entnahme; Erfolgsquote/Einordnung werden unterdrückt).
+   */
+  withdrawalAssumption?: 'user' | 'corridor_typical';
+  /** Vollständiger Berechnungsnachweis (CR 19). */
+  calculationTrace?: CalculationTrace;
 }
 
 export interface HistoricalData {
@@ -441,4 +718,30 @@ export interface AppState {
   /** Wurde der Modus beim Erstaufruf bereits gewählt? Wenn nicht, zeigt die
    *  App einmalig ein Auswahl-Modal. */
   uiModeChosen: boolean;
+  /**
+   * Aktive Bewertungsbasis der Kundensicht (CR 6/11). Default aus
+   * DISPLAY_CONFIG.defaultValuationMode ('real'). Dauerhaft sichtbar
+   * als Badge im Header, dort umschaltbar.
+   */
+  valuationMode: import("./displayConfig").ValuationMode;
+  /**
+   * Beste Allokation des letzten Optimizer-Laufs (für die Zielstrategie-
+   * Auswahl in der Vergleichsansicht). null = Optimizer nicht gelaufen.
+   */
+  optimizerBestAllocation: {
+    cash: number;
+    bonds: number;
+    equities: number;
+    pe: number;
+    objective: string;
+    timestamp: string;
+  } | null;
+  /** Ergebnis des letzten Vergleichslaufs (Tab „Vergleich"). Nicht persistiert. */
+  comparisonResult: ComparisonRunResult | null;
+  /**
+   * dataCompletenessNotice (CR 18): Berater hat die Vollständigkeit der
+   * Einkommens-/Vermögens-/Versorgungsquellen mit dem Kunden besprochen.
+   * Solange false, zeigen Eingaben/Vergleich/Report den Hinweis.
+   */
+  dataCompletenessConfirmed: boolean;
 }

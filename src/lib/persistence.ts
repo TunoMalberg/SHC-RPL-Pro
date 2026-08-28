@@ -32,7 +32,7 @@ const SCHEMA_VERSION = 1;
 /** Felder, die *nicht* persistiert werden — zu groß und neu rechenbar. */
 type PersistedState = Omit<
   AppState,
-  "result" | "historicalResult" | "detailedTrace"
+  "result" | "historicalResult" | "detailedTrace" | "comparisonResult"
 > & {
   /** Hinweis-Flag: Hat es eine Simulation gegeben? Dann darf der UI-Layer
    *  einen Banner zeigen „Bitte Simulation neu berechnen". */
@@ -79,6 +79,7 @@ export function persistState(state: AppState): void {
       result,
       historicalResult,
       detailedTrace,
+      comparisonResult: _comparisonResult,
       ...rest
     } = state;
     const envelope: Envelope = {

@@ -87,12 +87,18 @@ const DE_STRINGS = {
   bandMedian: "Median-Pfad",
   kpiStart: "Anfangskapital",
   kpiMonthly: "Monatliche Sparrate",
-  kpiTarget: "Gewünschte Entnahme",
+  kpiTarget: "Gewünschter monatlicher Gesamtbetrag in heutiger Kaufkraft",
+  kpiTargetNone: "— (berechnen, was möglich ist)",
   kpiRet: "Pensionsalter",
   kpiHorizon: "Planungshorizont",
   kpiHorizonUnit: "Jahre",
   kpiSuccess: "Erfolgsrate",
   kpiMedian: "Medianes Endvermögen",
+  kpiMedianReal: "Medianes Endvermögen in heutiger Kaufkraft",
+  kpiMedianNominal: "Medianes Endvermögen nominal (Jahr {year})",
+  kpiCorridorTypical: "Monatsentnahme in heutiger Kaufkraft (typische Marktentwicklung)",
+  corridorNote: "Planungskorridor: schwierige / typische / günstige Marktentwicklung = 25. / 50. / 75. Perzentil der Simulationsverteilung.",
+  completenessNotice: "Diese Planung berücksichtigt ausschließlich die hier erfassten Einkommens-, Vermögens- und Versorgungsquellen. Nicht erfasste Werte (z. B. Immobilien, Betriebsvermögen, Versicherungsansprüche) fließen nicht ein. Bitte prüfen Sie die Vollständigkeit gemeinsam mit Ihrer Beraterin/Ihrem Berater.",
   kpiP10: "Konservativ (10%)",
   kpiP90: "Optimistisch (90%)",
   disclaimerTitle: "Rechtlicher Hinweis — Marketingmitteilung",
@@ -226,12 +232,18 @@ const EN_STRINGS: typeof DE_STRINGS = {
   bandMedian: "Median path",
   kpiStart: "Initial capital",
   kpiMonthly: "Monthly savings",
-  kpiTarget: "Target withdrawal",
+  kpiTarget: "Desired monthly total in today's purchasing power",
+  kpiTargetNone: "— (calculate what is possible)",
   kpiRet: "Retirement age",
   kpiHorizon: "Planning horizon",
   kpiHorizonUnit: "years",
   kpiSuccess: "Success rate",
   kpiMedian: "Median final wealth",
+  kpiMedianReal: "Median final wealth in today's purchasing power",
+  kpiMedianNominal: "Median final wealth nominal (year {year})",
+  kpiCorridorTypical: "Monthly withdrawal in today's purchasing power (typical market development)",
+  corridorNote: "Planning corridor: difficult / typical / favorable market development = 25th / 50th / 75th percentile of the simulation distribution.",
+  completenessNotice: "This plan only reflects the income, wealth and pension sources captured here. Assets not captured (e.g. real estate, business assets, insurance claims) are not included. Please review completeness together with your advisor.",
   kpiP10: "Conservative (10%)",
   kpiP90: "Optimistic (90%)",
   disclaimerTitle: "Legal notice — Marketing communication",
@@ -860,7 +872,7 @@ export async function generateClientHtmlReport(
               return `<tr style="border-top:1px solid var(--border)">
                 <td style="padding:10px 12px;font-weight:600;color:${c}">${esc(s.name)}</td>
                 <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, s.inputs.initialCapital)}</td>
-                <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, s.inputs.desiredMonthlyWithdrawal)}</td>
+                <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${s.inputs.desiredMonthlyWithdrawal !== null ? fmtEur(opts.locale, s.inputs.desiredMonthlyWithdrawal) : "—"}</td>
                 <td style="padding:10px 12px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:${r.successRate >= 90 ? "var(--ok)" : r.successRate >= 70 ? "#c58a1b" : "var(--accent)"}">${fmtPct(opts.locale, r.successRate)}</td>
                 <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, r.medianFinalWealth)}</td>
                 <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, r.percentiles?.p10 ?? 0)}</td>
@@ -1154,10 +1166,12 @@ ${pinGate}
       <div class="kpi-grid">
         <div class="kpi"><div class="label">${esc(S.kpiStart)}</div><div class="value">${fmtEur(opts.locale, inputs.initialCapital)}</div></div>
         <div class="kpi"><div class="label">${esc(S.kpiMonthly)}</div><div class="value">${fmtEur(opts.locale, inputs.monthlySavings)}${esc(S.perMonth)}</div></div>
-        <div class="kpi"><div class="label">${esc(S.kpiTarget)}</div><div class="value">${fmtEur(opts.locale, inputs.desiredMonthlyWithdrawal)}${esc(S.perMonth)}</div></div>
+        <div class="kpi"><div class="label">${esc(S.kpiTarget)}</div><div class="value">${inputs.desiredMonthlyWithdrawal !== null ? fmtEur(opts.locale, inputs.desiredMonthlyWithdrawal) + esc(S.perMonth) : esc(S.kpiTargetNone)}</div></div>
         <div class="kpi"><div class="label">${esc(S.kpiRet)}</div><div class="value">${client.retirementAge}</div></div>
         <div class="kpi accent"><div class="label">${esc(S.kpiSuccess)}</div><div class="value">${fmtPct(opts.locale, result.successRate)}</div></div>
-        <div class="kpi"><div class="label">${esc(S.kpiMedian)}</div><div class="value">${fmtEur(opts.locale, result.medianFinalWealth)}</div></div>
+        ${result.corridor ? `<div class="kpi accent"><div class="label">${esc(S.kpiCorridorTypical)}</div><div class="value">${fmtEur(opts.locale, result.corridor.scenarios.typical.fromWealthMonthly)}${esc(S.perMonth)}</div></div>` : ""}
+        <div class="kpi"><div class="label">${esc(S.kpiMedianReal)}</div><div class="value">${fmtEur(opts.locale, result.valuation?.medianFinalWealthReal ?? result.medianFinalWealth)}</div></div>
+        <div class="kpi"><div class="label">${esc(S.kpiMedianNominal.replace("{year}", String(result.valuation?.horizonYear ?? client.birthYear + client.lifeExpectancy)))}</div><div class="value">${fmtEur(opts.locale, result.medianFinalWealth)}</div></div>
         <div class="kpi"><div class="label">${esc(S.kpiP10)}</div><div class="value">${fmtEur(opts.locale, p10)}</div></div>
         <div class="kpi"><div class="label">${esc(S.kpiP90)}</div><div class="value">${fmtEur(opts.locale, p90)}</div></div>
       </div>
@@ -1206,6 +1220,8 @@ ${pinGate}
       <p style="margin-top:12px;">${esc(legal.performance)}</p>
       <p style="margin-top:12px;">${esc(legal.liability)}</p>
       <p style="margin-top:12px;">${esc(legal.aiNotice)}</p>
+      <p style="margin-top:12px;">${esc(S.completenessNotice)}</p>
+      <p style="margin-top:12px;">${esc(S.corridorNote)}</p>
       <p style="margin-top:14px;font-style:italic;"><strong>${opts.locale === "de" ? "Ausgegeben von" : "Issued by"}:</strong> ${esc(advisor.bankName)} &nbsp;·&nbsp; <strong>${opts.locale === "de" ? "Stand" : "As of"}:</strong> ${esc(fmtDate(opts.locale))}</p>
     </div>
     <div class="footer-meta">${esc(S.confidential)}</div>

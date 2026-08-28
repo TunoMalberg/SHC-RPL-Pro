@@ -28,7 +28,10 @@ export const defaultInputs: FinancialInputs = {
   initialCapital: 250000,
   monthlySavings: 1500,
   annualSavingsIncrease: 2.0,
-  desiredMonthlyWithdrawal: 3000,
+  // CR 4 (Freigabe 2026-08): Neue Planungen starten OHNE Wunschbetrag im
+  // Modus „berechnen, was möglich ist" — kein erfundener Ankerwert.
+  // Bestehende Sessions behalten ihren gespeicherten Wert.
+  desiredMonthlyWithdrawal: null,
   monthlyPension: 1200,
   pensionStartAge: 65,
   inflationRate: 2.5,

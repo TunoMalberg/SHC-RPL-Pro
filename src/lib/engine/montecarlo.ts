@@ -7,7 +7,9 @@ import type {
   DetailedSimTrace,
   DetailedYearRow,
   LiquidityEvent,
+  ResultValuation,
 } from "../types";
+import { buildDeflators } from "./valuation";
 import {
   SeededRandom,
   choleskyDecomposition,
@@ -175,7 +177,12 @@ export function runMonteCarloSimulation(
 
   const inflationPerStep = Math.pow(1 + inputs.inflationRate / 100, 1 / stepsPerYear) - 1;
   const savingsPerStep = inputs.monthlySavings * settings.timeStepMonths;
-  const withdrawalPerStep = inputs.desiredMonthlyWithdrawal * settings.timeStepMonths;
+  // CR 4: Der Entnahmewunsch ist optional (null = „berechnen, was möglich
+  // ist"). Engine-intern wird null als 0 gerechnet; der Aufrufer (Simulation
+  // Panel) ersetzt den Lauf in diesem Modus durch die typische Korridor-
+  // Entnahme und markiert das Ergebnis via `withdrawalAssumption`.
+  const desiredMonthly = inputs.desiredMonthlyWithdrawal ?? 0;
+  const withdrawalPerStep = desiredMonthly * settings.timeStepMonths;
   const pensionPerStep = inputs.monthlyPension * settings.timeStepMonths;
   // Steuerung Entnahme- und Pensions-Inflation:
   //
@@ -498,8 +505,8 @@ export function runMonteCarloSimulation(
           );
         } else {
           const annualWithdrawalForTarget = inflateWithdrawals
-            ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
-            : inputs.desiredMonthlyWithdrawal * 12;
+            ? desiredMonthly * 12 * cumulativeInflation
+            : desiredMonthly * 12;
           const pensionForTarget =
             (client.currentAge + step / stepsPerYear) >= inputs.pensionStartAge
               ? (inflateWithdrawals ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
@@ -638,28 +645,50 @@ export function runMonteCarloSimulation(
       const inflation = Math.pow(1 + inputs.inflationRate / 100, y);
       annualWithdrawals.push(
         inflateWithdrawals
-          ? inputs.desiredMonthlyWithdrawal * 12 * inflation
-          : inputs.desiredMonthlyWithdrawal * 12
+          ? desiredMonthly * 12 * inflation
+          : desiredMonthly * 12
       );
     } else {
       annualWithdrawals.push(0);
     }
   }
 
+  // ── Duale Bewertung (CR 6): Deflatoren + reale Skalare. ──────────
+  // Reale Serien werden display-seitig via deflateSeries() abgeleitet
+  // (exakt, keine Array-Duplikate); die skalaren Endwerte stehen hier.
+  const deflators = buildDeflators(inputs.inflationRate, totalSteps, stepsPerYear);
+  const endDeflator = deflators[totalSteps] ?? 1;
+  const percentilesNominal: Record<string, number> = {
+    p5: percentile(sortedFinal, 5),
+    p10: percentile(sortedFinal, 10),
+    p25: percentile(sortedFinal, 25),
+    p50: percentile(sortedFinal, 50),
+    p75: percentile(sortedFinal, 75),
+    p90: percentile(sortedFinal, 90),
+    p95: percentile(sortedFinal, 95),
+  };
+  const percentilesReal: Record<string, number> = Object.fromEntries(
+    Object.entries(percentilesNominal).map(([k, v]) => [k, v * endDeflator]),
+  );
+  const meanFinal =
+    allFinalValues.reduce((a, b) => a + b, 0) / allFinalValues.length;
+  const valuation: ResultValuation = {
+    inflationRatePct: inputs.inflationRate,
+    stepsPerYear,
+    deflators,
+    horizonYear: client.birthYear + client.lifeExpectancy,
+    retirementYear: client.birthYear + client.retirementAge,
+    yearsToHorizon: totalYears,
+    medianFinalWealthReal: percentilesNominal.p50 * endDeflator,
+    meanFinalWealthReal: meanFinal * endDeflator,
+    percentilesReal,
+  };
+
   return {
     successRate: (successCount / settings.numSimulations) * 100,
     medianFinalWealth: percentile(sortedFinal, 50),
-    meanFinalWealth:
-      allFinalValues.reduce((a, b) => a + b, 0) / allFinalValues.length,
-    percentiles: {
-      p5: percentile(sortedFinal, 5),
-      p10: percentile(sortedFinal, 10),
-      p25: percentile(sortedFinal, 25),
-      p50: percentile(sortedFinal, 50),
-      p75: percentile(sortedFinal, 75),
-      p90: percentile(sortedFinal, 90),
-      p95: percentile(sortedFinal, 95),
-    },
+    meanFinalWealth: meanFinal,
+    percentiles: percentilesNominal,
     medianPath: percentilePaths.p50,
     p10Path: percentilePaths.p10,
     p25Path: percentilePaths.p25,
@@ -691,7 +720,24 @@ export function runMonteCarloSimulation(
     peMedianTVPI: peEnsemble ? peEnsemble.medianTVPI : undefined,
     worstSimIndex,
     bestSimIndex,
+    valuation,
+    // Benötigt aus dem Vermögen (heutige Kaufkraft): Wunsch − Pension,
+    // null wenn kein Wunschbetrag erfasst (CR 19: Herleitung im Trace).
+    requiredMonthlyWithdrawal:
+      inputs.desiredMonthlyWithdrawal === null
+        ? null
+        : Math.max(0, inputs.desiredMonthlyWithdrawal - inputs.monthlyPension),
+    withdrawalAssumption: "user",
   };
+}
+
+export interface SustainableWithdrawalOptions {
+  /** Cap der MC-Pfade je Bisektionsschritt (Default 2000). */
+  maxSimulations?: number;
+  /** Bisektions-Iterationen (Default 20). */
+  iterations?: number;
+  /** Fortschritts-Callback (abgeschlossene / geplante Iterationen). */
+  onIteration?: (done: number, total: number) => void;
 }
 
 export function findSustainableWithdrawal(
@@ -700,29 +746,46 @@ export function findSustainableWithdrawal(
   portfolio: PortfolioConfig,
   settings: SimulationSettings,
   targetSuccessRate: number = 95,
-  liquidityEvents: LiquidityEvent[] = []
+  liquidityEvents: LiquidityEvent[] = [],
+  opts: SustainableWithdrawalOptions = {}
 ): number {
-  let low = 0;
-  let high = inputs.initialCapital * 0.1;
-  let bestWithdrawal = 0;
-
-  for (let iter = 0; iter < 20; iter++) {
-    const mid = (low + high) / 2;
-    const testInputs = { ...inputs, desiredMonthlyWithdrawal: mid };
-    const result = runMonteCarloSimulation(
+  const iterations = opts.iterations ?? 20;
+  const maxSims = opts.maxSimulations ?? 2000;
+  const simSettings = {
+    ...settings,
+    numSimulations: Math.min(settings.numSimulations, maxSims),
+  };
+  const evalAt = (monthly: number): number =>
+    runMonteCarloSimulation(
       client,
-      testInputs,
+      { ...inputs, desiredMonthlyWithdrawal: monthly },
       portfolio,
-      { ...settings, numSimulations: Math.min(settings.numSimulations, 2000) },
+      simSettings,
       liquidityEvents
-    );
+    ).successRate;
 
-    if (result.successRate >= targetSuccessRate) {
+  let low = 0;
+  // Startobergrenze: 10 % des Startkapitals pro Monat. Bei hohen Spar-
+  // raten/Inflation kann das zu eng sein → adaptiv verdoppeln, solange
+  // die Obergrenze selbst noch tragfähig ist (max. 5 Verdopplungen).
+  let high = Math.max(inputs.initialCapital * 0.1, 1000);
+  let expansions = 0;
+  while (expansions < 5 && evalAt(high) >= targetSuccessRate) {
+    low = high;
+    high *= 2;
+    expansions++;
+  }
+
+  let bestWithdrawal = low;
+  for (let iter = 0; iter < iterations; iter++) {
+    const mid = (low + high) / 2;
+    if (evalAt(mid) >= targetSuccessRate) {
       bestWithdrawal = mid;
       low = mid;
     } else {
       high = mid;
     }
+    opts.onIteration?.(iter + 1, iterations);
   }
   return Math.round(bestWithdrawal);
 }
@@ -736,7 +799,7 @@ export function findRequiredCapital(
   liquidityEvents: LiquidityEvent[] = []
 ): number {
   let low = 0;
-  let high = inputs.desiredMonthlyWithdrawal * 12 * 50;
+  let high = Math.max((inputs.desiredMonthlyWithdrawal ?? 0) * 12 * 50, 1);
   let bestCapital = high;
 
   for (let iter = 0; iter < 20; iter++) {
@@ -801,8 +864,11 @@ export function generateWithdrawalHeatmap(
   liquidityEvents: LiquidityEvent[] = []
 ): { withdrawal: number; successRate: number }[] {
   const results: { withdrawal: number; successRate: number }[] = [];
-  const baseWithdrawal = inputs.desiredMonthlyWithdrawal;
+  const baseWithdrawal = inputs.desiredMonthlyWithdrawal ?? 0;
   const steps = 20;
+  // Ohne Wunschbetrag (Modus „berechnen, was möglich ist") gibt es keine
+  // sinnvolle Heatmap-Basis → leeres Ergebnis, Anzeige entfällt.
+  if (baseWithdrawal <= 0) return results;
 
   for (let i = 0; i <= steps; i++) {
     const ratio = 0.5 + (i / steps) * 1.5;
@@ -1013,9 +1079,10 @@ export function runDetailedSingleSimulation(
         );
         switchedToWithdrawal = true;
       }
+      const desiredMonthlyTrace = inputs.desiredMonthlyWithdrawal ?? 0;
       const annualWithdrawal = inflateWithdrawalsTrace
-        ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
-        : inputs.desiredMonthlyWithdrawal * 12;
+        ? desiredMonthlyTrace * 12 * cumulativeInflation
+        : desiredMonthlyTrace * 12;
 
       const ageForPension = age;
       const hasPension = ageForPension >= inputs.pensionStartAge;
@@ -1064,7 +1131,14 @@ export function runDetailedSingleSimulation(
 
     let liquidityEventAmount = 0;
     let liquidityEventLabel = "";
-    const eventsThisYear = liquidityEvents.filter((le) => le.age === age);
+    // KONSISTENZ-FIX (CR 14): Crossing-Semantik wie in der MC-Engine
+    // (dort: prevAge < le.age <= currentAgeAtStep). Vorher wurde hier auf
+    // exakte Altersgleichheit geprüft — Ereignisse mit gebrochenem Alter
+    // (z. B. 62,5) feuerten im Einzelpfad nie, im MC-Lauf aber schon.
+    // Für ganzzahlige Alter ist das Verhalten unverändert.
+    const eventsThisYear = liquidityEvents.filter(
+      (le) => le.age > age - 1 && le.age <= age
+    );
     if (eventsThisYear.length > 0) {
       for (const le of eventsThisYear) {
         liquidityEventAmount += le.amount;
@@ -1120,8 +1194,8 @@ export function runDetailedSingleSimulation(
         }
       } else {
         const annualWithdrawalForTarget = inflateWithdrawalsTrace
-          ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
-          : inputs.desiredMonthlyWithdrawal * 12;
+          ? (inputs.desiredMonthlyWithdrawal ?? 0) * 12 * cumulativeInflation
+          : (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
         const pensionForTarget = age >= inputs.pensionStartAge
           ? (inflateWithdrawalsTrace ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
           : 0;

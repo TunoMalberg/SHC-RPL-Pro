@@ -24,33 +24,16 @@ import {
   generateWithdrawalHeatmap,
 } from "@/lib/engine/montecarlo";
 import { runHistoricalBacktest } from "@/lib/engine/historical";
-import type { MifidProfile, PortfolioConfig, Scenario, SimulationMode } from "@/lib/types";
+import { computeCorridorWithdrawals } from "@/lib/engine/corridor";
+import { buildCalculationTrace } from "@/lib/engine/trace";
+// MiFID-Presets + Allokations-Helper leben jetzt zentral in comparison.ts
+// (geteilt mit der Vergleichsansicht — keine Doppeldefinition).
+import { MIFID_PRESETS, MIFID_ORDER, withMifidAllocation } from "@/lib/engine/comparison";
+import type { MifidProfile, Scenario, SimulationMode } from "@/lib/types";
 import { fmtEur } from "@/lib/format";
 import { validatePlanInputs } from "@/lib/validation";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
-
-/** MiFID-II Risikoprofile als [Cash %, Bonds %, Equity %].
- *  Spiegelt 1:1 die Vorgaben aus PortfolioBuilder.tsx → MIFID_PRESETS. */
-const MIFID_PRESETS: Record<MifidProfile, [number, number, number]> = {
-  conservative: [30, 55, 15],
-  balanced:     [15, 35, 50],
-  growth:       [10, 20, 70],
-  speculative:  [ 5, 15, 80],
-};
-
-const MIFID_ORDER: MifidProfile[] = ["conservative", "balanced", "growth", "speculative"];
-
-/** Erzeugt eine Portfolio-Variante mit MiFID-Allokation; alle übrigen
- *  Bucket-Eigenschaften (Rendite, Vola, Kosten) bleiben gleich. */
-function withMifidAllocation(base: PortfolioConfig, profile: MifidProfile): PortfolioConfig {
-  const allocs = MIFID_PRESETS[profile];
-  const newBuckets = base.buckets.map((b, i) => ({
-    ...b,
-    allocation: allocs[i] ?? b.allocation,
-  })) as PortfolioConfig["buckets"];
-  return { ...base, buckets: newBuckets, mifidProfile: profile };
-}
 
 export function SimulationPanel() {
   const { state, dispatch } = useAppState();
@@ -155,7 +138,30 @@ export function SimulationPanel() {
         return;
       }
 
-      const result = runMonteCarloSimulation(client, inputs, portfolio, settings, liquidityEvents);
+      // ── Planungskorridor (CR 9/10): mögliche Monatsentnahme je
+      //    Marktentwicklung (P25/P50/P75) via Bisektion. ─────────────────
+      setProgressStep(t("sim.progressCorridor"));
+      await new Promise((r) => setTimeout(r, 20));
+      const corridor = computeCorridorWithdrawals(
+        client, inputs, portfolio, settings, liquidityEvents,
+      );
+      setProgressPct(30);
+      await new Promise((r) => setTimeout(r, 20));
+
+      // Modus „berechnen, was möglich ist" (CR 4): Ohne Wunschbetrag läuft
+      // der Haupt-MC mit der typischen Korridor-Entnahme; das Ergebnis wird
+      // entsprechend markiert (keine Einordnung, keine Erfolgsquote).
+      const possibleMode = inputs.desiredMonthlyWithdrawal === null;
+      const effectiveInputs = possibleMode
+        ? { ...inputs, desiredMonthlyWithdrawal: corridor.scenarios.typical.totalMonthly }
+        : inputs;
+
+      const result = runMonteCarloSimulation(client, effectiveInputs, portfolio, settings, liquidityEvents);
+      result.corridor = corridor;
+      result.withdrawalAssumption = possibleMode ? "corridor_typical" : "user";
+      result.requiredMonthlyWithdrawal = possibleMode
+        ? null
+        : Math.max(0, (inputs.desiredMonthlyWithdrawal ?? 0) - inputs.monthlyPension);
       setProgressPct(40);
 
       if (settings.mode === "sustainable_withdrawal") {
@@ -189,9 +195,24 @@ export function SimulationPanel() {
       setProgressPct(65);
       await new Promise((r) => setTimeout(r, 20));
       result.withdrawalHeatmap = generateWithdrawalHeatmap(
-        client, inputs, portfolio, settings, liquidityEvents
+        client, effectiveInputs, portfolio, settings, liquidityEvents
       );
       setProgressPct(80);
+
+      // ── calculationTrace (CR 19): vollständiger Berechnungsnachweis. ──
+      const trace = buildCalculationTrace(
+        client, effectiveInputs, portfolio, settings, liquidityEvents, result, corridor,
+      );
+      if (possibleMode) {
+        // Herleitung spiegelt die ERFASSTEN Eingaben (kein Wunschbetrag);
+        // die Cashflow-Serie basiert auf der typischen Korridor-Entnahme.
+        trace.derivation.desiredMonthlyIncome = null;
+        trace.derivation.requiredMonthlyWithdrawal = null;
+        trace.derivation.formula +=
+          " — Lauf im Modus 'berechnen, was möglich ist': Cashflow-Serie basiert auf der typischen Korridor-Entnahme.";
+        trace.ranking = null;
+      }
+      result.calculationTrace = trace;
 
       dispatch({ type: "SET_RESULT", payload: result });
 
@@ -377,9 +398,15 @@ export function SimulationPanel() {
               <div className="bg-slate-50 rounded-lg p-3" data-design-id="summary-monthly-need">
                 <div className="text-xs text-slate-500">{t("sim.monthlyNeed")}</div>
                 <div className="text-lg font-bold text-[#FAC075]">
-                  {fmtEur(inputs.desiredMonthlyWithdrawal - inputs.monthlyPension)}
+                  {inputs.desiredMonthlyWithdrawal !== null
+                    ? fmtEur(Math.max(0, inputs.desiredMonthlyWithdrawal - inputs.monthlyPension))
+                    : "—"}
                 </div>
-                <div className="text-xs text-slate-400">{t("sim.afterPension")}</div>
+                <div className="text-xs text-slate-400">
+                  {inputs.desiredMonthlyWithdrawal !== null
+                    ? t("sim.afterPension")
+                    : t("sim.possibleModeHint")}
+                </div>
               </div>
             </div>
 

@@ -34,6 +34,12 @@ const client: ClientProfile = {
   lifeExpectancy: 90,
   currency: "EUR",
   notes: "",
+  advisoryDate: "2026-01-01",
+  advisoryMeetingType: "in_person",
+  advisoryNotes: "",
+  advisoryNextSteps: "",
+  advisoryRiskDisclosed: false,
+  advisoryMifidConfirmed: false,
 };
 
 const advisor: AdvisorProfile = {
@@ -68,6 +74,7 @@ const portfolio: PortfolioConfig = {
   correlationMatrix: [[1, 0.2, 0], [0.2, 1, 0.1], [0, 0.1, 1]],
   rebalancingFrequency: "annually",
   rebalancingThreshold: 5,
+  cashYearsTarget: 2,
   kestRate: 27.5,
 };
 

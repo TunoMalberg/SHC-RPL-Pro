@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
 import { computePETimeline } from "@/lib/engine/privateEquity";
 import { computeHistoricalGrossReturns } from "@/lib/engine/historical";
+import { rankAgainstCorridor } from "@/lib/engine/corridor";
+import type { CorridorScenarioKey } from "@/lib/types";
 import {
   ComposedChart,
   AreaChart,
@@ -134,11 +136,40 @@ export function ResultsDashboard() {
     );
   }
 
+  // ── Bewertungsbasis (CR 6): 'real' (heutige Kaufkraft, Default) oder
+  //    'nominal'. Umschaltung über das Header-Badge; Deflatoren kommen
+  //    exakt aus dem Ergebnisobjekt (identisch zum calculationTrace). ──
+  const valuationMode = state.valuationMode;
+  const isReal = valuationMode === "real";
+  const deflators = result.valuation?.deflators ?? [];
+  /** Wert am Pfadindex i in die aktive Bewertungsbasis bringen. */
+  const dv = (value: number, i: number): number =>
+    isReal ? value * (deflators[i] ?? 1) : value;
+  const endIdx = Math.max(0, (result.medianPath.length || 1) - 1);
+  const horizonYear =
+    result.valuation?.horizonYear ?? client.birthYear + client.lifeExpectancy;
+  /** Suffix für Endwerte: real → „in heutiger Kaufkraft", nominal → Jahr. */
+  const endValueSuffix = isReal
+    ? t("valuation.suffixReal")
+    : t("valuation.suffixNominal").replace("{year}", String(horizonYear));
+
+  // Modus „berechnen, was möglich ist" (CR 4): keine Einordnung, keine
+  // Erfolgsquote gegen einen Wunschbetrag.
+  const possibleMode = result.withdrawalAssumption === "corridor_typical";
+  const corridor = result.corridor;
+  const requiredMonthly = result.requiredMonthlyWithdrawal ?? null;
+
   const accYears = client.retirementAge - client.currentAge;
   const retIdx = Math.min(accYears, result.medianPath.length - 1);
   const capitalAtRet = result.medianPath[retIdx];
+  // Basis der Entnahmerate: erfasster Wunsch, im Möglich-Modus die
+  // typische Korridor-Entnahme (mit der der Lauf gerechnet wurde).
+  const effectiveMonthlyWithdrawal =
+    inputs.desiredMonthlyWithdrawal ??
+    corridor?.scenarios.typical.totalMonthly ??
+    0;
   const withdrawalRate = capitalAtRet > 0
-    ? (inputs.desiredMonthlyWithdrawal * 12 / capitalAtRet) * 100
+    ? (effectiveMonthlyWithdrawal * 12 / capitalAtRet) * 100
     : 0;
 
   // Sampling exakt an Jahresgrenzen, damit Alter eindeutig ist (keine
@@ -169,18 +200,20 @@ export function ResultsDashboard() {
   }> = [];
   for (let y = 0; y <= totalYears; y++) {
     const i = Math.min(y * stepsPerYear, result.yearLabels.length - 1);
-    const peNavMid = result.pePath ? Math.round(result.pePath[i] ?? 0) : 0;
-    const peNavP25 = result.pePathP25 ? Math.round(result.pePathP25[i] ?? 0) : undefined;
-    const peNavP75 = result.pePathP75 ? Math.round(result.pePathP75[i] ?? 0) : undefined;
+    // Alle Serien in der aktiven Bewertungsbasis (CR 6) — inkl. PE-NAV,
+    // damit Chart und Achsenbeschriftung konsistent bleiben.
+    const peNavMid = result.pePath ? Math.round(dv(result.pePath[i] ?? 0, i)) : 0;
+    const peNavP25 = result.pePathP25 ? Math.round(dv(result.pePathP25[i] ?? 0, i)) : undefined;
+    const peNavP75 = result.pePathP75 ? Math.round(dv(result.pePathP75[i] ?? 0, i)) : undefined;
     fanData.push({
       age: client.currentAge + y,
-      worst: Math.round(result.worstPath[i]),
-      p10: Math.round(result.p10Path[i]),
-      p25: Math.round(result.p25Path[i]),
-      median: Math.round(result.medianPath[i]),
-      p75: Math.round(result.p75Path[i]),
-      p90: Math.round(result.p90Path[i]),
-      best: Math.round(result.bestPath[i]),
+      worst: Math.round(dv(result.worstPath[i], i)),
+      p10: Math.round(dv(result.p10Path[i], i)),
+      p25: Math.round(dv(result.p25Path[i], i)),
+      median: Math.round(dv(result.medianPath[i], i)),
+      p75: Math.round(dv(result.p75Path[i], i)),
+      p90: Math.round(dv(result.p90Path[i], i)),
+      best: Math.round(dv(result.bestPath[i], i)),
       peNav: peNavMid,
       peNavP25,
       peNavP75,
@@ -229,26 +262,143 @@ export function ResultsDashboard() {
         </p>
       </div>
 
-      {/* KPI Cards with Tooltips – Item 1 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className={`${successBg}`} data-design-id="kpi-success-rate">
-          <CardContent className="pt-4 pb-4 text-center">
-            <div className={`text-3xl font-bold ${successColor}`}>
-              {fmtPct(result.successRate)}
+      {/* ── Planungskorridor (CR 9/10/16): zentrale Ergebnisgröße
+           „Monatsentnahme in heutiger Kaufkraft" je Marktentwicklung. ── */}
+      {corridor && (
+        <Card className="border-[#D31220]/30 bg-gradient-to-br from-red-50/60 to-white" data-design-id="corridor-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg" data-design-id="corridor-title">
+              {isReal
+                ? t("corridor.titleReal")
+                : t("corridor.titleNominal").replace("{year}", String(corridor.retirementYear))}
+            </CardTitle>
+            <p className="text-xs text-slate-500">{t("corridor.subtitle")}</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {(["difficult", "typical", "favorable"] as CorridorScenarioKey[]).map((key) => {
+                const sc = corridor.scenarios[key];
+                const value = isReal
+                  ? sc.fromWealthMonthly
+                  : sc.fromWealthMonthlyNominalAtRetirement;
+                const style =
+                  key === "difficult"
+                    ? { border: "border-amber-200", bg: "bg-amber-50/60", text: "text-amber-700" }
+                    : key === "typical"
+                      ? { border: "border-[#D31220]/30", bg: "bg-white", text: "text-[#D31220]" }
+                      : { border: "border-[#8FB687]/40", bg: "bg-[#8FB687]/10", text: "text-[#5a8a50]" };
+                return (
+                  <div
+                    key={key}
+                    className={`rounded-xl border ${style.border} ${style.bg} p-3 text-center`}
+                    data-design-id={`corridor-${key}`}
+                  >
+                    <div className="text-xs font-semibold text-slate-500">
+                      {t(`corridor.${key}`)}
+                    </div>
+                    <div className={`text-2xl font-bold tabular-nums mt-1 ${style.text}`}>
+                      {fmtEur(value)}
+                      <span className="text-xs text-slate-400 font-normal"> / {t("inputs.month")}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">
+                      {isReal
+                        ? t("corridor.valueHintReal")
+                        : t("corridor.valueHintNominal").replace("{year}", String(corridor.retirementYear))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="text-xs text-slate-500 mt-1 flex items-center justify-center gap-0.5">
-              {t("results.successRate")}
-              <KpiTooltip content={t("results.tooltipSuccess").replace("{n}", result.yearLabels.length > 0 ? String(state.settings.numSimulations) : "5000").replace("{age}", String(client.lifeExpectancy))} />
-            </div>
+
+            {/* Einordnung (CR 10) bzw. „Was möglich ist" (CR 4) — keine
+                zusätzlichen fachlichen Schwellenwerte. */}
+            {possibleMode || requiredMonthly === null ? (
+              <div className="rounded-lg border border-[#8FB687]/40 bg-[#8FB687]/10 p-3 text-sm text-[#3d5c38]" data-design-id="corridor-possible-mode">
+                <span className="font-semibold">{t("results.possibleModeTitle")}</span>{" "}
+                {t("results.possibleModeDesc")}
+              </div>
+            ) : requiredMonthly > 0 ? (
+              (() => {
+                const ranking = rankAgainstCorridor(requiredMonthly, corridor);
+                const reqShown = isReal
+                  ? requiredMonthly
+                  : Math.round(requiredMonthly * Math.pow(1 + inputs.inflationRate / 100, corridor.yearsToRetirement));
+                const rankStyle =
+                  ranking === "below_difficult"
+                    ? "border-[#8FB687]/40 bg-[#8FB687]/10 text-[#3d5c38]"
+                    : ranking === "within_corridor"
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "border-rose-200 bg-rose-50 text-rose-700";
+                return (
+                  <div className={`rounded-lg border p-3 text-sm ${rankStyle}`} data-design-id="corridor-ranking">
+                    <span className="font-semibold">
+                      {t("corridor.rankingLead")
+                        .replace("{amount}", fmtEur(reqShown))}
+                    </span>{" "}
+                    {t(
+                      ranking === "below_difficult"
+                        ? "results.rankingBelow"
+                        : ranking === "within_corridor"
+                          ? "results.rankingWithin"
+                          : "results.rankingAbove",
+                    )}
+                  </div>
+                );
+              })()
+            ) : null}
+
+            {/* Berater-Expertenzeile (CR 16): Quantil-Zuordnung sichtbar,
+                nicht nur im calculationTrace. */}
+            <p className="text-[10px] text-slate-400" data-design-id="corridor-advisor-note">
+              {t("corridor.advisorNote")
+                .replace("{p25}", String(corridor.scenarios.difficult.percentile))
+                .replace("{p50}", String(corridor.scenarios.typical.percentile))
+                .replace("{p75}", String(corridor.scenarios.favorable.percentile))
+                .replace("{sims}", fmtNum(corridor.simulationsUsed))}
+            </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* KPI Cards with Tooltips – Item 1 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {possibleMode ? (
+          // Modus „was möglich ist": keine Erfolgsquote gegen einen
+          // Wunschbetrag (wäre zirkulär gegen die eigene Korridor-Entnahme).
+          <Card data-design-id="kpi-success-rate">
+            <CardContent className="pt-4 pb-4 text-center">
+              <div className="text-3xl font-bold text-slate-300">—</div>
+              <div className="text-xs text-slate-500 mt-1 flex items-center justify-center gap-0.5">
+                {t("results.successRate")}
+                <KpiTooltip content={t("results.tooltipSuccessPossibleMode")} />
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className={`${successBg}`} data-design-id="kpi-success-rate">
+            <CardContent className="pt-4 pb-4 text-center">
+              <div className={`text-3xl font-bold ${successColor}`}>
+                {fmtPct(result.successRate)}
+              </div>
+              <div className="text-xs text-slate-500 mt-1 flex items-center justify-center gap-0.5">
+                {t("results.successRate")}
+                <KpiTooltip content={t("results.tooltipSuccess").replace("{n}", result.yearLabels.length > 0 ? String(state.settings.numSimulations) : "5000").replace("{age}", String(client.lifeExpectancy))} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card data-design-id="kpi-median-wealth">
           <CardContent className="pt-4 pb-4 text-center">
             <div className="text-2xl font-bold text-[#4D4A47]">
-              {fmtEur(result.medianFinalWealth)}
+              {fmtEur(
+                isReal
+                  ? result.valuation?.medianFinalWealthReal ??
+                      result.medianFinalWealth * (deflators[endIdx] ?? 1)
+                  : result.medianFinalWealth,
+              )}
             </div>
             <div className="text-xs text-slate-500 mt-1 flex items-center justify-center gap-0.5">
-              {t("results.medianWealth")}
+              {t("results.medianWealth")} {endValueSuffix}
               <KpiTooltip content={t("results.tooltipMedianWealth")} />
             </div>
           </CardContent>
@@ -278,19 +428,32 @@ export function ResultsDashboard() {
       </div>
 
       {/* Customer language interpretation – Item 9 */}
-      <Card className={`${successBg} border-l-4 ${result.successRate >= 90 ? "border-l-[#5a8a50]" : result.successRate >= 70 ? "border-l-amber-400" : "border-l-rose-500"}`} data-design-id="customer-language-card">
-        <CardContent className="pt-4 pb-4">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t("results.customerLanguageTitle")}</div>
-          <p className={`text-sm font-medium leading-relaxed ${successColor}`}>
-            {result.successRate >= 90
-              ? t("results.customerSuccess90").replace("{age}", String(client.lifeExpectancy))
-              : result.successRate >= 70
-                ? t("results.customerSuccess70").replace("{pct}", fmtPct(result.successRate)).replace("{age}", String(client.lifeExpectancy))
-                : t("results.customerSuccess50").replace("{age}", String(client.lifeExpectancy))
-            }
-          </p>
-        </CardContent>
-      </Card>
+      {possibleMode ? (
+        <Card className="border-[#8FB687]/40 bg-[#8FB687]/5 border-l-4 border-l-[#5a8a50]" data-design-id="customer-language-card">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t("results.customerLanguageTitle")}</div>
+            <p className="text-sm font-medium leading-relaxed text-[#3d5c38]">
+              {t("results.customerPossibleMode")
+                .replace("{amount}", fmtEur(corridor?.scenarios.typical.fromWealthMonthly ?? 0))
+                .replace("{age}", String(client.lifeExpectancy))}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className={`${successBg} border-l-4 ${result.successRate >= 90 ? "border-l-[#5a8a50]" : result.successRate >= 70 ? "border-l-amber-400" : "border-l-rose-500"}`} data-design-id="customer-language-card">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t("results.customerLanguageTitle")}</div>
+            <p className={`text-sm font-medium leading-relaxed ${successColor}`}>
+              {result.successRate >= 90
+                ? t("results.customerSuccess90").replace("{age}", String(client.lifeExpectancy))
+                : result.successRate >= 70
+                  ? t("results.customerSuccess70").replace("{pct}", fmtPct(result.successRate)).replace("{age}", String(client.lifeExpectancy))
+                  : t("results.customerSuccess50").replace("{age}", String(client.lifeExpectancy))
+              }
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Private Equity Summary – 4th bucket contribution (deterministic) */}
       {hasPE && peSummary && (
@@ -707,12 +870,14 @@ export function ResultsDashboard() {
         </Card>
       )}
 
-      {/* Gap Analysis – Item 4 */}
-      {(() => {
+      {/* Gap Analysis – Item 4. Entfällt im Modus „was möglich ist"
+          (kein Wunschbetrag → keine Lücke, CR 4). */}
+      {!possibleMode && inputs.desiredMonthlyWithdrawal !== null && (() => {
+        const desiredMonthly = inputs.desiredMonthlyWithdrawal ?? 0;
         const heatmap = result.withdrawalHeatmap ?? [];
         const entry90 = [...heatmap].reverse().find((h) => h.successRate >= 90);
         const sustainable90 = entry90?.withdrawal;
-        const gap = sustainable90 ? inputs.desiredMonthlyWithdrawal - sustainable90 : 0;
+        const gap = sustainable90 ? desiredMonthly - sustainable90 : 0;
         const onTrack = result.successRate >= 90;
         const capitalPctNeeded = gap > 0 && capitalAtRet > 0
           ? Math.round((gap * 12 / result.portfolioReturn) / capitalAtRet * 100)
@@ -733,7 +898,7 @@ export function ResultsDashboard() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white rounded-lg p-3 border border-amber-200">
                       <div className="text-xs text-slate-500 mb-0.5">{t("results.gapCurrentWithdrawal")}</div>
-                      <div className="text-xl font-bold text-rose-600">{fmtEur(inputs.desiredMonthlyWithdrawal)}<span className="text-xs text-slate-400">/Mo.</span></div>
+                      <div className="text-xl font-bold text-rose-600">{fmtEur(desiredMonthly)}<span className="text-xs text-slate-400">/Mo.</span></div>
                     </div>
                     {sustainable90 && (
                       <div className="bg-white rounded-lg p-3 border border-[#8FB687]/40">
@@ -826,7 +991,7 @@ export function ResultsDashboard() {
                 yAxisId="left"
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
-                label={{ value: t("results.portfolioValue"), angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
+                label={{ value: isReal ? t("valuation.axisReal") : t("valuation.axisNominal"), angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
               />
               {showLongevity && (
                 <YAxis
@@ -979,8 +1144,9 @@ export function ResultsDashboard() {
         const badReturn = avgReturn - vol;
         const goodReturn = avgReturn + vol;
 
-        // FIX: Portfolio trägt nur den NETTOBEDARF nach Pension, nicht den vollen Entnahmewunsch
-        const netMonthlyNeed = Math.max(0, inputs.desiredMonthlyWithdrawal - inputs.monthlyPension);
+        // FIX: Portfolio trägt nur den NETTOBEDARF nach Pension, nicht den vollen Entnahmewunsch.
+        // Im Modus „was möglich ist" dient die typische Korridor-Entnahme als Basis.
+        const netMonthlyNeed = Math.max(0, effectiveMonthlyWithdrawal - inputs.monthlyPension);
         const annualWithdrawal = netMonthlyNeed * 12;
 
         // FIX: IDENTISCHE Rendite-Mengen, nur andere Reihenfolge (kanonische SoR-Demo)
@@ -1149,19 +1315,28 @@ export function ResultsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-design-id="percentile-table-card">
           <CardHeader>
-            <CardTitle data-design-id="percentile-table-title">{t("results.endWealthPercentiles")}</CardTitle>
+            <CardTitle data-design-id="percentile-table-title">
+              {t("results.endWealthPercentiles")} {endValueSuffix}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {[
-                { label: t("results.percentile95"), value: result.percentiles.p95, color: "bg-neutral-100 text-[#20201E]" },
-                { label: t("results.percentile90"), value: result.percentiles.p90, color: "bg-neutral-100 text-[#20201E]" },
-                { label: t("results.percentile75"), value: result.percentiles.p75, color: "bg-sky-100 text-sky-700" },
-                { label: t("results.percentile50"), value: result.percentiles.p50, color: "bg-red-50 text-[#D31220]" },
-                { label: t("results.percentile25"), value: result.percentiles.p25, color: "bg-amber-100 text-amber-700" },
-                { label: t("results.percentile10"), value: result.percentiles.p10, color: "bg-orange-100 text-orange-700" },
-                { label: t("results.percentile5"), value: result.percentiles.p5, color: "bg-rose-100 text-rose-700" },
-              ].map((row) => (
+              {(() => {
+                // Bewertungsbasis (CR 6): reale Perzentile aus dem Result,
+                // nominale unverändert.
+                const pct = isReal
+                  ? result.valuation?.percentilesReal ?? result.percentiles
+                  : result.percentiles;
+                return [
+                { label: t("results.percentile95"), value: pct.p95, color: "bg-neutral-100 text-[#20201E]" },
+                { label: t("results.percentile90"), value: pct.p90, color: "bg-neutral-100 text-[#20201E]" },
+                { label: t("results.percentile75"), value: pct.p75, color: "bg-sky-100 text-sky-700" },
+                { label: t("results.percentile50"), value: pct.p50, color: "bg-red-50 text-[#D31220]" },
+                { label: t("results.percentile25"), value: pct.p25, color: "bg-amber-100 text-amber-700" },
+                { label: t("results.percentile10"), value: pct.p10, color: "bg-orange-100 text-orange-700" },
+                { label: t("results.percentile5"), value: pct.p5, color: "bg-rose-100 text-rose-700" },
+                ];
+              })().map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-slate-50">
                   <span className="text-sm text-slate-600">{row.label}</span>
                   <span className={`text-sm font-semibold px-3 py-0.5 rounded-full ${row.color}`}>
@@ -1184,7 +1359,17 @@ export function ResultsDashboard() {
                 { label: t("results.volatilityPA"), value: fmtPct(result.portfolioVolatility) },
                 { label: t("results.sharpeRatio"), value: result.sharpeRatio.toFixed(2) },
                 { label: t("results.maxDrawdownMedian"), value: fmtPct(result.maxDrawdown) },
-                { label: t("results.capitalAtRetirement"), value: fmtEur(capitalAtRet) },
+                {
+                  label: `${t("results.capitalAtRetirement")} ${
+                    isReal
+                      ? t("valuation.suffixReal")
+                      : t("valuation.suffixNominal").replace(
+                          "{year}",
+                          String(result.valuation?.retirementYear ?? client.birthYear + client.retirementAge),
+                        )
+                  }`,
+                  value: fmtEur(dv(capitalAtRet, retIdx)),
+                },
                 { label: t("results.initialWithdrawalRate"), value: fmtPct(withdrawalRate) },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
@@ -1336,6 +1521,87 @@ export function ResultsDashboard() {
           </ul>
         </CardContent>
       </Card>
+
+      {/* ── Berechnungsnachweis (CR 19): Experten-Expander + JSON-Export ── */}
+      {result.calculationTrace && (
+        <details className="rounded-xl border border-slate-200 bg-white" data-design-id="calculation-trace-expander">
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-600 hover:text-slate-900">
+            🧮 {t("trace.title")}
+            <span className="ml-2 text-[10px] font-normal text-slate-400">
+              {t("trace.versionLine")
+                .replace("{version}", result.calculationTrace.configVersion)
+                .replace("{date}", new Date(result.calculationTrace.stichtag).toLocaleDateString("de-AT"))}
+            </span>
+          </summary>
+          <div className="px-4 pb-4 space-y-3 text-xs text-slate-600">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-lg bg-slate-50 p-3 space-y-1">
+                <div className="font-semibold text-slate-700">{t("trace.assumptions")}</div>
+                {result.calculationTrace.assumptions.buckets.map((b) => (
+                  <div key={b.name} className="flex justify-between tabular-nums">
+                    <span>{b.label} ({b.allocationPct}%)</span>
+                    <span>
+                      {fmtPct(b.expectedReturnNominalPct)} {t("trace.nominalShort")} / {fmtPct(b.expectedReturnRealPct)} {t("trace.realShort")}, σ {fmtPct(b.volatilityPct)}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex justify-between">
+                  <span>{t("trace.inflation")}</span>
+                  <span>{fmtPct(result.calculationTrace.assumptions.inflationRatePct)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>KESt</span>
+                  <span>{fmtPct(result.calculationTrace.assumptions.kestRatePct)}</span>
+                </div>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3 space-y-1">
+                <div className="font-semibold text-slate-700">{t("trace.derivation")}</div>
+                <div className="flex justify-between">
+                  <span>desiredMonthlyIncome</span>
+                  <span>{result.calculationTrace.derivation.desiredMonthlyIncome !== null ? fmtEur(result.calculationTrace.derivation.desiredMonthlyIncome) : "— (null)"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>externalMonthlyIncome</span>
+                  <span>{fmtEur(result.calculationTrace.derivation.externalMonthlyIncome)}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span>requiredMonthlyWithdrawal</span>
+                  <span>{result.calculationTrace.derivation.requiredMonthlyWithdrawal !== null ? fmtEur(result.calculationTrace.derivation.requiredMonthlyWithdrawal) : "— (null)"}</span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">{result.calculationTrace.derivation.formula}</p>
+                <div className="font-semibold text-slate-700 pt-1">{t("trace.corridorMethod")}</div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">{result.calculationTrace.corridor.method}</p>
+                <p className="text-[10px] text-slate-400">
+                  {t("trace.simLine")
+                    .replace("{sims}", fmtNum(result.calculationTrace.corridor.technical.maxSimulations))
+                    .replace("{iters}", String(result.calculationTrace.corridor.technical.iterations))
+                    .replace("{seed}", String(result.calculationTrace.simulation.seed ?? "auto"))}
+                </p>
+                <p className="text-[10px] text-slate-400">{result.calculationTrace.rounding.corridorRounding}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const blob = new Blob(
+                  [JSON.stringify(result.calculationTrace, null, 2)],
+                  { type: "application/json" },
+                );
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `calculationTrace_${new Date(result.calculationTrace?.stichtag ?? Date.now()).toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-md bg-[#20201E] text-white hover:bg-[#3a3935] transition-colors"
+              data-design-id="trace-download-button"
+            >
+              ⬇ {t("trace.download")}
+            </button>
+          </div>
+        </details>
+      )}
     </div>
   );
 }

@@ -245,7 +245,12 @@ function addFinancialSummary(
   const rightData = [
     ["Anfangskapital", fmtEur(inputs.initialCapital)],
     ["Monatliche Sparrate", fmtEur(inputs.monthlySavings)],
-    ["Gewünschte Entnahme", fmtEur(inputs.desiredMonthlyWithdrawal) + " /Monat"],
+    [
+      "Gewünschter monatl. Gesamtbetrag (heutige Kaufkraft)",
+      inputs.desiredMonthlyWithdrawal !== null
+        ? fmtEur(inputs.desiredMonthlyWithdrawal) + " /Monat"
+        : "— (berechnen, was möglich ist)",
+    ],
     ["Pensionseinkommen", fmtEur(inputs.monthlyPension) + " /Monat"],
     ["Inflationsrate", fmtPct(inputs.inflationRate)],
   ];
@@ -328,7 +333,9 @@ function addFinancialSummary(
   );
 
   slide.addText(
-    `Netto-Monatsbedarf: ${fmtEur(inputs.desiredMonthlyWithdrawal - inputs.monthlyPension)} (Entnahme minus Pension)`,
+    inputs.desiredMonthlyWithdrawal !== null
+      ? `Benötigt aus dem Vermögen (heutige Kaufkraft): ${fmtEur(Math.max(0, inputs.desiredMonthlyWithdrawal - inputs.monthlyPension))} monatlich (Gesamtbetrag minus Pensionseinkünfte)`
+      : `Kein Wunschbetrag erfasst — Modus „berechnen, was möglich ist".`,
     {
       x: 0.8,
       y: 4.55,
@@ -767,7 +774,9 @@ function addMonteCarloResults(
   });
 
   slide.addText(
-    `Basierend auf ${fmt(5000)} Simulationen mit ${inputs.useRealValues ? "inflationsbereinigten" : "nominalen"} Entnahmen von ${fmtEur(inputs.desiredMonthlyWithdrawal)}/Monat (abzgl. ${fmtEur(inputs.monthlyPension)} Pension).`,
+    // KONSISTENZ-FIX (CR 14): Entnahme-Inflation hängt seit e967b66 am
+    // Schalter `inflateWithdrawalToRetirement`, nicht an `useRealValues`.
+    `Basierend auf ${fmt(5000)} Simulationen mit ${inputs.inflateWithdrawalToRetirement !== false ? "inflationsindexierten Entnahmen (Eingabe in heutiger Kaufkraft)" : "nominal konstanten Entnahmen"} von ${fmtEur(inputs.desiredMonthlyWithdrawal ?? 0)}/Monat (abzgl. ${fmtEur(inputs.monthlyPension)} Pension).`,
     {
       x: 0.5,
       y: 4.65,
@@ -891,7 +900,7 @@ function addWithdrawalSlide(
   const accYears = client.retirementAge - client.currentAge;
   const retIdx = Math.min(accYears, result.medianPath.length - 1);
   const capitalAtRet = result.medianPath[retIdx];
-  const annualWithdrawal = inputs.desiredMonthlyWithdrawal * 12;
+  const annualWithdrawal = (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
   const withdrawalRate = capitalAtRet > 0 ? (annualWithdrawal / capitalAtRet) * 100 : 0;
 
   slide.addText("Ihre Entnahmerate", {
@@ -1318,7 +1327,7 @@ function addRecommendationsSlide(
   const retIdx = Math.min(accYears, result.medianPath.length - 1);
   const capitalAtRet = result.medianPath[retIdx];
   const withdrawalRate = capitalAtRet > 0
-    ? (inputs.desiredMonthlyWithdrawal * 12 / capitalAtRet) * 100
+    ? ((inputs.desiredMonthlyWithdrawal ?? 0) * 12 / capitalAtRet) * 100
     : 0;
 
   if (withdrawalRate > 4) {

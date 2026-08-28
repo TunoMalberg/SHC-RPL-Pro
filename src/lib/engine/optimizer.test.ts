@@ -15,6 +15,10 @@ import {
   wilsonScoreInterval,
 } from "./optimizer";
 import { defaultClient, defaultInputs, defaultPortfolio } from "../defaults";
+
+// CR 4: defaultInputs startet ohne Wunschbetrag (null) — Optimizer-Tests
+// brauchen einen expliziten Entnahmewunsch, damit Erfolgsquoten differenzieren.
+const optInputs = { ...defaultInputs, desiredMonthlyWithdrawal: 3000 };
 import type { SimulationSettings } from "../types";
 
 describe("enumerateAllocations", () => {
@@ -360,7 +364,7 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
   };
 
   test("liefert sortierte Liste mit ranked.length > 0", () => {
-    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    const r = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], fastOpts);
     expect(r.ranked.length).toBeGreaterThan(10);
     expect(r.evaluations).toBe(r.ranked.length);
     for (let i = 1; i < r.ranked.length; i++) {
@@ -369,14 +373,14 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
   });
 
   test("Baseline wird mit pathsPhase3 (höchste Genauigkeit) bewertet", () => {
-    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    const r = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], fastOpts);
     expect(r.baseline).toBeDefined();
     expect(r.baseline.pathsUsed).toBe(fastOpts.pathsPhase3);
     expect(Number.isFinite(r.baseline.successRate)).toBe(true);
   });
 
   test("Phase 3: Top-N Einträge wurden mit pathsPhase3 re-evaluiert", () => {
-    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    const r = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], fastOpts);
     // Die Top-N (= reEvalTopN) Einträge müssen pathsUsed === pathsPhase3 haben.
     // Achtung: ranked[] ist nach Score sortiert, nicht nach pathsUsed.
     const reEvaluated = r.ranked.filter((x) => x.pathsUsed === fastOpts.pathsPhase3);
@@ -389,7 +393,7 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
   });
 
   test("Wilson-CI ist befüllt und konsistent (low ≤ rate ≤ high)", () => {
-    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    const r = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], fastOpts);
     for (const entry of r.ranked) {
       expect(entry.successRateCiLow).toBeLessThanOrEqual(entry.successRate);
       expect(entry.successRateCiHigh).toBeGreaterThanOrEqual(entry.successRate);
@@ -399,12 +403,12 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
   });
 
   test("Optimum >= Baseline (Score-Monotonie über alle Phasen)", () => {
-    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    const r = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], fastOpts);
     expect(r.ranked[0].score).toBeGreaterThanOrEqual(r.baseline.score);
   });
 
   test("Drawdown stammt aus Engine, alle realistisch (< 0.95)", () => {
-    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    const r = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], fastOpts);
     for (const entry of r.ranked) {
       expect(entry.maxDrawdown).toBeGreaterThanOrEqual(0);
       expect(entry.maxDrawdown).toBeLessThan(0.95);
@@ -413,8 +417,8 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
 
   test("Reproduzierbarkeit: gleicher Seed → identische Top-3", () => {
     const opts = { ...fastOpts, randomSeed: 123 };
-    const a = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], opts);
-    const b = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], opts);
+    const a = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], opts);
+    const b = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], opts);
     for (let i = 0; i < 3; i++) {
       expect(a.ranked[i].cash).toBe(b.ranked[i].cash);
       expect(a.ranked[i].bonds).toBe(b.ranked[i].bonds);
@@ -424,7 +428,7 @@ describe("optimizePortfolio — End-to-End (langsam)", () => {
   });
 
   test("Default-Objective ist 'success_wealth'", () => {
-    const r = optimizePortfolio(defaultClient, defaultInputs, defaultPortfolio, settings, [], fastOpts);
+    const r = optimizePortfolio(defaultClient, optInputs, defaultPortfolio, settings, [], fastOpts);
     expect(r.objective).toBe("success_wealth");
   });
 });

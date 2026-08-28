@@ -5,8 +5,16 @@ import { cn } from "@/lib/utils";
 
 interface FormattedNumberInputProps
   extends Omit<React.ComponentProps<"input">, "onChange" | "value" | "type"> {
-  value: number;
-  onChange: (value: number) => void;
+  value: number | null;
+  onChange?: (value: number) => void;
+  /**
+   * Optionales Feld (CR 4): Leere Eingabe liefert `null` statt 0 an
+   * `onChangeNullable`; `value` darf dann `null` sein (Anzeige leer).
+   * Ohne `nullable` verhält sich das Feld wie bisher (leer → 0).
+   */
+  nullable?: boolean;
+  /** Wird bei `nullable` statt `onChange` verwendet. */
+  onChangeNullable?: (value: number | null) => void;
   decimals?: number;
   prefix?: string;
   suffix?: string;
@@ -28,6 +36,8 @@ export const FormattedNumberInput = React.forwardRef<
   {
     value,
     onChange,
+    nullable = false,
+    onChangeNullable,
     decimals = 0,
     prefix,
     suffix,
@@ -65,7 +75,9 @@ export const FormattedNumberInput = React.forwardRef<
 
   const display = focused
     ? rawText
-    : `${prefix ?? ""}${format(value || 0)}${suffix ?? ""}`;
+    : nullable && value === null
+      ? ""
+      : `${prefix ?? ""}${format(value ?? 0)}${suffix ?? ""}`;
 
   return (
     <input
@@ -77,9 +89,11 @@ export const FormattedNumberInput = React.forwardRef<
         setFocused(true);
         // Enter unformatted editable text on focus
         const editable =
-          decimals > 0
-            ? String(value ?? 0).replace(".", ",")
-            : String(Math.round(value ?? 0));
+          nullable && value === null
+            ? ""
+            : decimals > 0
+              ? String(value ?? 0).replace(".", ",")
+              : String(Math.round(value ?? 0));
         setRawText(editable);
         // Select all so user can type replacement quickly
         requestAnimationFrame(() => e.target.select());
@@ -91,7 +105,11 @@ export const FormattedNumberInput = React.forwardRef<
         const allowedPattern = allowNegative ? /^-?[\d.,]*$/ : /^[\d.,]*$/;
         if (!allowedPattern.test(s)) return;
         setRawText(s);
-        onChange(parse(s));
+        if (nullable) {
+          onChangeNullable?.(s.trim() === "" ? null : parse(s));
+        } else {
+          onChange?.(parse(s));
+        }
       }}
       onBlur={(e) => {
         setFocused(false);

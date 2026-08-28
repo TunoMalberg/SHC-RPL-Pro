@@ -149,7 +149,12 @@ function createInputsSheet(
     ["Anfangskapital", inputs.initialCapital, NUM_FMT_EUR],
     ["Monatliche Sparrate", inputs.monthlySavings, NUM_FMT_EUR],
     ["Jährliche Sparsteigerung", inputs.annualSavingsIncrease / 100, NUM_FMT_PCT],
-    ["Gewünschte monatl. Entnahme", inputs.desiredMonthlyWithdrawal, NUM_FMT_EUR],
+    // CR 3/4: Label heutige Kaufkraft; leer = Modus „berechnen, was möglich ist".
+    [
+      "Gewünschter monatl. Gesamtbetrag (heutige Kaufkraft)",
+      inputs.desiredMonthlyWithdrawal ?? "— (was möglich ist)",
+      inputs.desiredMonthlyWithdrawal !== null ? NUM_FMT_EUR : "",
+    ],
     ["Monatl. Pensionseinkommen", inputs.monthlyPension, NUM_FMT_EUR],
     ["Pensionsbeginn (Alter)", inputs.pensionStartAge, "0"],
     ["Inflationsrate", inputs.inflationRate / 100, NUM_FMT_PCT],
@@ -524,7 +529,7 @@ function createMetricsSheet(
   styleSectionRow(ws, row, 2);
   row++;
 
-  const annualWithdrawal = inputs.desiredMonthlyWithdrawal * 12;
+  const annualWithdrawal = (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
   const capitalAtRet = result.medianPath[retIdx];
   const withdrawalRate = capitalAtRet > 0 ? annualWithdrawal / capitalAtRet : 0;
 

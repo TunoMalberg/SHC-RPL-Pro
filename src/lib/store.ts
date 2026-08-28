@@ -5,6 +5,7 @@ import type {
   AdvisorProfile,
   AppState,
   ClientProfile,
+  ComparisonRunResult,
   FinancialInputs,
   PEFund,
   PortfolioConfig,
@@ -17,6 +18,8 @@ import type {
   UIMode,
 } from "./types";
 import type { HoldingsState } from "./holdings/types";
+import type { ValuationMode } from "./displayConfig";
+import { DISPLAY_CONFIG } from "./displayConfig";
 import {
   defaultAdvisor,
   defaultClient,
@@ -40,6 +43,10 @@ export const initialState: AppState = {
   holdings: { enabled: false, holdings: [], anonymized: false },
   uiMode: "classic",
   uiModeChosen: false,
+  valuationMode: DISPLAY_CONFIG.defaultValuationMode,
+  optimizerBestAllocation: null,
+  comparisonResult: null,
+  dataCompletenessConfirmed: false,
 };
 
 export type Action =
@@ -68,6 +75,14 @@ export type Action =
   | { type: "SET_HOLDINGS"; payload: Partial<HoldingsState> }
   | { type: "SET_UI_MODE"; payload: UIMode }
   | { type: "MARK_UI_MODE_CHOSEN" }
+  /** Bewertungsbasis der Kundensicht umschalten (Header-Badge, CR 6/11). */
+  | { type: "SET_VALUATION_MODE"; payload: ValuationMode }
+  /** Beste Allokation des letzten Optimizer-Laufs merken (Zielstrategie im Vergleich). */
+  | { type: "SET_OPTIMIZER_RESULT"; payload: AppState["optimizerBestAllocation"] }
+  /** Ergebnis des Vergleichslaufs (Tab „Vergleich"). */
+  | { type: "SET_COMPARISON_RESULT"; payload: ComparisonRunResult | null }
+  /** dataCompletenessNotice: Vollständigkeit mit Kunde besprochen (CR 18). */
+  | { type: "SET_DATA_COMPLETENESS_CONFIRMED"; payload: boolean }
   | { type: "RESET" };
 
 export function appReducer(state: AppState, action: Action): AppState {
@@ -173,6 +188,14 @@ export function appReducer(state: AppState, action: Action): AppState {
     }
     case "MARK_UI_MODE_CHOSEN":
       return { ...state, uiModeChosen: true };
+    case "SET_VALUATION_MODE":
+      return { ...state, valuationMode: action.payload };
+    case "SET_OPTIMIZER_RESULT":
+      return { ...state, optimizerBestAllocation: action.payload };
+    case "SET_COMPARISON_RESULT":
+      return { ...state, comparisonResult: action.payload };
+    case "SET_DATA_COMPLETENESS_CONFIRMED":
+      return { ...state, dataCompletenessConfirmed: action.payload };
     case "RESET":
       return initialState;
     default:

@@ -131,10 +131,15 @@ export function validateInputs(inp: FinancialInputs, c?: ClientProfile): Validat
       severity: "error",
     });
   }
-  if (!Number.isFinite(inp.desiredMonthlyWithdrawal) || inp.desiredMonthlyWithdrawal < 0) {
+  // CR 4: Der Wunschbetrag ist optional — null (= „berechnen, was möglich
+  // ist") ist gültig; eine erfasste Zahl muss endlich und ≥ 0 sein.
+  if (
+    inp.desiredMonthlyWithdrawal !== null &&
+    (!Number.isFinite(inp.desiredMonthlyWithdrawal) || inp.desiredMonthlyWithdrawal < 0)
+  ) {
     fail(r, {
       path: "inputs.desiredMonthlyWithdrawal",
-      message: "Gewünschte Entnahme darf nicht negativ sein.",
+      message: "Gewünschter monatlicher Gesamtbetrag darf nicht negativ sein.",
       severity: "error",
     });
   }

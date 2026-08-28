@@ -139,6 +139,23 @@ export function PortfolioOptimizerSection() {
       setProgressLabel(t("opt.progress.done"));
       setResult(r);
 
+      // Beste Allokation im AppState merken — dient der Vergleichsansicht
+      // als wählbare Zielstrategie-Quelle (CR 15).
+      const best = r.ranked[0];
+      if (best) {
+        dispatch({
+          type: "SET_OPTIMIZER_RESULT",
+          payload: {
+            cash: best.cash,
+            bonds: best.bonds,
+            equities: best.equities,
+            pe: best.pe,
+            objective,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
+
       logger.info("Portfolio optimization completed", {
         scope: "PortfolioOptimizer",
         evaluations: r.evaluations,
@@ -159,7 +176,7 @@ export function PortfolioOptimizerSection() {
     } finally {
       setRunning(false);
     }
-  }, [client, inputs, portfolio, settings, liquidityEvents, objective, t]);
+  }, [client, inputs, portfolio, settings, liquidityEvents, objective, dispatch, t]);
 
   const applyAllocation = useCallback(
     (alloc: AllocationResult) => {
@@ -264,7 +281,7 @@ export function PortfolioOptimizerSection() {
               {" · "}
               {t("opt.fi.savings")}: {fmtEur(inputs.monthlySavings)}/{t("opt.fi.month")}
               {" · "}
-              {t("opt.fi.withdrawal")}: {fmtEur(inputs.desiredMonthlyWithdrawal)}/{t("opt.fi.month")}
+              {t("opt.fi.withdrawal")}: {inputs.desiredMonthlyWithdrawal !== null ? `${fmtEur(inputs.desiredMonthlyWithdrawal)}/${t("opt.fi.month")}` : t("opt.fi.withdrawalAuto")}
             </span>
           </div>
 

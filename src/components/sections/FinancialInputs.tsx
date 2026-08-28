@@ -17,20 +17,27 @@ export function FinancialInputsSection() {
   const { inputs, client, liquidityEvents } = state;
   const { t } = useI18n();
   const isPro = state.uiMode === "pro";
+  const [expertOpen, setExpertOpen] = useState(false);
 
   const switchToPro = () => {
     dispatch({ type: "SET_UI_MODE", payload: "pro" });
     dispatch({ type: "SET_TAB", payload: "holdings" });
   };
 
-  const update = (field: string, value: number | boolean) => {
+  const update = (field: string, value: number | boolean | null) => {
     dispatch({ type: "SET_INPUTS", payload: { [field]: value } });
   };
 
   const yearsToRet = Math.max(0, client.retirementAge - client.currentAge);
   const totalContrib = inputs.initialCapital + inputs.monthlySavings * 12 * yearsToRet;
-  const annualWithdrawal = inputs.desiredMonthlyWithdrawal * 12;
-  const netWithdrawal = (inputs.desiredMonthlyWithdrawal - inputs.monthlyPension) * 12;
+  const hasWish = inputs.desiredMonthlyWithdrawal !== null;
+  const annualWithdrawal = (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
+  // Benötigt aus dem Vermögen (heutige Kaufkraft): Gesamtbetrag − Pension, ≥ 0.
+  const neededFromWealthMonthly = hasWish
+    ? Math.max(0, (inputs.desiredMonthlyWithdrawal ?? 0) - inputs.monthlyPension)
+    : null;
+  // Eingabebasis: Standard heutige Kaufkraft (Experten-Toggle Default ON).
+  const purchasingPowerEntry = inputs.inflateWithdrawalToRetirement !== false;
 
   return (
     <div className="space-y-6" data-design-id="financial-inputs-section">
@@ -38,6 +45,24 @@ export function FinancialInputsSection() {
         <h2 className="text-2xl font-bold text-slate-900" data-design-id="financial-inputs-title">{t("inputs.title")}</h2>
         <p className="text-slate-500 mt-1" data-design-id="financial-inputs-subtitle">{t("inputs.subtitle")}</p>
       </div>
+
+      {/* Kaufkraft-Hinweis (CR 3) — sichtbar in der Eingabemaske. Bei
+          deaktivierter Experten-Inflationierung stattdessen Nominal-Warnung. */}
+      {purchasingPowerEntry ? (
+        <div
+          className="rounded-xl border border-[#8FB687]/50 bg-[#8FB687]/10 px-4 py-3 text-sm text-[#3d5c38]"
+          data-design-id="purchasing-power-hint"
+        >
+          💡 {t("inputs.purchasingPowerHint")}
+        </div>
+      ) : (
+        <div
+          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          data-design-id="nominal-entry-warning"
+        >
+          ⚠️ {t("inputs.nominalEntryWarning")}
+        </div>
+      )}
 
       {/* Pro-Hint im Klassik-Modus: weist auf Bestandsportfolio-Funktion hin */}
       {!isPro && (
@@ -117,13 +142,43 @@ export function FinancialInputsSection() {
           <CardContent className="space-y-4">
             <div data-design-id="monthly-withdrawal-field">
               <Label htmlFor="withdrawal">{t("inputs.monthlyWithdrawal")}</Label>
-              <FormattedNumberInput id="withdrawal" value={inputs.desiredMonthlyWithdrawal} onChange={(v) => update("desiredMonthlyWithdrawal", v)} prefix="€ " />
-              <p className="text-xs text-slate-400 mt-1">{t("inputs.yearly")}: {fmtEur(annualWithdrawal)}</p>
+              <FormattedNumberInput
+                id="withdrawal"
+                value={inputs.desiredMonthlyWithdrawal}
+                nullable
+                onChangeNullable={(v) => update("desiredMonthlyWithdrawal", v)}
+                prefix="€ "
+                placeholder={t("inputs.withdrawalPlaceholder")}
+              />
+              {hasWish ? (
+                <p className="text-xs text-slate-400 mt-1">{t("inputs.yearly")}: {fmtEur(annualWithdrawal)}</p>
+              ) : (
+                <p className="text-xs text-[#5a8a50] mt-1" data-design-id="withdrawal-optional-hint">
+                  {t("inputs.withdrawalOptionalHint")}
+                </p>
+              )}
             </div>
             <div data-design-id="pension-income-field">
               <Label htmlFor="pension">{t("inputs.monthlyPension")}</Label>
               <FormattedNumberInput id="pension" value={inputs.monthlyPension} onChange={(v) => update("monthlyPension", v)} prefix="€ " />
               <p className="text-xs text-slate-400 mt-1">{t("inputs.monthlyPensionHint")}</p>
+            </div>
+            {/* Abgeleitetes Feld (CR 3): Benötigt aus dem Vermögen in heutiger
+                Kaufkraft = max(0, Gesamtbetrag − Pensionseinkünfte). Read-only —
+                bewusst KEIN zweites Eingabefeld (CR 2). */}
+            <div
+              className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5"
+              data-design-id="needed-from-wealth-field"
+            >
+              <div className="text-xs font-medium text-slate-500">{t("inputs.neededFromWealth")}</div>
+              <div className="text-lg font-bold text-rose-600 tabular-nums">
+                {neededFromWealthMonthly !== null ? `${fmtEur(neededFromWealthMonthly)} / ${t("inputs.month")}` : "—"}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {neededFromWealthMonthly !== null
+                  ? t("inputs.neededFromWealthHint")
+                  : t("inputs.neededFromWealthEmptyHint")}
+              </p>
             </div>
             <div data-design-id="pension-start-age-field">
               <Label htmlFor="pensionAge">{t("inputs.pensionStartAge")}</Label>
@@ -169,58 +224,96 @@ export function FinancialInputsSection() {
             </div>
           </div>
 
-          {/* Entnahmewunsch bis Pensionsantritt inflationieren.
-              Seit FIX 2026-Q4 ist dieser Schalter UNABHÄNGIG von „Reale Werte".
-              `useRealValues` betrifft die Sparphase, dieser Schalter
-              ausschließlich Entnahme + Pension. Default seit 2026-Q4 = ON. */}
-          <div
-            className="mt-5 pt-5 border-t border-slate-100 flex flex-col md:flex-row md:items-start gap-3"
-            data-design-id="inflate-to-retirement-toggle"
-          >
-            <div className="flex items-center gap-3 md:pt-1">
-              <Switch
-                id="inflateToRet"
-                checked={!!inputs.inflateWithdrawalToRetirement}
-                onCheckedChange={(checked) => update("inflateWithdrawalToRetirement", checked)}
-              />
-            </div>
-            <div className="flex-1">
-              <Label htmlFor="inflateToRet" className="cursor-pointer font-medium">
-                {t("inputs.inflateToRetTitle")}
-              </Label>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {inputs.inflateWithdrawalToRetirement
-                  ? t("inputs.inflateToRetOn")
-                  : t("inputs.inflateToRetOff")}
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                {t("inputs.inflateToRetHint")}
-              </p>
-              {inputs.inflateWithdrawalToRetirement && (() => {
-                const accYears = Math.max(0, client.retirementAge - client.currentAge);
-                const factor = Math.pow(1 + (inputs.inflationRate || 0) / 100, accYears);
-                const yearly = inputs.desiredMonthlyWithdrawal * 12 * factor;
-                const monthly = inputs.desiredMonthlyWithdrawal * factor;
-                return (
-                  <div
-                    className="mt-2 inline-flex items-center gap-2 rounded-md bg-[#FAC075]/15 border border-[#FAC075]/40 px-2.5 py-1"
-                    data-design-id="inflate-to-retirement-preview"
-                  >
-                    <span className="text-[11px] font-semibold text-[#5d4a1f]">↗</span>
-                    <span className="text-[11px] text-[#5d4a1f]">
-                      {t("inputs.inflateToRetPreview")
-                        .replace("{amount}", fmtEur(yearly))
-                        .replace("{months}", fmtEur(monthly))}
-                    </span>
-                  </div>
-                );
-              })()}
-            </div>
+          {/* Experten-Bereich (Freigabe CR): Der Schalter „Entnahmewunsch bis
+              Pensionsantritt inflationieren" bleibt als Experteneinstellung
+              erhalten — zugeklappt, damit die Standardstrecke eindeutig in
+              heutiger Kaufkraft erfasst (CR 3). Bei OFF ersetzt oben eine
+              Nominal-Warnung den Kaufkraft-Hinweis. */}
+          <div className="mt-5 pt-5 border-t border-slate-100" data-design-id="expert-section">
+            <button
+              type="button"
+              onClick={() => setExpertOpen((o) => !o)}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1.5"
+              data-design-id="expert-section-toggle"
+            >
+              <span className={`inline-block transition-transform ${expertOpen ? "rotate-90" : ""}`}>▸</span>
+              {t("inputs.expertSection")}
+            </button>
+            {expertOpen && (
+              <div
+                className="mt-3 flex flex-col md:flex-row md:items-start gap-3"
+                data-design-id="inflate-to-retirement-toggle"
+              >
+                <div className="flex items-center gap-3 md:pt-1">
+                  <Switch
+                    id="inflateToRet"
+                    checked={!!inputs.inflateWithdrawalToRetirement}
+                    onCheckedChange={(checked) => update("inflateWithdrawalToRetirement", checked)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <Label htmlFor="inflateToRet" className="cursor-pointer font-medium">
+                    {t("inputs.inflateToRetTitle")}
+                  </Label>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {inputs.inflateWithdrawalToRetirement
+                      ? t("inputs.inflateToRetOn")
+                      : t("inputs.inflateToRetOff")}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                    {t("inputs.inflateToRetHint")}
+                  </p>
+                  {inputs.inflateWithdrawalToRetirement && hasWish && (() => {
+                    const accYears = Math.max(0, client.retirementAge - client.currentAge);
+                    const factor = Math.pow(1 + (inputs.inflationRate || 0) / 100, accYears);
+                    const yearly = (inputs.desiredMonthlyWithdrawal ?? 0) * 12 * factor;
+                    const monthly = (inputs.desiredMonthlyWithdrawal ?? 0) * factor;
+                    return (
+                      <div
+                        className="mt-2 inline-flex items-center gap-2 rounded-md bg-[#FAC075]/15 border border-[#FAC075]/40 px-2.5 py-1"
+                        data-design-id="inflate-to-retirement-preview"
+                      >
+                        <span className="text-[11px] font-semibold text-[#5d4a1f]">↗</span>
+                        <span className="text-[11px] text-[#5d4a1f]">
+                          {t("inputs.inflateToRetPreview")
+                            .replace("{amount}", fmtEur(yearly))
+                            .replace("{months}", fmtEur(monthly))}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
       <LiquidityEventsCard events={liquidityEvents} dispatch={dispatch} minAge={client.currentAge} maxAge={client.lifeExpectancy} />
+
+      {/* dataCompletenessNotice (CR 18) */}
+      <div
+        className={`rounded-xl border px-4 py-3 text-sm ${state.dataCompletenessConfirmed ? "border-[#8FB687]/50 bg-[#8FB687]/10 text-[#3d5c38]" : "border-amber-300 bg-amber-50 text-amber-800"}`}
+        data-design-id="data-completeness-notice"
+      >
+        {state.dataCompletenessConfirmed ? (
+          <p>✓ {t("notice.dataCompletenessConfirmed")}</p>
+        ) : (
+          <p>ℹ️ {t("notice.dataCompleteness")}</p>
+        )}
+        <label className="mt-2 flex items-center gap-2 cursor-pointer text-xs font-medium">
+          <input
+            type="checkbox"
+            checked={state.dataCompletenessConfirmed}
+            onChange={(e) =>
+              dispatch({ type: "SET_DATA_COMPLETENESS_CONFIRMED", payload: e.target.checked })
+            }
+            className="h-4 w-4 rounded border-slate-300"
+            data-design-id="data-completeness-checkbox"
+          />
+          {t("notice.dataCompletenessConfirm")}
+        </label>
+      </div>
 
       <Card className="border-[#8FB687]/40 bg-[#8FB687]/10" data-design-id="financial-summary-card">
         <CardContent className="pt-6">
@@ -234,7 +327,9 @@ export function FinancialInputsSection() {
               <div className="text-xs text-slate-500">{t("inputs.summaryTotalContrib")}</div>
             </div>
             <div data-design-id="summary-net-withdrawal">
-              <div className="text-xl font-bold text-rose-600">{fmtEur(netWithdrawal)}</div>
+              <div className="text-xl font-bold text-rose-600">
+                {neededFromWealthMonthly !== null ? fmtEur(neededFromWealthMonthly * 12) : "—"}
+              </div>
               <div className="text-xs text-slate-500">{t("inputs.summaryNetWithdrawal")}</div>
             </div>
             <div data-design-id="summary-pension">
@@ -254,22 +349,18 @@ export function FinancialInputsSection() {
   );
 }
 
+/**
+ * Liquiditätsereignisse (CR 5): klare Trennung „Zusätzliche Einnahmen"
+ * vs. „Zusätzliche Ausgaben". Datenmodell unverändert vorzeichenbasiert
+ * (Einnahme ≥ 0, Ausgabe < 0) — Ausgaben werden positiv eingegeben und
+ * negativ gespeichert.
+ */
 function LiquidityEventsCard({ events, dispatch, minAge, maxAge }: { events: LiquidityEvent[]; dispatch: React.Dispatch<Action>; minAge: number; maxAge: number; }) {
   const { t } = useI18n();
-  const [newAge, setNewAge] = useState(minAge + 5);
-  const [newDesc, setNewDesc] = useState("");
-  const [newAmount, setNewAmount] = useState(0);
-
-  const addEvent = () => {
-    if (!newDesc.trim() || newAmount === 0) return;
-    const event: LiquidityEvent = { id: crypto.randomUUID(), age: newAge, description: newDesc.trim(), amount: newAmount };
-    dispatch({ type: "ADD_LIQUIDITY_EVENT", payload: event });
-    setNewDesc("");
-    setNewAmount(0);
-  };
 
   const removeEvent = (id: string) => { dispatch({ type: "REMOVE_LIQUIDITY_EVENT", payload: id }); };
-  const sortedEvents = [...events].sort((a, b) => a.age - b.age);
+  const incomes = [...events].filter((e) => e.amount >= 0).sort((a, b) => a.age - b.age);
+  const expenses = [...events].filter((e) => e.amount < 0).sort((a, b) => a.age - b.age);
 
   return (
     <Card data-design-id="liquidity-events-card">
@@ -279,66 +370,149 @@ function LiquidityEventsCard({ events, dispatch, minAge, maxAge }: { events: Liq
           {t("liquidity.title")}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <p className="text-xs text-slate-400">{t("liquidity.description")}</p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-[80px_1fr_140px_auto] gap-2 items-end">
-          <div>
-            <Label htmlFor="le-age" className="text-xs">{t("liquidity.age")}</Label>
-            <Input id="le-age" type="number" value={newAge} onChange={(e) => setNewAge(parseInt(e.target.value) || minAge)} min={minAge} max={maxAge} className="h-9" />
-          </div>
-          <div>
-            <Label htmlFor="le-desc" className="text-xs">{t("liquidity.desc")}</Label>
-            <Input id="le-desc" type="text" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder={t("liquidity.descPlaceholder")} className="h-9" />
-          </div>
-          <div>
-            <Label htmlFor="le-amount" className="text-xs">{t("liquidity.amount")}</Label>
-            <FormattedNumberInput id="le-amount" value={newAmount} onChange={setNewAmount} prefix="€ " allowNegative className="h-9" />
-          </div>
-          <Button onClick={addEvent} disabled={!newDesc.trim() || newAmount === 0} size="sm" className="h-9 bg-[#8A83BE] hover:bg-[#7570a8]" data-design-id="add-liquidity-event-button">
-            {t("liquidity.add")}
-          </Button>
-        </div>
+        <LiquidityEventGroup
+          kind="income"
+          title={t("liquidity.incomeTitle")}
+          examples={t("liquidity.incomeExamples")}
+          events={incomes}
+          dispatch={dispatch}
+          minAge={minAge}
+          maxAge={maxAge}
+          onRemove={removeEvent}
+        />
 
-        {sortedEvents.length > 0 && (
-          <div className="border rounded-lg overflow-hidden" data-design-id="liquidity-events-table">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b">
-                  <th className="py-2 px-3 text-left text-xs font-semibold text-slate-500">{t("liquidity.age")}</th>
-                  <th className="py-2 px-3 text-left text-xs font-semibold text-slate-500">{t("liquidity.desc")}</th>
-                  <th className="py-2 px-3 text-right text-xs font-semibold text-slate-500">{t("liquidity.amount")}</th>
-                  <th className="py-2 px-3 text-center text-xs font-semibold text-slate-500">{t("liquidity.type")}</th>
-                  <th className="py-2 px-3 text-center text-xs font-semibold text-slate-500 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedEvents.map((ev) => (
-                  <tr key={ev.id} className="border-b last:border-0 hover:bg-slate-50/60">
-                    <td className="py-2 px-3 font-mono font-semibold text-slate-700">{ev.age}</td>
-                    <td className="py-2 px-3 text-slate-700">{ev.description}</td>
-                    <td className={`py-2 px-3 text-right font-semibold tabular-nums ${ev.amount >= 0 ? "text-[#5a8a50]" : "text-rose-600"}`}>
-                      {ev.amount >= 0 ? "+" : ""}{fmtEur(ev.amount)}
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${ev.amount >= 0 ? "bg-green-50 text-[#5a8a50]" : "bg-rose-50 text-rose-600"}`}>
-                        {ev.amount >= 0 ? t("liquidity.deposit") : t("liquidity.withdrawal")}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      <button onClick={() => removeEvent(ev.id)} className="text-slate-400 hover:text-rose-600 transition-colors text-lg leading-none" title={t("liquidity.remove")}>×</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {sortedEvents.length === 0 && (
-          <div className="text-center py-4 text-sm text-slate-400">{t("liquidity.empty")}</div>
-        )}
+        <LiquidityEventGroup
+          kind="expense"
+          title={t("liquidity.expenseTitle")}
+          examples={t("liquidity.expenseExamples")}
+          events={expenses}
+          dispatch={dispatch}
+          minAge={minAge}
+          maxAge={maxAge}
+          onRemove={removeEvent}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+function LiquidityEventGroup({
+  kind,
+  title,
+  examples,
+  events,
+  dispatch,
+  minAge,
+  maxAge,
+  onRemove,
+}: {
+  kind: "income" | "expense";
+  title: string;
+  examples: string;
+  events: LiquidityEvent[];
+  dispatch: React.Dispatch<Action>;
+  minAge: number;
+  maxAge: number;
+  onRemove: (id: string) => void;
+}) {
+  const { t } = useI18n();
+  const [newAge, setNewAge] = useState(minAge + 5);
+  const [newDesc, setNewDesc] = useState("");
+  const [newAmount, setNewAmount] = useState(0);
+  const isIncome = kind === "income";
+  const accent = isIncome ? "#5a8a50" : "#be123c";
+
+  const addEvent = () => {
+    if (!newDesc.trim() || newAmount <= 0) return;
+    const event: LiquidityEvent = {
+      id: crypto.randomUUID(),
+      age: newAge,
+      description: newDesc.trim(),
+      // Ausgaben werden positiv eingegeben, aber negativ gespeichert
+      // (Datenmodell bleibt vorzeichenbasiert — keine Doppelstruktur).
+      amount: isIncome ? Math.abs(newAmount) : -Math.abs(newAmount),
+    };
+    dispatch({ type: "ADD_LIQUIDITY_EVENT", payload: event });
+    setNewDesc("");
+    setNewAmount(0);
+  };
+
+  return (
+    <div
+      className={`rounded-lg border p-3 ${isIncome ? "border-[#8FB687]/40 bg-[#8FB687]/5" : "border-rose-200 bg-rose-50/40"}`}
+      data-design-id={`liquidity-group-${kind}`}
+    >
+      <div className="text-sm font-semibold" style={{ color: accent }}>
+        {isIncome ? "＋" : "－"} {title}
+      </div>
+      <p className="text-[11px] text-slate-400 mt-0.5 mb-3">{examples}</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-[80px_1fr_140px_auto] gap-2 items-end">
+        <div>
+          <Label htmlFor={`le-age-${kind}`} className="text-xs">{t("liquidity.age")}</Label>
+          <Input id={`le-age-${kind}`} type="number" value={newAge} onChange={(e) => setNewAge(parseInt(e.target.value) || minAge)} min={minAge} max={maxAge} className="h-9" />
+        </div>
+        <div>
+          <Label htmlFor={`le-desc-${kind}`} className="text-xs">{t("liquidity.desc")}</Label>
+          <Input
+            id={`le-desc-${kind}`}
+            type="text"
+            value={newDesc}
+            onChange={(e) => setNewDesc(e.target.value)}
+            placeholder={isIncome ? t("liquidity.incomePlaceholder") : t("liquidity.expensePlaceholder")}
+            className="h-9"
+          />
+        </div>
+        <div>
+          <Label htmlFor={`le-amount-${kind}`} className="text-xs">{t("liquidity.amount")}</Label>
+          <FormattedNumberInput id={`le-amount-${kind}`} value={newAmount} onChange={setNewAmount} prefix="€ " className="h-9" />
+        </div>
+        <Button
+          onClick={addEvent}
+          disabled={!newDesc.trim() || newAmount <= 0}
+          size="sm"
+          className={`h-9 ${isIncome ? "bg-[#5a8a50] hover:bg-[#4a7342]" : "bg-rose-600 hover:bg-rose-700"}`}
+          data-design-id={`add-liquidity-${kind}-button`}
+        >
+          {isIncome ? t("liquidity.addIncome") : t("liquidity.addExpense")}
+        </Button>
+      </div>
+
+      {events.length > 0 ? (
+        <div className="border rounded-lg overflow-hidden mt-3 bg-white" data-design-id={`liquidity-table-${kind}`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b">
+                <th className="py-2 px-3 text-left text-xs font-semibold text-slate-500">{t("liquidity.age")}</th>
+                <th className="py-2 px-3 text-left text-xs font-semibold text-slate-500">{t("liquidity.desc")}</th>
+                <th className="py-2 px-3 text-right text-xs font-semibold text-slate-500">{t("liquidity.amount")}</th>
+                <th className="py-2 px-3 text-center text-xs font-semibold text-slate-500 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((ev) => (
+                <tr key={ev.id} className="border-b last:border-0 hover:bg-slate-50/60">
+                  <td className="py-2 px-3 font-mono font-semibold text-slate-700">{ev.age}</td>
+                  <td className="py-2 px-3 text-slate-700">{ev.description}</td>
+                  <td className={`py-2 px-3 text-right font-semibold tabular-nums ${ev.amount >= 0 ? "text-[#5a8a50]" : "text-rose-600"}`}>
+                    {ev.amount >= 0 ? "+" : ""}{fmtEur(ev.amount)}
+                  </td>
+                  <td className="py-2 px-3 text-center">
+                    <button onClick={() => onRemove(ev.id)} className="text-slate-400 hover:text-rose-600 transition-colors text-lg leading-none" title={t("liquidity.remove")}>×</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-3 text-xs text-slate-400">
+          {isIncome ? t("liquidity.emptyIncome") : t("liquidity.emptyExpense")}
+        </div>
+      )}
+    </div>
   );
 }

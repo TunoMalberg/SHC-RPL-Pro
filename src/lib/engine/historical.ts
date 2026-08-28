@@ -220,14 +220,22 @@ export function runHistoricalBacktest(
           buckets = weights.map((w) => w * total);
         }
       } else {
-        const withdrawal = inputs.useRealValues
-          ? inputs.desiredMonthlyWithdrawal * 12 * cumulativeInflation
-          : inputs.desiredMonthlyWithdrawal * 12;
+        // KONSISTENZ-FIX (CR 14): Entnahme + Pension folgen — wie in der
+        // MC-Engine seit dem FIX 2026-Q4 (Commit e967b66) — dem Schalter
+        // `inflateWithdrawalToRetirement`, nicht mehr `useRealValues`
+        // (das nur die Sparphase steuert). Vorher konnten Backtest und
+        // Monte-Carlo bei identischen Eingaben auseinanderlaufen.
+        const inflateWithdrawalsHist =
+          inputs.inflateWithdrawalToRetirement !== false;
+        const desiredMonthlyHist = inputs.desiredMonthlyWithdrawal ?? 0;
+        const withdrawal = inflateWithdrawalsHist
+          ? desiredMonthlyHist * 12 * cumulativeInflation
+          : desiredMonthlyHist * 12;
 
         const ageNow = client.currentAge + y;
         const pension =
           ageNow >= inputs.pensionStartAge
-            ? inputs.useRealValues
+            ? inflateWithdrawalsHist
               ? inputs.monthlyPension * 12 * cumulativeInflation
               : inputs.monthlyPension * 12
             : 0;

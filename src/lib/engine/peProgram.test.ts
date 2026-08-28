@@ -34,7 +34,7 @@ const KEST = 0.275;
 const baseProgram: PEProgram = makeDefaultPEProgram();
 const basePortfolio: PortfolioConfig = JSON.parse(JSON.stringify(defaultPortfolio));
 const baseClient: ClientProfile = { ...defaultClient };
-const baseInputs: FinancialInputs = { ...defaultInputs };
+const baseInputs: FinancialInputs = { ...defaultInputs, desiredMonthlyWithdrawal: 3000 };
 
 /** Bequemer Default-Input für processYear. */
 function yearInput(overrides: Partial<PEProgramYearInput>): PEProgramYearInput {

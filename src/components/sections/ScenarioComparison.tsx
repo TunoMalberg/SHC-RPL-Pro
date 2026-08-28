@@ -158,7 +158,7 @@ export function ScenarioComparisonSection() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">{t("scenarios.withdrawalMonth")}</span>
-                    <span className="font-medium">{fmtEur(s.inputs.desiredMonthlyWithdrawal)}</span>
+                    <span className="font-medium">{s.inputs.desiredMonthlyWithdrawal !== null ? fmtEur(s.inputs.desiredMonthlyWithdrawal) : "—"}</span>
                   </div>
                   {s.result && (
                     <>
