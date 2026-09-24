@@ -237,6 +237,67 @@ export function validatePortfolio(p: PortfolioConfig): ValidationResult {
       severity: "error",
     });
   }
+  if (
+    p.depositTaxRate !== undefined &&
+    (!Number.isFinite(p.depositTaxRate) || p.depositTaxRate < 0 || p.depositTaxRate > 60)
+  ) {
+    fail(r, {
+      path: "portfolio.depositTaxRate",
+      message: "KESt-Satz für Bankeinlagen muss zwischen 0 und 60 % liegen.",
+      severity: "error",
+    });
+  }
+
+  // ── Produkt-Töpfe WBA/LV (AP8) ────────────────────────────────────
+  for (let i = 0; i < (p.wohnbauanleihen?.length ?? 0); i++) {
+    const w = p.wohnbauanleihen![i];
+    if (!Number.isFinite(w.amount) || w.amount < 0) {
+      fail(r, {
+        path: `portfolio.wohnbauanleihen[${i}].amount`,
+        message: `Wohnbauanleihe „${w.name}": Betrag darf nicht negativ sein.`,
+        severity: "error",
+      });
+    }
+    if (!Number.isFinite(w.termYears) || w.termYears < 11) {
+      fail(r, {
+        path: `portfolio.wohnbauanleihen[${i}].termYears`,
+        message: `Wohnbauanleihe „${w.name}": Mindestlaufzeit 11 Jahre.`,
+        severity: "error",
+      });
+    }
+    if (!Number.isFinite(w.couponPct) || w.couponPct < 0 || w.couponPct > 15) {
+      fail(r, {
+        path: `portfolio.wohnbauanleihen[${i}].couponPct`,
+        message: `Wohnbauanleihe „${w.name}": Kupon unrealistisch (0–15 %).`,
+        severity: "warn",
+      });
+    }
+  }
+  for (let i = 0; i < (p.lebensversicherungen?.length ?? 0); i++) {
+    const l = p.lebensversicherungen![i];
+    if (!Number.isFinite(l.amount) || l.amount < 0) {
+      fail(r, {
+        path: `portfolio.lebensversicherungen[${i}].amount`,
+        message: `Lebensversicherung „${l.name}": Erlag darf nicht negativ sein.`,
+        severity: "error",
+      });
+    }
+    const minLock = l.purchaseAge >= 50 ? 10 : 15;
+    if (!Number.isFinite(l.lockYears) || l.lockYears < minLock) {
+      fail(r, {
+        path: `portfolio.lebensversicherungen[${i}].lockYears`,
+        message: `Lebensversicherung „${l.name}": gesetzliche Mindestbindung ${minLock} Jahre (Kaufalter ${l.purchaseAge}).`,
+        severity: "error",
+      });
+    }
+    if (!Number.isFinite(l.expectedReturnPct) || l.expectedReturnPct < -10 || l.expectedReturnPct > 30) {
+      fail(r, {
+        path: `portfolio.lebensversicherungen[${i}].expectedReturnPct`,
+        message: `Lebensversicherung „${l.name}": erwartete Fondsrendite unrealistisch (−10 % bis 30 %).`,
+        severity: "warn",
+      });
+    }
+  }
   if (!Number.isFinite(p.cashYearsTarget) || p.cashYearsTarget < 0 || p.cashYearsTarget > 10) {
     fail(r, {
       path: "portfolio.cashYearsTarget",

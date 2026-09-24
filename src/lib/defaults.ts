@@ -2,10 +2,12 @@ import type {
   AdvisorProfile,
   ClientProfile,
   FinancialInputs,
+  LVHolding,
   PEFund,
   PEProgram,
   PortfolioConfig,
   SimulationSettings,
+  WBAHolding,
 } from "./types";
 
 export const defaultClient: ClientProfile = {
@@ -48,9 +50,12 @@ const KEST_DEFAULT = 27.5;
 const autoTax = (grossReturn: number, costs: number, kest = KEST_DEFAULT) =>
   Math.max(0, (grossReturn - costs) * (kest / 100));
 
+// AP7: Zinsen aus Bankeinlagen unterliegen einem eigenen KESt-Satz (25 %),
+// der jährlich bei Zufluss anfällt (siehe PortfolioConfig.depositTaxRate).
+export const DEPOSIT_TAX_DEFAULT = 25;
 const cashGross = 1.5;
 const cashCost = 0.0;
-const cashTax = autoTax(cashGross, cashCost); // ≈ 0.41
+const cashTax = autoTax(cashGross, cashCost, DEPOSIT_TAX_DEFAULT); // ≈ 0.38
 const bondsGross = 3.5;
 const bondsCost = 0.6;
 const bondsTax = autoTax(bondsGross, bondsCost); // ≈ 0.80
@@ -100,6 +105,7 @@ export const defaultPortfolio: PortfolioConfig = {
   rebalancingThreshold: 5,
   cashYearsTarget: 2,
   kestRate: KEST_DEFAULT,
+  depositTaxRate: DEPOSIT_TAX_DEFAULT,
   peFunds: [],
   // Default ist „Realistisch": J-Curve aktiv, Stochastik aus → Berater
   // kann reproduzierbare Zahlen erklären, Kunde sieht aber realistische
@@ -189,6 +195,57 @@ export function makeDefaultPEProgram(): PEProgram {
       tvpiVolatility: PE_DEFAULT_TVPI_VOL,
       lossProbability: PE_DEFAULT_LOSS_PROB,
     },
+  };
+}
+
+// ---- Produkt-Töpfe (AP8): Wohnbauanleihe & Lebensversicherung ----
+// Steuer-/Produktregeln laut fachlicher Freigabe (Vorstand, 09/2026).
+/** Mindestlaufzeit Wohnbauanleihe in Jahren (Entnahmesperre). */
+export const WBA_MIN_TERM_YEARS = 11;
+/** Versicherungssteuer auf den LV-Einmalerlag in %. */
+export const LV_INSURANCE_TAX_PCT = 4;
+/** Einmalkosten auf den LV-Erlag in %. */
+export const LV_UPFRONT_COST_PCT = 1;
+/** Laufende LV-Kosten in % p.a. */
+export const LV_ANNUAL_COST_PCT = 0.075;
+/** LV-Mindestbindung in Jahren (Standard). */
+export const LV_LOCK_YEARS = 15;
+/** LV-Mindestbindung ab Kaufalter ≥ 50 (gesetzlich). */
+export const LV_LOCK_YEARS_AGE50 = 10;
+/** Maximalzahl Produkt-Positionen je Typ. */
+export const MAX_PRODUCT_HOLDINGS = 10;
+
+/** Gesetzliche LV-Bindefrist: 10 Jahre ab Kaufalter ≥ 50, sonst 15. */
+export const deriveLvLockYears = (purchaseAge: number): number =>
+  purchaseAge >= 50 ? LV_LOCK_YEARS_AGE50 : LV_LOCK_YEARS;
+
+const productId = (prefix: string, index: number): string =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${prefix}-${Date.now()}-${index}`;
+
+/** Default-Werte für eine neue Wohnbauanleihe. */
+export function makeDefaultWBA(purchaseAge: number, index = 0): WBAHolding {
+  return {
+    id: productId("wba", index),
+    name: index === 0 ? "Wohnbauanleihe 1" : `Wohnbauanleihe ${index + 1}`,
+    purchaseAge: Math.max(18, purchaseAge),
+    amount: 50_000,
+    couponPct: 3.0,
+    termYears: WBA_MIN_TERM_YEARS,
+  };
+}
+
+/** Default-Werte für eine neue fondsgebundene Lebensversicherung. */
+export function makeDefaultLV(purchaseAge: number, index = 0): LVHolding {
+  const age = Math.max(18, purchaseAge);
+  return {
+    id: productId("lv", index),
+    name: index === 0 ? "Fondspolizze 1" : `Fondspolizze ${index + 1}`,
+    purchaseAge: age,
+    amount: 100_000,
+    expectedReturnPct: 5.0,
+    lockYears: deriveLvLockYears(age),
   };
 }
 

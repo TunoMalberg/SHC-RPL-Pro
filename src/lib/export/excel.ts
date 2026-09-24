@@ -70,7 +70,7 @@ export async function generateExcelReport(
   wb.creator = "Retirement Planner Pro";
   wb.created = new Date();
 
-  createInputsSheet(wb, client, inputs, liquidityEvents ?? []);
+  createInputsSheet(wb, client, inputs, liquidityEvents ?? [], portfolio);
   createPortfolioSheet(wb, portfolio);
   createMonteCarloSummary(wb, result);
   createPathsSheet(wb, result);
@@ -103,7 +103,8 @@ function createInputsSheet(
   wb: ExcelJS.Workbook,
   client: ClientProfile,
   inputs: FinancialInputs,
-  liquidityEvents: LiquidityEvent[] = []
+  liquidityEvents: LiquidityEvent[] = [],
+  portfolio?: PortfolioConfig
 ) {
   const ws = wb.addWorksheet("Eingaben & Annahmen");
   ws.columns = [
@@ -168,6 +169,32 @@ function createInputsSheet(
     ws.getCell(row, 2).font = { name: "Calibri", size: 10, bold: true };
     if (fmt) ws.getCell(row, 2).numFmt = fmt;
     row++;
+  }
+
+  // Produkt-Töpfe WBA/LV (AP8): Annahmen-Zeilen.
+  const wbaList = portfolio?.wohnbauanleihen ?? [];
+  const lvList = portfolio?.lebensversicherungen ?? [];
+  if (wbaList.length > 0 || lvList.length > 0) {
+    row += 2;
+    ws.getCell(row, 1).value = "Produkt-Töpfe (Wohnbauanleihe / Lebensversicherung)";
+    styleSectionRow(ws, row, 3);
+    row++;
+    for (const w of wbaList) {
+      ws.getCell(row, 1).value = safeCell(`WBA ${w.name} (Kupon ${w.couponPct}% steuerfrei, Laufzeit ${w.termYears} J, Kaufalter ${w.purchaseAge})`);
+      ws.getCell(row, 1).font = { name: "Calibri", size: 10 };
+      ws.getCell(row, 2).value = w.amount;
+      ws.getCell(row, 2).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 2).font = { name: "Calibri", size: 10, bold: true };
+      row++;
+    }
+    for (const l of lvList) {
+      ws.getCell(row, 1).value = safeCell(`LV ${l.name} (4% VersSt + 1% einmalig, 0,075% p.a., Bindung ${l.lockYears} J ab Alter ${l.purchaseAge}, Erträge KESt-frei)`);
+      ws.getCell(row, 1).font = { name: "Calibri", size: 10 };
+      ws.getCell(row, 2).value = l.amount;
+      ws.getCell(row, 2).numFmt = NUM_FMT_EUR;
+      ws.getCell(row, 2).font = { name: "Calibri", size: 10, bold: true };
+      row++;
+    }
   }
 
   if (liquidityEvents.length > 0) {

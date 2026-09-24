@@ -162,6 +162,56 @@ export interface PEProgram {
   fundTemplate: Omit<PEFund, 'id' | 'name' | 'commitment' | 'startAge'>;
 }
 
+/**
+ * Produkt-Töpfe (AP8): Wohnbauanleihe und fondsgebundene Lebensversicherung
+ * als ADDITIVE Töpfe nach dem PE-Muster — neben den drei liquiden
+ * Kerntöpfen, mit eigener Steuer-/Kostenlogik und Liquiditätssperre.
+ * Steuer-/Produktregeln laut fachlicher Freigabe (Vorstand, 09/2026).
+ */
+interface ProductHoldingBase {
+  /** Stabile Id (uuid). */
+  id: string;
+  /** Anzeigename. */
+  name: string;
+  /** Investorenalter beim Kauf (≥ aktuelles Alter). Der Kauf drained im
+   *  Kaufjahr die liquiden Töpfe (Cash-Kaskade, wie PE-Capital-Calls). */
+  purchaseAge: number;
+  /** Betrag in € (WBA: Nominale; LV: Einmalerlag brutto). */
+  amount: number;
+}
+
+/**
+ * Wohnbauanleihe: Fixkupon zu par, Zinsen STEUERFREI (jährlich → Cash),
+ * Tilgung zum Laufzeitende (steuerfrei → Cash). Mindestlaufzeit 11 Jahre;
+ * während der Laufzeit nicht entnehmbar (zählt aber zum Gesamtvermögen).
+ */
+export interface WBAHolding extends ProductHoldingBase {
+  /** Kupon in % p.a. (steuerfrei). */
+  couponPct: number;
+  /** Laufzeit in Jahren (≥ 11). */
+  termYears: number;
+}
+
+/**
+ * Fondsgebundene Lebensversicherung (Einmalerlag): 4 % Versicherungssteuer
+ * + 1 % Einmalkosten auf den Erlag, 0,075 % p.a. laufende Kosten, Erträge
+ * KESt-frei. Mindestbindung 15 Jahre bzw. 10 Jahre ab Kaufalter ≥ 50
+ * (gesetzlich; auto-abgeleitet, editierbar). Vor Ablauf nicht entnehmbar.
+ */
+export interface LVHolding extends ProductHoldingBase {
+  /** Erwartete Fondsrendite in % p.a. brutto (deterministisch, v1). */
+  expectedReturnPct: number;
+  /** Bindefrist in Jahren (auto: Kaufalter ≥ 50 → 10, sonst 15). */
+  lockYears: number;
+  /**
+   * Auszahlungsalter (steuerfreie Auszahlung → Cash). undefined = zum
+   * Ende der Bindefrist. Wird auf ≥ Kaufalter + Bindefrist geklemmt;
+   * hinter dem Planungshorizont: keine Auszahlung, Wert zählt im
+   * Endvermögen weiter.
+   */
+  payoutAge?: number;
+}
+
 export type RebalancingFrequency = 'monthly' | 'quarterly' | 'annually' | 'none';
 
 /**
@@ -189,6 +239,18 @@ export interface WithdrawalPhaseOverride {
   rebalancingThreshold: number;
   /** Cash-Puffer in Jahresentnahmen (1–5). */
   cashYearsTarget: number;
+  /**
+   * Dynamische Allokation (AP3): Umschichtung auf das Entnahme-Portfolio
+   * bereits X Jahre VOR dem Pensionsantritt (z. B. „100 % Aktien, 5 Jahre
+   * vor Pension in gemischte Allokation"). 0 oder undefined = Wechsel zum
+   * Pensionsantritt (bisheriges Verhalten, bit-identisch).
+   *
+   * Im Fenster zwischen Wechsel und Pensionsantritt fließen Sparraten in
+   * die Entnahme-Gewichte und es wird klassisch auf die Entnahme-Gewichte
+   * rebalanciert (mit `rebalancingThreshold`); die Cash-Puffer-Logik
+   * startet erst mit der Entnahmephase.
+   */
+  switchYearsBeforeRetirement?: number;
 }
 
 export interface PortfolioConfig {
@@ -198,6 +260,12 @@ export interface PortfolioConfig {
   rebalancingThreshold: number;
   cashYearsTarget: number; // 1-3 years of withdrawals held as cash in withdrawal phase
   kestRate: number; // Austrian KESt / capital gains tax rate in percent (default 27.5)
+  /**
+   * KESt auf Zinsen aus Bankeinlagen in % (AP7). Zinsen des Liquiditäts-
+   * Topfs werden jährlich bei Zufluss mit diesem Satz besteuert (kein
+   * Höchststand-Modell, keine Verrechnung mit Kursverlusten). Default 25.
+   */
+  depositTaxRate?: number;
   mifidProfile?: MifidProfile;
   /** Liste der PE-Fonds (Topf 4). Leer = keine PE-Beteiligung. */
   peFunds?: PEFund[];
@@ -214,6 +282,10 @@ export interface PortfolioConfig {
    * `undefined` = einheitliches Portfolio für beide Phasen (Default).
    */
   withdrawalPhase?: WithdrawalPhaseOverride;
+  /** Wohnbauanleihen (Produkt-Topf, AP8). Leer/undefined = keiner. */
+  wohnbauanleihen?: WBAHolding[];
+  /** Fondsgebundene Lebensversicherungen (Produkt-Topf, AP8). */
+  lebensversicherungen?: LVHolding[];
 }
 
 export interface SimulationSettings {
@@ -371,6 +443,8 @@ export interface ComparisonTargetSource {
 export interface ComparisonRunResult {
   variants: ComparisonVariantResult[];
   targetSource?: ComparisonTargetSource;
+  /** Fingerabdruck der Eingaben beim Lauf (AP6, Stale-Hinweis). */
+  configHash?: string;
   /** Differenz gewählte/bestehende Veranlagung vs. Nicht investieren am Horizont. */
   diffVsNoInvest: {
     nominal: number;
@@ -408,8 +482,32 @@ export interface CalculationTrace {
     correlationMatrix: number[][];
     inflationRatePct: number;
     kestRatePct: number;
+    /** KESt auf Bankeinlagen-Zinsen in % (jährliche Besteuerung, AP7). */
+    depositTaxRatePct?: number;
     /** Abweichendes Entnahme-Portfolio, falls konfiguriert. */
     withdrawalPhase: WithdrawalPhaseOverride | null;
+    /** Produkt-Töpfe WBA/LV mit allen Parametern + Sperr-Altern (AP8). */
+    products?: {
+      wohnbauanleihen: {
+        name: string;
+        amountEur: number;
+        couponPct: number;
+        termYears: number;
+        purchaseAge: number;
+        maturityAge: number;
+      }[];
+      lebensversicherungen: {
+        name: string;
+        erlagEur: number;
+        expectedReturnPct: number;
+        insuranceTaxPct: number;
+        upfrontCostPct: number;
+        annualCostPct: number;
+        lockYears: number;
+        lockEndAge: number;
+        payoutAge: number | null;
+      }[];
+    } | null;
   };
   simulation: {
     numSimulations: number;
@@ -548,6 +646,16 @@ export interface SimulationResult {
   withdrawalAssumption?: 'user' | 'corridor_typical';
   /** Vollständiger Berechnungsnachweis (CR 19). */
   calculationTrace?: CalculationTrace;
+  /**
+   * Fingerabdruck der Eingaben zum Zeitpunkt des Laufs (AP6).
+   * Weicht der aktuelle Stand ab, zeigt die UI einen Stale-Hinweis.
+   */
+  configHash?: string;
+  /**
+   * Wert der Produkt-Töpfe (WBA + LV) je Simulationsschritt (AP8) —
+   * deterministisch, pfadunabhängig (analog pePath).
+   */
+  productPath?: number[];
 }
 
 export interface HistoricalData {
@@ -594,6 +702,10 @@ export interface DetailedYearRow {
   returnCashPct: number;
   returnBondsPct: number;
   returnEquitiesPct: number;
+  /** Jährliche KESt auf Bankeinlagen-Zinsen in diesem Jahr (€, AP7). */
+  cashTax?: number;
+  /** Jahr des (ggf. vorgezogenen) Allokationswechsels (AP3). */
+  allocationSwitched?: boolean;
   cashflow: number;
   cashflowLabel: string;
   liquidityEvent: number;
@@ -632,6 +744,16 @@ export interface DetailedYearRow {
   peCommitted?: number;
   /** Offene (noch nicht abgerufene) Commitments des Programms am Jahresende (€). */
   peUnfunded?: number;
+  /** Produkt-Käufe (WBA/LV) in diesem Jahr (€, drainen Cash-Kaskade; AP8). */
+  productPurchase?: number;
+  /** Steuerfreie WBA-Kupons in diesem Jahr (€ → Cash; AP8). */
+  productCoupon?: number;
+  /** Steuerfreie Tilgungen/LV-Auszahlungen in diesem Jahr (€ → Cash; AP8). */
+  productPayout?: number;
+  /** Wert ausstehender Wohnbauanleihen am Jahresende (€; AP8). */
+  wbaValue?: number;
+  /** Wert der Lebensversicherungen am Jahresende (€; AP8). */
+  lvValue?: number;
 }
 
 export interface DetailedSimTrace {
@@ -744,4 +866,10 @@ export interface AppState {
    * Solange false, zeigen Eingaben/Vergleich/Report den Hinweis.
    */
   dataCompletenessConfirmed: boolean;
+  /**
+   * AP5: Id des gerade „angesehenen" gespeicherten Szenarios. Das
+   * Ergebnis-Dashboard zeigt dann dessen gespeichertes Ergebnis (mit
+   * Banner), ohne den Arbeitsstand zu verändern. null = aktueller Lauf.
+   */
+  viewingScenarioId: string | null;
 }

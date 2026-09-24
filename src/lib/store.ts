@@ -47,6 +47,7 @@ export const initialState: AppState = {
   optimizerBestAllocation: null,
   comparisonResult: null,
   dataCompletenessConfirmed: false,
+  viewingScenarioId: null,
 };
 
 export type Action =
@@ -83,6 +84,8 @@ export type Action =
   | { type: "SET_COMPARISON_RESULT"; payload: ComparisonRunResult | null }
   /** dataCompletenessNotice: Vollständigkeit mit Kunde besprochen (CR 18). */
   | { type: "SET_DATA_COMPLETENESS_CONFIRMED"; payload: boolean }
+  /** AP5: gespeichertes Szenario im Ergebnis-Dashboard ansehen (null = zurück). */
+  | { type: "VIEW_SCENARIO"; payload: string | null }
   | { type: "RESET" };
 
 export function appReducer(state: AppState, action: Action): AppState {
@@ -139,7 +142,10 @@ export function appReducer(state: AppState, action: Action): AppState {
         },
       };
     case "SET_RESULT":
-      return { ...state, result: action.payload };
+      // Ein neuer Lauf beendet die Szenario-Ansicht (AP5).
+      return { ...state, result: action.payload, viewingScenarioId: null };
+    case "VIEW_SCENARIO":
+      return { ...state, viewingScenarioId: action.payload };
     case "SET_HISTORICAL":
       return { ...state, historicalResult: action.payload };
     case "SET_DETAILED_TRACE":
@@ -150,6 +156,9 @@ export function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         scenarios: state.scenarios.filter((s) => s.id !== action.payload),
+        // Gelöschtes Szenario nicht weiter „ansehen" (AP5).
+        viewingScenarioId:
+          state.viewingScenarioId === action.payload ? null : state.viewingScenarioId,
       };
     case "UPDATE_SCENARIO":
       return {

@@ -73,7 +73,7 @@ function emptyHolding(): Holding {
 
 export function HoldingsBucket() {
   const { state, dispatch } = useAppState();
-  const { holdings: holdingsState, client, inputs, portfolio, settings } = state;
+  const { holdings: holdingsState, client, inputs, portfolio, settings, liquidityEvents } = state;
   const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -185,8 +185,9 @@ export function HoldingsBucket() {
       portfolio: newPortfolio,
       source: "manual",
     };
-    const result = runMonteCarloSimulation(client, scenario.inputs, scenario.portfolio, settings);
-    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, scenario.inputs, scenario.portfolio, settings);
+    // BUGFIX (AP5): liquidityEvents mitgeben — konsistent zum Hauptlauf.
+    const result = runMonteCarloSimulation(client, scenario.inputs, scenario.portfolio, settings, liquidityEvents);
+    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, scenario.inputs, scenario.portfolio, settings, liquidityEvents);
     scenario.result = result;
     dispatch({ type: "ADD_SCENARIO", payload: scenario });
 
@@ -200,7 +201,7 @@ export function HoldingsBucket() {
 
     setScenarioName("");
     setScenarioMessage(`✅ ${t("holdings.saveAsScenario.success")} – „${name}"`);
-  }, [bucketStats, backtest, portfolio, scenarioName, inputs, client, settings, dispatch, t]);
+  }, [bucketStats, backtest, portfolio, scenarioName, inputs, client, settings, liquidityEvents, dispatch, t]);
 
   useEffect(() => {
     if (scenarioMessage) {

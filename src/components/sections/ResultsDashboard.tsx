@@ -9,6 +9,7 @@ import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
 import { computePETimeline } from "@/lib/engine/privateEquity";
 import { computeHistoricalGrossReturns } from "@/lib/engine/historical";
 import { rankAgainstCorridor } from "@/lib/engine/corridor";
+import { computeConfigHash } from "@/lib/configHash";
 import type { CorridorScenarioKey } from "@/lib/types";
 import {
   ComposedChart,
@@ -80,11 +81,20 @@ function KpiTooltip({ content }: { content: string }) {
 }
 
 export function ResultsDashboard() {
-  const { state } = useAppState();
-  const { result, client, inputs, liquidityEvents, historicalResult, portfolio } = state;
+  const { state, dispatch } = useAppState();
+  const { result: mainResult, client, inputs, liquidityEvents, historicalResult, portfolio } = state;
   const { t } = useI18n();
   const [showLongevity, setShowLongevity] = useState(false);
   const [showPENav, setShowPENav] = useState(true);
+
+  // AP5: „Szenario ansehen" — gespeichertes Ergebnis anzeigen, ohne den
+  // Arbeitsstand zu verändern. Karten ohne gespeicherte Daten (Korridor,
+  // Berechnungsnachweis) blenden automatisch aus, weil die Felder im
+  // gespeicherten Ergebnis fehlen.
+  const viewingScenario = state.viewingScenarioId
+    ? state.scenarios.find((s) => s.id === state.viewingScenarioId && s.result) ?? null
+    : null;
+  const result = viewingScenario?.result ?? mainResult;
 
   // PE-Aggregate (deterministisch oder Median über Stochastik) ─────────────
   const peMode = portfolio.peModelingMode ?? "realistic";
@@ -92,11 +102,13 @@ export function ResultsDashboard() {
     const peFunds = portfolio.peFunds ?? [];
     if (peFunds.length === 0) return null;
     const totalYears = Math.max(1, client.lifeExpectancy - client.currentAge);
+    // AP6-Fix: KESt-Satz aus der Konfiguration statt fest verdrahtet 0.275 —
+    // sonst ignoriert die PE-Karte eine geänderte (z. B. 0 %) KESt.
     const timeline = computePETimeline(
       peFunds,
       client.currentAge,
       totalYears,
-      0.275,
+      (portfolio.kestRate ?? 27.5) / 100,
       peMode,
     );
     const totalCommitment = peFunds.reduce((s, f) => s + f.commitment, 0);
@@ -122,7 +134,7 @@ export function ResultsDashboard() {
       avgTVPI,
       timeline,
     };
-  }, [portfolio.peFunds, client.currentAge, client.lifeExpectancy, peMode]);
+  }, [portfolio.peFunds, portfolio.kestRate, client.currentAge, client.lifeExpectancy, peMode]);
 
   if (!result) {
     return (
@@ -159,19 +171,6 @@ export function ResultsDashboard() {
   const corridor = result.corridor;
   const requiredMonthly = result.requiredMonthlyWithdrawal ?? null;
 
-  const accYears = client.retirementAge - client.currentAge;
-  const retIdx = Math.min(accYears, result.medianPath.length - 1);
-  const capitalAtRet = result.medianPath[retIdx];
-  // Basis der Entnahmerate: erfasster Wunsch, im Möglich-Modus die
-  // typische Korridor-Entnahme (mit der der Lauf gerechnet wurde).
-  const effectiveMonthlyWithdrawal =
-    inputs.desiredMonthlyWithdrawal ??
-    corridor?.scenarios.typical.totalMonthly ??
-    0;
-  const withdrawalRate = capitalAtRet > 0
-    ? (effectiveMonthlyWithdrawal * 12 / capitalAtRet) * 100
-    : 0;
-
   // Sampling exakt an Jahresgrenzen, damit Alter eindeutig ist (keine
   // 0.5-Jahr-Rundungs-Doppelungen bei monatlichem Zeitschritt).
   // FIX (2026-05-16): Vorher wurde mit step=Math.floor(N/80) sub-jährlich
@@ -183,6 +182,32 @@ export function ResultsDashboard() {
     1,
     Math.round((result.yearLabels.length - 1) / totalYears),
   );
+
+  const accYears = client.retirementAge - client.currentAge;
+  // EINHEITEN-FIX (AP9): medianPath ist per SIMULATIONSSCHRITT indiziert —
+  // bei monatlichem Zeitschritt zeigte `retIdx = accYears` den Monat statt
+  // das Jahr des Pensionsantritts (Kapital massiv zu niedrig).
+  const retIdx = Math.min(
+    Math.max(0, accYears) * stepsPerYear,
+    result.medianPath.length - 1,
+  );
+  const capitalAtRet = result.medianPath[retIdx];
+  // Basis der Entnahmerate: erfasster Wunsch, im Möglich-Modus die
+  // typische Korridor-Entnahme (mit der der Lauf gerechnet wurde).
+  const effectiveMonthlyWithdrawal =
+    inputs.desiredMonthlyWithdrawal ??
+    corridor?.scenarios.typical.totalMonthly ??
+    0;
+  // AP9: Entnahmerate auf NETTO-Basis (nur der Teil aus dem Vermögen) —
+  // vorher wurde der Gesamtbetrag inkl. des pensionsgedeckten Teils durch
+  // das Kapital geteilt (Rate überzeichnet).
+  const netMonthlyFromWealth = Math.max(
+    0,
+    effectiveMonthlyWithdrawal - inputs.monthlyPension,
+  );
+  const withdrawalRate = capitalAtRet > 0
+    ? (netMonthlyFromWealth * 12 / capitalAtRet) * 100
+    : 0;
   const fanData: Array<{
     age: number;
     worst: number;
@@ -234,10 +259,24 @@ export function ResultsDashboard() {
   const hasPEStoch =
     hasPE && (result.pePathP25?.length ?? 0) > 0 && (result.pePathP75?.length ?? 0) > 0;
 
+  // AP9: je Balken den pensionsgedeckten Teil vom Vermögensteil trennen
+  // (ab Beginn der Pensionszahlung; vereinfachte Betrachtung).
   const heatmapData = (result.withdrawalHeatmap ?? []).map((item) => ({
     withdrawal: item.withdrawal,
     successRate: item.successRate,
+    pensionPart: Math.min(item.withdrawal, inputs.monthlyPension),
+    portfolioPart: Math.max(0, item.withdrawal - inputs.monthlyPension),
   }));
+  // AP9: „4%-Regel"-Referenz — auf einer Kategorie-Achse trifft ein
+  // kontinuierlicher Wert praktisch nie einen Balken; wir markieren daher
+  // den NÄCHSTLIEGENDEN Balken (nominales Kapital bei Pensionsantritt).
+  const fourPctMonthly = capitalAtRet > 0 ? (capitalAtRet * 0.04) / 12 : 0;
+  const fourPctNearestBar =
+    fourPctMonthly > 0 && heatmapData.length > 0
+      ? heatmapData.reduce((best, e) =>
+          Math.abs(e.withdrawal - fourPctMonthly) < Math.abs(best.withdrawal - fourPctMonthly) ? e : best,
+        ).withdrawal
+      : null;
 
   const successColor =
     result.successRate >= 90
@@ -261,6 +300,46 @@ export function ResultsDashboard() {
           {t("results.subtitle")} {result.yearLabels.length > 0 ? Math.round(result.yearLabels[result.yearLabels.length - 1] - result.yearLabels[0]) : 0} {t("results.subtitleSuffix")}
         </p>
       </div>
+
+      {/* AP5: Banner für die Szenario-Ansicht (gespeichertes Ergebnis) */}
+      {viewingScenario && (
+        <div
+          className="rounded-xl border border-[#8A83BE]/50 bg-[#8A83BE]/10 px-4 py-3 text-sm text-[#3f3a66] flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+          data-design-id="viewing-scenario-banner"
+        >
+          <span>
+            👁 {t("scenarios.viewingBanner").replace("{name}", viewingScenario.name)}
+          </span>
+          <button
+            type="button"
+            onClick={() => dispatch({ type: "VIEW_SCENARIO", payload: null })}
+            className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-md bg-[#8A83BE] text-white hover:bg-[#7570a8] transition-colors"
+            data-design-id="viewing-scenario-back"
+          >
+            {t("scenarios.viewingBack")}
+          </button>
+        </div>
+      )}
+
+      {/* AP6: Stale-Hinweis — Eingaben wurden seit diesem Lauf geändert
+          (z. B. KESt), das angezeigte Ergebnis ist nicht mehr aktuell. */}
+      {!viewingScenario && result.configHash &&
+        result.configHash !== computeConfigHash(client, inputs, portfolio, liquidityEvents) && (
+          <div
+            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+            data-design-id="stale-result-warning"
+          >
+            <span>⚠️ {t("results.staleWarning")}</span>
+            <button
+              type="button"
+              onClick={() => dispatch({ type: "SET_TAB", payload: "simulation" })}
+              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-md bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+              data-design-id="stale-result-rerun"
+            >
+              {t("results.staleRerun")} →
+            </button>
+          </div>
+        )}
 
       {/* ── Planungskorridor (CR 9/10/16): zentrale Ergebnisgröße
            „Monatsentnahme in heutiger Kaufkraft" je Marktentwicklung. ── */}
@@ -1011,13 +1090,36 @@ export function ResultsDashboard() {
                 labelFormatter={(l) => `${t("results.ageAxis")} ${l}`}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
-              <ReferenceLine
-                yAxisId="left"
-                x={inputs.pensionStartAge}
-                stroke="#D31220"
-                strokeDasharray="5 5"
-                label={{ value: t("results.pension"), fontSize: 10, fill: "#D31220", position: "top" }}
-              />
+              {/* AP9: zwei Marker — Pensionsantritt (Beginn der Entnahme,
+                  immer) und Beginn der Pensionszahlung (nur wenn abweichend).
+                  Alter werden gerundet und auf den Datenbereich geclampt,
+                  da die Kategorie-Achse exakte Treffer verlangt. */}
+              {(() => {
+                const clampAge = (a: number) =>
+                  Math.min(client.lifeExpectancy, Math.max(client.currentAge, Math.round(a)));
+                const retirementMarker = clampAge(client.retirementAge);
+                const pensionMarker = clampAge(inputs.pensionStartAge);
+                return (
+                  <>
+                    <ReferenceLine
+                      yAxisId="left"
+                      x={retirementMarker}
+                      stroke="#D31220"
+                      strokeDasharray="5 5"
+                      label={{ value: t("results.retirementMarker"), fontSize: 10, fill: "#D31220", position: "top" }}
+                    />
+                    {pensionMarker !== retirementMarker && (
+                      <ReferenceLine
+                        yAxisId="left"
+                        x={pensionMarker}
+                        stroke="#FAC075"
+                        strokeDasharray="5 5"
+                        label={{ value: t("results.pension"), fontSize: 10, fill: "#b8863b", position: "insideTopRight" }}
+                      />
+                    )}
+                  </>
+                );
+              })()}
               {liquidityEvents.map((ev) => (
                 <ReferenceLine
                   key={`le-fan-${ev.id}`}
@@ -1409,7 +1511,7 @@ export function ResultsDashboard() {
                   dataKey="withdrawal"
                   tick={{ fontSize: 10 }}
                   tickFormatter={(v) => `€${(v / 1000).toFixed(1)}k`}
-                  label={{ value: t("results.monthlyWithdrawal"), position: "insideBottom", offset: -5, fontSize: 12 }}
+                  label={{ value: t("results.monthlyWithdrawalGross"), position: "insideBottom", offset: -5, fontSize: 12 }}
                 />
                 <YAxis
                   tick={{ fontSize: 11 }}
@@ -1417,21 +1519,30 @@ export function ResultsDashboard() {
                   tickFormatter={(v) => `${v}%`}
                   label={{ value: t("results.successRate"), angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
                 />
+                {/* AP9: Tooltip trennt pensionsgedeckten Teil und Vermögensteil */}
                 <Tooltip
                   formatter={(value) => `${(Number(value) || 0).toFixed(1)}%`}
-                  labelFormatter={(l) => `€${Number(l).toLocaleString("de-AT")}/Monat`}
+                  labelFormatter={(l) => {
+                    const entry = heatmapData.find((e) => e.withdrawal === Number(l));
+                    const base = `€${Number(l).toLocaleString("de-AT")}/Monat`;
+                    if (!entry || inputs.monthlyPension <= 0) return base;
+                    return `${base} — ${t("results.heatmapTooltipSplit")
+                      .replace("{pension}", fmtEur(entry.pensionPart))
+                      .replace("{portfolio}", fmtEur(entry.portfolioPart))}`;
+                  }}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />
                 <ReferenceLine y={95} stroke="#5a8a50" strokeDasharray="3 3" label={{ value: "95%", fontSize: 10 }} />
                 <ReferenceLine y={90} stroke="#FAC075" strokeDasharray="3 3" label={{ value: "90%", fontSize: 10 }} />
-                {/* 4% rule reference line on X axis – Item 10 */}
-                {capitalAtRet > 0 && (
+                {/* AP9: 4%-Regel am NÄCHSTLIEGENDEN Balken (Kategorie-Achse
+                    verlangt exakte Treffer — vorher erschien die Linie nie). */}
+                {fourPctNearestBar !== null && (
                   <ReferenceLine
-                    x={capitalAtRet * 0.04 / 12}
+                    x={fourPctNearestBar}
                     stroke="#3a7cb8"
                     strokeWidth={2}
                     strokeDasharray="5 3"
-                    label={{ value: "4%-Regel", fontSize: 10, fill: "#3a7cb8", position: "top" }}
+                    label={{ value: "≈ 4%-Regel", fontSize: 10, fill: "#3a7cb8", position: "top" }}
                   />
                 )}
                 <Bar dataKey="successRate" name={t("results.successRate")} radius={[4, 4, 0, 0]}>
@@ -1453,11 +1564,21 @@ export function ResultsDashboard() {
               </BarChart>
             </ResponsiveContainer>
 
+            {/* AP9: Klarstellung Gesamtbetrag vs. Anteil aus dem Vermögen */}
+            {inputs.monthlyPension > 0 && (
+              <p className="text-[11px] text-slate-400" data-design-id="heatmap-pension-note">
+                {t("results.heatmapPensionNote").replace("{pension}", fmtEur(inputs.monthlyPension))}
+              </p>
+            )}
+
             {/* 4% rule explanation – Item 10 */}
             <div className="bg-[#87BBE6]/10 border border-[#87BBE6]/30 rounded-xl p-3 space-y-1">
               <div className="font-semibold text-[#3a7cb8] text-sm">{t("results.fourPctTitle")}</div>
               <p className="text-xs text-slate-600 leading-relaxed">
                 {t("results.fourPctExplain").replace("{rate}", fmtPct(withdrawalRate))}
+                {fourPctMonthly > 0 && (
+                  <> {t("results.fourPctExactValue").replace("{amount}", fmtEur(Math.round(fourPctMonthly)))}</>
+                )}
               </p>
               <div className={`text-xs font-medium mt-1 ${withdrawalRate <= 4 ? "text-[#5a8a50]" : "text-rose-600"}`}>
                 {withdrawalRate <= 4 ? t("results.fourPctBelow") : t("results.fourPctAbove")}

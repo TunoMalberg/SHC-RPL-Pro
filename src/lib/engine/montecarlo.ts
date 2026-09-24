@@ -33,6 +33,7 @@ import {
   createPEProgramRuntime,
   type PEProgramRuntime,
 } from "./peProgram";
+import { computeProductTimeline, hasProductHoldings } from "./products";
 import { PE_STOCHASTIC_ENSEMBLE_SIZE } from "../defaults";
 
 /**
@@ -157,9 +158,18 @@ export function runMonteCarloSimulation(
   const accCashYears = portfolio.cashYearsTarget ?? 2;
   const wdRebalFreq = wd ? wd.rebalancingFrequency : accRebalFreq;
   const wdCashYears = wd ? wd.cashYearsTarget : accCashYears;
-  // Startgewichte: bei bereits pensionierten Klienten (keine Ansparphase)
-  // direkt die Entnahmegewichte, sonst die Ansparphase-Gewichte.
-  const startWeights = accumulationSteps > 0 || !wd ? accWeights : wdWeights;
+  // AP3: Dynamische Allokation — Umschichtung optional X Jahre VOR dem
+  // Pensionsantritt. switchStep trennt die ALLOKATIONS-Regime (acc/wd),
+  // accumulationSteps weiterhin die CASHFLOW-Phasen (Sparen/Entnehmen).
+  // X = 0 (Default): switchStep === accumulationSteps → bit-identisch.
+  const switchYears = Math.max(0, wd?.switchYearsBeforeRetirement ?? 0);
+  const switchStep = Math.max(
+    0,
+    accumulationSteps - Math.ceil(switchYears * stepsPerYear),
+  );
+  // Startgewichte: wenn das Wechsel-Regime sofort gilt (bereits pensioniert
+  // oder X ≥ Jahre bis Pension), direkt die Entnahmegewichte.
+  const startWeights = switchStep > 0 || !wd ? accWeights : wdWeights;
 
   // KORREKTUR (2025-11-11): Mittelwert = Brutto-Rendite abzüglich laufender Kosten.
   // KESt wird NICHT mehr als kontinuierlicher Drag in den Mittelwert gezogen,
@@ -171,6 +181,8 @@ export function runMonteCarloSimulation(
     (b) => (b.volatility / 100) / Math.sqrt(stepsPerYear)
   );
   const kestRate = (portfolio.kestRate ?? 27.5) / 100;
+  // AP7: KESt auf Bankeinlagen-Zinsen (jährliche Besteuerung bei Zufluss).
+  const depositTaxRate = (portfolio.depositTaxRate ?? 25) / 100;
 
   const corrMatrix = portfolio.correlationMatrix;
   const cholesky = choleskyDecomposition(corrMatrix);
@@ -270,6 +282,16 @@ export function runMonteCarloSimulation(
   // Programm-NAV je [Pfad][Jahr] für Cross-Path-Perzentile des PE-Charts.
   const peProgNavMatrix: number[][] | null = peRuntime ? [] : null;
 
+  // ── Produkt-Töpfe WBA/LV (AP8): deterministische Timeline, einmal
+  //    vorab — Käufe/Kupons/Auszahlungen + Wert je Jahr (PE-Muster). ──
+  const productTimeline = computeProductTimeline(
+    portfolio.wohnbauanleihen ?? [],
+    portfolio.lebensversicherungen ?? [],
+    client.currentAge,
+    totalYears,
+  );
+  const hasProducts = hasProductHoldings(productTimeline);
+
   const allFinalValues: number[] = [];
   const allPaths: number[][] = [];
   // Best/Worst-Simulationsindex (niedrigstes/höchstes Endvermögen) —
@@ -315,6 +337,10 @@ export function runMonteCarloSimulation(
     // Rollierendes PE-Programm: eigener Pfad-Zustand + separater NAV.
     const peState = peRuntime ? peRuntime.newPathState(sim) : null;
     let peProgNavCurrent = 0;
+    // Produkt-Töpfe (AP8): Wert läuft deterministisch mit (pfadunabhängig);
+    // startet bei 0 — der Kauf (Drain + Wertaufbau) erfolgt im Jahres-Block
+    // von Schritt 0.
+    let productValueCurrent = 0;
     const peProgNavYears: number[] | null = peState ? [] : null;
     const path: number[] = [inputs.initialCapital + peNavCurrent];
     // Reiner Marktindex (startet bei 1) — nur Renditen, keine Cash-Flows.
@@ -331,14 +357,24 @@ export function runMonteCarloSimulation(
     for (let step = 0; step < totalSteps; step++) {
       const returns = generateCorrelatedReturns(rng, cholesky, means, vols);
 
-      for (let i = 0; i < 3; i++) {
-        bucketValues[i] *= 1 + returns[i];
-      }
+      // AP7: Zinsen auf Bankeinlagen (Topf 0) werden JÄHRLICH bei Zufluss
+      // besteuert (eigener Satz, Default 25 %) — nicht über das
+      // Höchststand-Modell. Der Netto-Zins wird signiert in den Watermark
+      // eingerechnet (wie eine Ein-/Auszahlung): positiver Zins hebt ihn um
+      // (Zins − Steuer), negativer senkt ihn um |Zins| — dadurch erfasst die
+      // End-of-Step-Watermark-KESt nur noch Anleihen-/Aktien-Gewinne und
+      // Cash-Verluste schirmen keine Wertpapiergewinne ab.
+      const cashInterest = bucketValues[0] * returns[0];
+      const cashTaxPaid = Math.max(0, cashInterest) * depositTaxRate;
+      bucketValues[0] += cashInterest - cashTaxPaid;
+      bucketValues[1] *= 1 + returns[1];
+      bucketValues[2] *= 1 + returns[2];
+      highWatermark = Math.max(0, highWatermark + cashInterest - cashTaxPaid);
 
       // Reine Marktrendite des Schritts = strategische Allokation × Topf-Renditen.
       // KESt wird hier NICHT abgezogen — der Marktindex misst Brutto-Marktrisiko.
       // (KESt ist eine deterministische Steuer auf Gewinne und keine Marktbewegung.)
-      const mktWeights = step < accumulationSteps ? accWeights : wdWeights;
+      const mktWeights = step < switchStep ? accWeights : wdWeights;
       const marketStepReturn = mktWeights.reduce((s, w, i) => s + w * returns[i], 0);
       marketIndex *= 1 + marketStepReturn;
       if (marketIndex > marketPeak) marketPeak = marketIndex;
@@ -397,9 +433,28 @@ export function runMonteCarloSimulation(
         peProgNavYears?.push(peNavCurrent + peProgNavCurrent);
       }
 
-      // ── Phasenwechsel: einmalige Umschichtung auf das Entnahme-
-      //    Portfolio bei Pensionsantritt (nur wenn wd definiert). ─────
-      if (wd && !switchedToWithdrawal && !isAccumulation && accumulationSteps > 0) {
+      // ── Produkt-Töpfe WBA/LV (AP8): Käufe drainen die Cash-Kaskade
+      //    (Watermark −1:1), steuerfreie Kupons/Auszahlungen fließen in
+      //    Cash (Watermark +1:1) — identische Semantik wie PE-Cashflows,
+      //    daher keine Watermark-KESt auf steuerfreie Produktflüsse. ────
+      if (hasProducts && step % stepsPerYear === 0) {
+        const prodEntry = productTimeline[Math.floor(step / stepsPerYear)];
+        if (prodEntry) {
+          highWatermark = applyPECashflowsToBuckets(
+            bucketValues,
+            prodEntry.purchases,
+            prodEntry.coupons + prodEntry.payouts,
+            highWatermark,
+          );
+          productValueCurrent = prodEntry.totalValue;
+        }
+      }
+
+      // ── Allokationswechsel: einmalige Umschichtung auf das Entnahme-
+      //    Portfolio — zum Pensionsantritt oder (AP3) bereits X Jahre
+      //    davor (switchStep). Guard switchStep > 0 verhindert ein
+      //    Phantom-Steuerereignis beim Direktstart in den wd-Gewichten. ─
+      if (wd && !switchedToWithdrawal && step >= switchStep && switchStep > 0) {
         highWatermark = switchToWithdrawalAllocation(
           bucketValues,
           wdWeights,
@@ -415,8 +470,11 @@ export function runMonteCarloSimulation(
           : savingsPerStep *
             Math.pow(1 + inputs.annualSavingsIncrease / 100 / stepsPerYear, step);
 
+        // AP3: Nach vorgezogenem Wechsel fließen Sparraten in die
+        // Entnahme-Gewichte (das Portfolio hält bereits die Zielstruktur).
+        const saveWeights = step < switchStep ? accWeights : wdWeights;
         for (let i = 0; i < 3; i++) {
-          bucketValues[i] += accWeights[i] * adjustedSavings;
+          bucketValues[i] += saveWeights[i] * adjustedSavings;
         }
         // Einzahlung hebt den Höchststand 1:1 (kein Steuerereignis).
         highWatermark += adjustedSavings;
@@ -441,7 +499,10 @@ export function runMonteCarloSimulation(
         // "PE immer in der Erfolgsquote ja"). PE-NAV ist illiquide,
         // wird hier aber zur Vermögensbestimmung zugerechnet.
         // Programm-NAV (rollierendes PE-Programm) zählt ebenfalls.
-        const totalWithPE = totalPortfolio + peNavCurrent + peProgNavCurrent;
+        // Produkt-Töpfe zählen — wie PE-NAV — zum Vermögen im Erfolgs-
+        // kriterium (gesperrt, aber vorhanden); entnehmbar sind sie nie.
+        const totalWithPE =
+          totalPortfolio + peNavCurrent + peProgNavCurrent + productValueCurrent;
         if (totalWithPE <= netWithdrawal && !failed) {
           failed = true;
           failureStep = step;
@@ -473,7 +534,7 @@ export function runMonteCarloSimulation(
         if (currentAgeAtStep >= leStepAge && prevAge < leStepAge) {
           const amount = le.amount;
           if (amount > 0) {
-            const injectWeights = step < accumulationSteps ? accWeights : wdWeights;
+            const injectWeights = step < switchStep ? accWeights : wdWeights;
             for (let i = 0; i < 3; i++) {
               bucketValues[i] += injectWeights[i] * amount;
             }
@@ -494,14 +555,24 @@ export function runMonteCarloSimulation(
       const shouldRebalance = checkRebalancing(
         step,
         stepsPerYear,
-        step < accumulationSteps ? accRebalFreq : wdRebalFreq
+        step < switchStep ? accRebalFreq : wdRebalFreq
       );
       if (shouldRebalance) {
-        if (step < accumulationSteps) {
+        if (step < switchStep) {
           bucketValues = rebalancePortfolio(
             bucketValues,
             accWeights,
             accRebalThreshold
+          );
+        } else if (step < accumulationSteps) {
+          // AP3: Fenster zwischen vorgezogenem Wechsel und Pensionsantritt —
+          // klassisches Rebalancing auf die Entnahme-Gewichte mit der
+          // Entnahme-Schwelle (Cash-Puffer-Logik erst ab der Entnahmephase;
+          // erstmalige Nutzung von wd.rebalancingThreshold).
+          bucketValues = rebalancePortfolio(
+            bucketValues,
+            wdWeights,
+            wd?.rebalancingThreshold ?? accRebalThreshold
           );
         } else {
           const annualWithdrawalForTarget = inflateWithdrawals
@@ -538,11 +609,11 @@ export function runMonteCarloSimulation(
       // Jahres bleibt NAV konstant; aktualisiert wird zu Beginn jedes
       // neuen Jahres oben). Pfadwert = liquide + PE-NAV.
       const totalLiquid = Math.max(0, bucketValues.reduce((a, b) => a + b, 0));
-      path.push(totalLiquid + peNavCurrent + peProgNavCurrent);
+      path.push(totalLiquid + peNavCurrent + peProgNavCurrent + productValueCurrent);
     }
 
     const finalLiquid = Math.max(0, bucketValues.reduce((a, b) => a + b, 0));
-    const finalValue = finalLiquid + peNavCurrent + peProgNavCurrent;
+    const finalValue = finalLiquid + peNavCurrent + peProgNavCurrent + productValueCurrent;
     allFinalValues.push(finalValue);
     allPaths.push(path);
     marketDrawdowns.push(marketMaxDD);
@@ -720,6 +791,16 @@ export function runMonteCarloSimulation(
     peMedianTVPI: peEnsemble ? peEnsemble.medianTVPI : undefined,
     worstSimIndex,
     bestSimIndex,
+    // Produkt-Töpfe WBA/LV (AP8): deterministischer Wertpfad (step-aligned).
+    productPath: hasProducts
+      ? Array.from({ length: totalSteps + 1 }, (_, step) => {
+          const yIdx = Math.min(
+            Math.floor(step / stepsPerYear),
+            productTimeline.length - 1,
+          );
+          return productTimeline[yIdx]?.totalValue ?? 0;
+        })
+      : undefined,
     valuation,
     // Benötigt aus dem Vermögen (heutige Kaufkraft): Wunsch − Pension,
     // null wenn kein Wunschbetrag erfasst (CR 19: Herleitung im Trace).
@@ -907,7 +988,11 @@ export function runDetailedSingleSimulation(
   const accCashYears = portfolio.cashYearsTarget ?? 2;
   const wdRebalFreq = wd ? wd.rebalancingFrequency : accRebalFreq;
   const wdCashYears = wd ? wd.cashYearsTarget : accCashYears;
-  const startWeights = accumulationYears > 0 || !wd ? accWeights : wdWeights;
+  // AP3: vorgezogener Allokationswechsel — identische Regime-Trennung wie
+  // in der MC-Schleife (switchYear = Allokation, accumulationYears = Cashflow).
+  const switchYearsTrace = Math.max(0, wd?.switchYearsBeforeRetirement ?? 0);
+  const switchYear = Math.max(0, accumulationYears - Math.ceil(switchYearsTrace));
+  const startWeights = switchYear > 0 || !wd ? accWeights : wdWeights;
 
   // KORREKTUR (2025-11-11): Brutto minus Kosten — KESt läuft über Watermark.
   const annualMeans = portfolio.buckets.map(
@@ -915,6 +1000,8 @@ export function runDetailedSingleSimulation(
   );
   const annualVols = portfolio.buckets.map((b) => b.volatility / 100);
   const kestRate = (portfolio.kestRate ?? 27.5) / 100;
+  // AP7: jährliche KESt auf Bankeinlagen-Zinsen (identisch zur MC-Schleife).
+  const depositTaxRateTrace = (portfolio.depositTaxRate ?? 25) / 100;
 
   const corrMatrix = portfolio.correlationMatrix;
   const cholesky = choleskyDecomposition(corrMatrix);
@@ -957,6 +1044,16 @@ export function runDetailedSingleSimulation(
     : null;
   let peProgNavFinal = 0;
 
+  // Produkt-Töpfe WBA/LV (AP8) — deterministische Timeline wie MC-Engine.
+  const productTimelineTrace = computeProductTimeline(
+    portfolio.wohnbauanleihen ?? [],
+    portfolio.lebensversicherungen ?? [],
+    client.currentAge,
+    totalYears,
+  );
+  const hasProductsTrace = hasProductHoldings(productTimelineTrace);
+  let productValueTrace = 0;
+
   let bucketValues = startWeights.map((w) => w * inputs.initialCapital);
   let cumulativeInflation = 1;
   let highWatermark = inputs.initialCapital;
@@ -986,9 +1083,13 @@ export function runDetailedSingleSimulation(
     const returnBonds = startBonds * returns[1];
     const returnEquities = startEquities * returns[2];
 
-    bucketValues[0] += returnCash;
+    // AP7: jährliche KESt auf Bankeinlagen-Zinsen (wie MC-Hauptschleife) —
+    // returnCash bleibt brutto (Anzeige), die Steuer steht in cashTax.
+    const cashTax = Math.max(0, returnCash) * depositTaxRateTrace;
+    bucketValues[0] += returnCash - cashTax;
     bucketValues[1] += returnBonds;
     bucketValues[2] += returnEquities;
+    highWatermark = Math.max(0, highWatermark + returnCash - cashTax);
 
     const inflationThisYear = inputs.inflationRate / 100;
     cumulativeInflation *= 1 + inflationThisYear;
@@ -1047,6 +1148,28 @@ export function runDetailedSingleSimulation(
       peUnfunded = prog.unfunded;
     }
 
+    // ── Produkt-Töpfe WBA/LV (AP8) — wie MC-Hauptschleife. ───────────
+    let productPurchase = 0;
+    let productCoupon = 0;
+    let productPayout = 0;
+    let wbaValueThisYear = 0;
+    let lvValueThisYear = 0;
+    if (hasProductsTrace && y < productTimelineTrace.length) {
+      const prodEntry = productTimelineTrace[y];
+      productPurchase = prodEntry.purchases;
+      productCoupon = prodEntry.coupons;
+      productPayout = prodEntry.payouts;
+      wbaValueThisYear = prodEntry.wbaValue;
+      lvValueThisYear = prodEntry.lvValue;
+      highWatermark = applyPECashflowsToBuckets(
+        bucketValues,
+        productPurchase,
+        productCoupon + productPayout,
+        highWatermark,
+      );
+      productValueTrace = prodEntry.totalValue;
+    }
+
     let cashflow = 0;
     let cashflowLabel = "";
     // Tatsächliche Herkunft der Entnahme-Liquidität — wird je nach Topfbestand
@@ -1054,6 +1177,21 @@ export function runDetailedSingleSimulation(
     let withdrawalFromCash = 0;
     let withdrawalFromBonds = 0;
     let withdrawalFromEquities = 0;
+
+    // AP3: Allokationswechsel auf Top-Level (wie MC-Schleife) — feuert zum
+    // Pensionsantritt oder bereits X Jahre davor (switchYear); Guard
+    // switchYear > 0 verhindert ein Phantom-Steuerereignis beim Direktstart.
+    let allocationSwitched = false;
+    if (wd && !switchedToWithdrawal && y >= switchYear && switchYear > 0) {
+      highWatermark = switchToWithdrawalAllocation(
+        bucketValues,
+        wdWeights,
+        highWatermark,
+        kestRate,
+      );
+      switchedToWithdrawal = true;
+      allocationSwitched = true;
+    }
 
     if (isAccumulation) {
       const annualSavings = inputs.monthlySavings * 12;
@@ -1064,21 +1202,13 @@ export function runDetailedSingleSimulation(
       cashflow = adjustedSavings;
       cashflowLabel = "Sparrate";
 
+      // AP3: nach vorgezogenem Wechsel Sparraten in die Entnahme-Gewichte.
+      const saveWeights = y < switchYear ? accWeights : wdWeights;
       for (let i = 0; i < 3; i++) {
-        bucketValues[i] += accWeights[i] * adjustedSavings;
+        bucketValues[i] += saveWeights[i] * adjustedSavings;
       }
       highWatermark += adjustedSavings;
     } else {
-      // Phasenwechsel: einmalige Umschichtung auf das Entnahme-Portfolio.
-      if (wd && !switchedToWithdrawal && accumulationYears > 0) {
-        highWatermark = switchToWithdrawalAllocation(
-          bucketValues,
-          wdWeights,
-          highWatermark,
-          kestRate,
-        );
-        switchedToWithdrawal = true;
-      }
       const desiredMonthlyTrace = inputs.desiredMonthlyWithdrawal ?? 0;
       const annualWithdrawal = inflateWithdrawalsTrace
         ? desiredMonthlyTrace * 12 * cumulativeInflation
@@ -1100,8 +1230,8 @@ export function runDetailedSingleSimulation(
 
       const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
 
-      // Erfolgskriterium inkl. PE-NAV (siehe runMonteCarloSimulation).
-      if (totalPortfolio + peNavThisYear <= netWithdrawal && !failed) {
+      // Erfolgskriterium inkl. PE-NAV + Produkt-Töpfen (siehe MC-Engine).
+      if (totalPortfolio + peNavThisYear + productValueTrace <= netWithdrawal && !failed) {
         failed = true;
       }
 
@@ -1145,7 +1275,7 @@ export function runDetailedSingleSimulation(
         liquidityEventLabel += (liquidityEventLabel ? "; " : "") + le.description;
       }
       if (liquidityEventAmount > 0) {
-        const injectWeights = isAccumulation ? accWeights : wdWeights;
+        const injectWeights = y < switchYear ? accWeights : wdWeights;
         for (let i = 0; i < 3; i++) {
           bucketValues[i] += injectWeights[i] * liquidityEventAmount;
         }
@@ -1174,7 +1304,7 @@ export function runDetailedSingleSimulation(
     const beforeRebalBonds = bucketValues[1];
     const beforeRebalEquities = bucketValues[2];
 
-    const shouldRebalance = checkRebalancingYearly(y, isAccumulation ? accRebalFreq : wdRebalFreq);
+    const shouldRebalance = checkRebalancingYearly(y, y < switchYear ? accRebalFreq : wdRebalFreq);
     let rebalanced = false;
     let rebalCashDelta = 0;
     let rebalBondsDelta = 0;
@@ -1182,8 +1312,16 @@ export function runDetailedSingleSimulation(
     let rebalSource = "";
 
     if (shouldRebalance) {
-      if (isAccumulation) {
-        const newValues = rebalancePortfolio(bucketValues, accWeights, accRebalThreshold);
+      if (y < switchYear || isAccumulation) {
+        // AP3: bis zum Wechsel klassisch auf Anspar-Gewichte; im Fenster
+        // Wechsel→Pension klassisch auf Entnahme-Gewichte mit der
+        // Entnahme-Schwelle (Cash-Puffer erst ab der Entnahmephase).
+        const inWindow = y >= switchYear && isAccumulation;
+        const targetWeights = inWindow ? wdWeights : accWeights;
+        const threshold = inWindow
+          ? (wd?.rebalancingThreshold ?? accRebalThreshold)
+          : accRebalThreshold;
+        const newValues = rebalancePortfolio(bucketValues, targetWeights, threshold);
         if (newValues[0] !== bucketValues[0] || newValues[1] !== bucketValues[1] || newValues[2] !== bucketValues[2]) {
           rebalanced = true;
           rebalCashDelta = newValues[0] - beforeRebalCash;
@@ -1249,6 +1387,8 @@ export function runDetailedSingleSimulation(
       returnCashPct: startCash > 0 ? returns[0] * 100 : 0,
       returnBondsPct: startBonds > 0 ? returns[1] * 100 : 0,
       returnEquitiesPct: startEquities > 0 ? returns[2] * 100 : 0,
+      cashTax,
+      allocationSwitched: allocationSwitched || undefined,
       cashflow,
       cashflowLabel,
       liquidityEvent: liquidityEventAmount,
@@ -1272,6 +1412,11 @@ export function runDetailedSingleSimulation(
       peNav: hasPE || peState ? peNavThisYear : undefined,
       peCommitted,
       peUnfunded,
+      productPurchase: hasProductsTrace ? productPurchase : undefined,
+      productCoupon: hasProductsTrace ? productCoupon : undefined,
+      productPayout: hasProductsTrace ? productPayout : undefined,
+      wbaValue: hasProductsTrace ? wbaValueThisYear : undefined,
+      lvValue: hasProductsTrace ? lvValueThisYear : undefined,
     });
   }
 
@@ -1282,7 +1427,9 @@ export function runDetailedSingleSimulation(
     (hasPE
       ? peTimeline[Math.min(totalYears, peTimeline.length - 1)]?.totalNav ?? 0
       : 0) + peProgNavFinal;
-  const finalWealth = bucketValues.reduce((a, b) => a + b, 0) + peNavFinal;
+  // Produkt-Töpfe (AP8) zählen — wie PE — zum Endvermögen.
+  const finalWealth =
+    bucketValues.reduce((a, b) => a + b, 0) + peNavFinal + productValueTrace;
 
   return {
     rows,

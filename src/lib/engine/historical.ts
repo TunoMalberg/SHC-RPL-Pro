@@ -146,6 +146,8 @@ export function runHistoricalBacktest(
   // KORREKTUR: Nur Kosten (TER) als laufender Drag — KESt läuft separat über Watermark.
   const costs = portfolio.buckets.map((b) => b.costs / 100);
   const kestRate = (portfolio.kestRate ?? 27.5) / 100;
+  // AP7: KESt auf Bankeinlagen-Zinsen — jährliche Besteuerung wie in der MC-Engine.
+  const depositTaxRate = (portfolio.depositTaxRate ?? 25) / 100;
   const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
 
   const scenarios: HistoricalResult[] = [];
@@ -190,9 +192,14 @@ export function runHistoricalBacktest(
 
       const isAccumulation = y < accumulationYears;
 
-      buckets[0] *= 1 + returns[0];
+      // AP7: Zinsen auf Bankeinlagen jährlich besteuern (Netto-Zins hebt/
+      // senkt den Watermark signiert — wie in der MC-Engine, siehe dort).
+      const cashInterest = buckets[0] * returns[0];
+      const cashTaxPaid = Math.max(0, cashInterest) * depositTaxRate;
+      buckets[0] += cashInterest - cashTaxPaid;
       buckets[1] *= 1 + returns[1];
       buckets[2] *= 1 + returns[2];
+      highWatermark = Math.max(0, highWatermark + cashInterest - cashTaxPaid);
 
       // FIX A: VPI-Rate dieses Jahres in den kumulativen Index multiplizieren.
       // Damit skalieren Sparraten/Entnahmen mit dem echten historischen

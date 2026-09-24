@@ -31,6 +31,7 @@ import { buildCalculationTrace } from "@/lib/engine/trace";
 import { MIFID_PRESETS, MIFID_ORDER, withMifidAllocation } from "@/lib/engine/comparison";
 import type { MifidProfile, Scenario, SimulationMode } from "@/lib/types";
 import { fmtEur } from "@/lib/format";
+import { computeConfigHash } from "@/lib/configHash";
 import { validatePlanInputs } from "@/lib/validation";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
@@ -115,6 +116,10 @@ export function SimulationPanel() {
         const mainScenario =
           newScenarios.find((s) => s.portfolio.mifidProfile === activeProfile) ?? newScenarios[1];
         if (mainScenario?.result) {
+          // AP6: Fingerabdruck des Arbeitsstands — der Multirun basiert auf
+          // dem MiFID-Variantenportfolio, daher Hash auf den Arbeitsstand
+          // (Änderungen danach sollen den Stale-Hinweis auslösen).
+          mainScenario.result.configHash = computeConfigHash(client, inputs, portfolio, liquidityEvents);
           dispatch({ type: "SET_RESULT", payload: mainScenario.result });
         }
 
@@ -213,6 +218,9 @@ export function SimulationPanel() {
         trace.ranking = null;
       }
       result.calculationTrace = trace;
+      // AP6: Fingerabdruck der Eingaben — Abweichung löst den Stale-Hinweis
+      // in Ergebnis-/Vergleichsansicht aus („bitte neu berechnen").
+      result.configHash = computeConfigHash(client, inputs, portfolio, liquidityEvents);
 
       dispatch({ type: "SET_RESULT", payload: result });
 

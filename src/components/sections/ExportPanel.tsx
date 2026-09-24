@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 export function ExportPanel() {
   const { state } = useAppState();
-  const { client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents } = state;
+  const { client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents, scenarios, settings } = state;
   const { t } = useI18n();
   const [exporting, setExporting] = useState<string | null>(null);
 
@@ -52,7 +52,9 @@ export function ExportPanel() {
     setExporting("pptx");
     try {
       const blob = await generatePowerPointReport(
-        client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents
+        client, inputs, portfolio, result, historicalResult, detailedTrace, liquidityEvents,
+        // AP10: Szenarienvergleich-Folie + tatsächliche Simulationsanzahl.
+        scenarios, settings.numSimulations
       );
       const date = new Date().toISOString().slice(0, 10);
       // F-06: strict filename whitelist + length cap (safeFilename)

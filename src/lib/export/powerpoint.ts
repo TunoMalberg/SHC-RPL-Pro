@@ -6,6 +6,7 @@ import type {
   HistoricalAnalysis,
   DetailedSimTrace,
   LiquidityEvent,
+  Scenario,
 } from "../types";
 import { safeCell } from "./sanitize";
 
@@ -472,12 +473,25 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
   });
 
   slide.addText(
-    `KESt = ${fmtPct(portfolio.kestRate ?? 27.5, 1)} (österreichische Kapitalertragsteuer, angewandt auf Rendite − Kosten)`,
+    `KESt Wertpapiere = ${fmtPct(portfolio.kestRate ?? 27.5, 1)} (Höchststand-Prinzip) | KESt Bankeinlagen = ${fmtPct(portfolio.depositTaxRate ?? 25, 1)} (jährlich auf Zinsen)`,
     {
       x: 0.5, y: 2.95, w: 9, h: 0.25,
       fontSize: 9, fontFace: FONT_BODY, italic: true, color: COLORS.accent,
     }
   );
+
+  // Produkt-Töpfe WBA/LV (AP8): Annahmen-Zeile, falls erfasst.
+  const wbaSum = (portfolio.wohnbauanleihen ?? []).reduce((s, w) => s + w.amount, 0);
+  const lvSum = (portfolio.lebensversicherungen ?? []).reduce((s, l) => s + l.amount, 0);
+  if (wbaSum > 0 || lvSum > 0) {
+    const parts: string[] = [];
+    if (wbaSum > 0) parts.push(`Wohnbauanleihen ${fmtEur(wbaSum)} (Zinsen steuerfrei, mind. 11 J gebunden)`);
+    if (lvSum > 0) parts.push(`Fondspolizzen ${fmtEur(lvSum)} (4 % VersSt + 1 % einmalig, 0,075 % p.a., Erträge KESt-frei)`);
+    slide.addText(`Produkt-Töpfe: ${parts.join(" | ")}`, {
+      x: 0.5, y: 3.18, w: 12.3, h: 0.25,
+      fontSize: 9, fontFace: FONT_BODY, italic: true, color: COLORS.muted,
+    });
+  }
 
   slide.addText("Die Drei-Topf-Strategie", {
     x: 0.5,
@@ -658,7 +672,8 @@ function addMonteCarloResults(
   pptx: Pptx,
   result: SimulationResult,
   inputs: FinancialInputs,
-  client: ClientProfile
+  client: ClientProfile,
+  numSims?: number
 ) {
   const slide = pptx.addSlide();
   addSlideHeader(slide, "Monte-Carlo-Simulationsergebnisse", pptx);
@@ -776,7 +791,8 @@ function addMonteCarloResults(
   slide.addText(
     // KONSISTENZ-FIX (CR 14): Entnahme-Inflation hängt seit e967b66 am
     // Schalter `inflateWithdrawalToRetirement`, nicht an `useRealValues`.
-    `Basierend auf ${fmt(5000)} Simulationen mit ${inputs.inflateWithdrawalToRetirement !== false ? "inflationsindexierten Entnahmen (Eingabe in heutiger Kaufkraft)" : "nominal konstanten Entnahmen"} von ${fmtEur(inputs.desiredMonthlyWithdrawal ?? 0)}/Monat (abzgl. ${fmtEur(inputs.monthlyPension)} Pension).`,
+    // AP10-FIX: tatsächliche Simulationsanzahl statt fix „5.000".
+    `Basierend auf ${fmt(numSims ?? 10000)} Simulationen mit ${inputs.inflateWithdrawalToRetirement !== false ? "inflationsindexierten Entnahmen (Eingabe in heutiger Kaufkraft)" : "nominal konstanten Entnahmen"} von ${fmtEur(inputs.desiredMonthlyWithdrawal ?? 0)}/Monat (abzgl. ${fmtEur(inputs.monthlyPension)} Pension).`,
     {
       x: 0.5,
       y: 4.65,
@@ -897,10 +913,17 @@ function addWithdrawalSlide(
   const slide = pptx.addSlide();
   addSlideHeader(slide, "Analyse der nachhaltigen Entnahmerate", pptx);
 
+  // EINHEITEN-FIX (AP9): medianPath ist per Simulationsschritt indiziert —
+  // bei monatlichem Zeitschritt braucht das Jahr des Pensionsantritts
+  // den Faktor stepsPerYear. Entnahmerate auf Netto-Basis (ohne den
+  // pensionsgedeckten Teil).
   const accYears = client.retirementAge - client.currentAge;
-  const retIdx = Math.min(accYears, result.medianPath.length - 1);
+  const totalYearsPpt = Math.max(1, client.lifeExpectancy - client.currentAge);
+  const stepsPerYearPpt = Math.max(1, Math.round((result.medianPath.length - 1) / totalYearsPpt));
+  const retIdx = Math.min(Math.max(0, accYears) * stepsPerYearPpt, result.medianPath.length - 1);
   const capitalAtRet = result.medianPath[retIdx];
-  const annualWithdrawal = (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
+  const annualWithdrawal =
+    Math.max(0, (inputs.desiredMonthlyWithdrawal ?? 0) - inputs.monthlyPension) * 12;
   const withdrawalRate = capitalAtRet > 0 ? (annualWithdrawal / capitalAtRet) * 100 : 0;
 
   slide.addText("Ihre Entnahmerate", {
@@ -1323,11 +1346,15 @@ function addRecommendationsSlide(
     );
   }
 
+  // EINHEITEN-FIX (AP9): siehe addWithdrawalSlide — Schritt- statt
+  // Jahres-Index, Entnahmerate netto (ohne pensionsgedeckten Teil).
   const accYears = client.retirementAge - client.currentAge;
-  const retIdx = Math.min(accYears, result.medianPath.length - 1);
+  const totalYearsRec = Math.max(1, client.lifeExpectancy - client.currentAge);
+  const stepsPerYearRec = Math.max(1, Math.round((result.medianPath.length - 1) / totalYearsRec));
+  const retIdx = Math.min(Math.max(0, accYears) * stepsPerYearRec, result.medianPath.length - 1);
   const capitalAtRet = result.medianPath[retIdx];
   const withdrawalRate = capitalAtRet > 0
-    ? ((inputs.desiredMonthlyWithdrawal ?? 0) * 12 / capitalAtRet) * 100
+    ? (Math.max(0, (inputs.desiredMonthlyWithdrawal ?? 0) - inputs.monthlyPension) * 12 / capitalAtRet) * 100
     : 0;
 
   if (withdrawalRate > 4) {
@@ -1425,6 +1452,81 @@ function addAppendixSlide(pptx: Pptx) {
   );
 }
 
+/**
+ * AP10: Direkter Vergleich gespeicherter Szenarien — Tabelle mit
+ * Erfolgsquote, Median-Endvermögen, P10/P90 und max. Drawdown je
+ * Szenario (nur Szenarien mit gespeichertem Ergebnis, max. 8).
+ */
+function addScenarioComparisonSlide(pptx: Pptx, scenarios: Scenario[]) {
+  const slide = pptx.addSlide();
+  addSlideHeader(slide, "Szenarienvergleich", pptx);
+
+  const withResult = scenarios.filter((s) => s.result).slice(0, 8);
+
+  const headerOpts = {
+    fill: { color: COLORS.primary },
+    color: COLORS.white,
+    bold: true,
+    fontSize: 10,
+    fontFace: FONT_BODY,
+    align: "center" as const,
+  };
+  const cellOpts = { fontSize: 10, fontFace: FONT_BODY, align: "center" as const };
+
+  const rows: any[] = [
+    [
+      { text: "Szenario", options: { ...headerOpts, align: "left" as const } },
+      { text: "Erfolgsquote", options: headerOpts },
+      { text: "Median Endvermögen", options: headerOpts },
+      { text: "P10 (konservativ)", options: headerOpts },
+      { text: "P90 (optimistisch)", options: headerOpts },
+      { text: "Max. Drawdown", options: headerOpts },
+    ],
+    ...withResult.map((s) => {
+      const r = s.result!;
+      return [
+        { text: safeCell(s.name), options: { ...cellOpts, align: "left" as const, bold: true } },
+        {
+          text: fmtPct(r.successRate),
+          options: {
+            ...cellOpts,
+            color: r.successRate >= 90 ? "5A8A50" : r.successRate >= 70 ? "B8863B" : "D31220",
+            bold: true,
+          },
+        },
+        { text: fmtEur(r.medianFinalWealth), options: cellOpts },
+        { text: fmtEur(r.percentiles.p10), options: cellOpts },
+        { text: fmtEur(r.percentiles.p90), options: cellOpts },
+        { text: fmtPct(r.maxDrawdown), options: cellOpts },
+      ];
+    }),
+  ];
+
+  slide.addTable(rows, {
+    x: 0.5,
+    y: 1.3,
+    w: 12.3,
+    colW: [3.3, 1.8, 2.2, 2.0, 2.0, 1.0],
+    border: { type: "solid", pt: 0.5, color: "DEE2E6" },
+    rowH: 0.42,
+  });
+
+  slide.addText(
+    "Alle Werte nominal zum Planungshorizont. Jedes Szenario friert die zum Speicherzeitpunkt erfassten Eingaben und das Portfolio ein; " +
+      "Unterschiede zeigen die Wirkung der jeweiligen Annahmen (z. B. Allokation, Sparrate, Entnahmehöhe).",
+    {
+      x: 0.5,
+      y: 1.4 + Math.min(withResult.length + 1, 9) * 0.45,
+      w: 12.3,
+      h: 0.6,
+      fontSize: 9,
+      fontFace: FONT_BODY,
+      color: COLORS.muted,
+      italic: true,
+    }
+  );
+}
+
 export async function generatePowerPointReport(
   client: ClientProfile,
   inputs: FinancialInputs,
@@ -1432,7 +1534,11 @@ export async function generatePowerPointReport(
   result: SimulationResult,
   historical: HistoricalAnalysis | null,
   detailedTrace?: DetailedSimTrace | null,
-  liquidityEvents?: LiquidityEvent[]
+  liquidityEvents?: LiquidityEvent[],
+  // AP10: gespeicherte Szenarien für die Vergleichsfolie (optional).
+  scenarios?: Scenario[],
+  // AP10: tatsächliche Simulationsanzahl (vorher fix „5.000" im Text).
+  numSimulations?: number
 ): Promise<Blob> {
   const PptxGenJS = (await import("pptxgenjs")).default;
   const pptx = new PptxGenJS();
@@ -1449,10 +1555,15 @@ export async function generatePowerPointReport(
   addPortfolioSlide(pptx, portfolio);
   addAssumptionsSlide(pptx, inputs, portfolio, result);
   addSectionSlide(pptx, "Simulationsergebnisse", "Monte-Carlo-Analyse & Entnahme-Nachhaltigkeit");
-  addMonteCarloResults(pptx, result, inputs, client);
+  addMonteCarloResults(pptx, result, inputs, client, numSimulations);
   addSuccessProbabilitySlide(pptx, result);
   addWithdrawalSlide(pptx, result, inputs, client);
   addRiskAnalysis(pptx, result);
+  // AP10: direkter Szenarienvergleich (gespeicherte Szenarien mit Ergebnis).
+  if (scenarios && scenarios.some((s) => s.result)) {
+    addSectionSlide(pptx, "Szenarienvergleich", "Gespeicherte Szenarien im direkten Vergleich");
+    addScenarioComparisonSlide(pptx, scenarios);
+  }
   if (detailedTrace) {
     addSectionSlide(pptx, "Einzelpfad-Beispiel", "Detaillierte Portfolioentwicklung eines Simulationspfades");
     addDetailedTraceSlides(pptx, detailedTrace, client);

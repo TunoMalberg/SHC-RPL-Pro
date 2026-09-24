@@ -27,7 +27,7 @@ const SCENARIO_COLORS = ["#D31220", "#87BBE6", "#8FB687", "#FAC075", "#8A83BE", 
 
 export function ScenarioComparisonSection() {
   const { state, dispatch } = useAppState();
-  const { scenarios, client, inputs, portfolio, settings } = state;
+  const { scenarios, client, inputs, portfolio, settings, liquidityEvents } = state;
   const { t } = useI18n();
   const [scenarioName, setScenarioName] = useState("");
 
@@ -41,12 +41,21 @@ export function ScenarioComparisonSection() {
       source: "manual",
     };
 
-    const result = runMonteCarloSimulation(client, scenario.inputs, scenario.portfolio, settings);
-    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, scenario.inputs, scenario.portfolio, settings);
+    // BUGFIX (AP5): liquidityEvents mitgeben — vorher wichen gespeicherte
+    // Szenario-Ergebnisse vom Hauptlauf ab, sobald Ereignisse erfasst waren.
+    const result = runMonteCarloSimulation(client, scenario.inputs, scenario.portfolio, settings, liquidityEvents);
+    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, scenario.inputs, scenario.portfolio, settings, liquidityEvents);
     scenario.result = result;
 
     dispatch({ type: "ADD_SCENARIO", payload: scenario });
     setScenarioName("");
+  };
+
+  // AP5: gespeichertes Szenario im Ergebnis-Dashboard ansehen —
+  // ohne Neusimulation, ohne den Arbeitsstand zu verändern.
+  const viewScenario = (id: string) => {
+    dispatch({ type: "VIEW_SCENARIO", payload: id });
+    dispatch({ type: "SET_TAB", payload: "results" });
   };
 
   // FIX (2026-05-16): An exakten Jahresgrenzen samplen, damit das angezeigte
@@ -174,6 +183,16 @@ export function ScenarioComparisonSection() {
                           <span className="font-medium">{fmtEur(s.result.medianFinalWealth)}</span>
                         </div>
                       </div>
+                      {/* AP5: gespeichertes Ergebnis per Klick ansehen */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => viewScenario(s.id)}
+                        className="w-full mt-2 h-8 text-xs font-semibold"
+                        data-design-id={`view-scenario-${idx}`}
+                      >
+                        👁 {t("scenarios.view")}
+                      </Button>
                     </>
                   )}
                 </CardContent>

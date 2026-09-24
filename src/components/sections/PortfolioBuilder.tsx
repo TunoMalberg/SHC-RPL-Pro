@@ -14,6 +14,7 @@ import type { AssetBucket, PortfolioConfig, MifidProfile, WithdrawalPhaseOverrid
 import { computePortfolioReturn, computePortfolioVolatility, computeSharpeRatio } from "@/lib/engine/portfolio";
 import { fmtPct } from "@/lib/format";
 import { PrivateEquityBucket } from "./PrivateEquityBucket";
+import { ProductBuckets } from "./ProductBuckets";
 
 // MiFID II presets: [cash%, bonds%, equities%]
 const MIFID_PRESETS: Record<MifidProfile, [number, number, number]> = {
@@ -111,12 +112,16 @@ export function PortfolioBuilderSection() {
       (bucket as Record<string, unknown>)[field] = typeof value === "string" ? parseFloat(value) || 0 : value;
     }
     // When gross return or costs change, auto-recalculate taxDrag as
-    //   taxDrag = max(0, (expectedReturn − costs) × kestRate / 100)
-    // Direct taxDrag edits are respected and override this default.
+    //   taxDrag = max(0, (expectedReturn − costs) × rate / 100)
+    // Cash (Topf 0) nutzt den Einlagen-Satz (AP7, Default 25 %), Wertpapiere
+    // den KESt-Satz. Direct taxDrag edits are respected and override this.
     if (field === "expectedReturn" || field === "costs") {
-      const kest = portfolio.kestRate ?? 27.5;
+      const rate =
+        index === 0
+          ? (portfolio.depositTaxRate ?? 25)
+          : (portfolio.kestRate ?? 27.5);
       const base = bucket.expectedReturn - bucket.costs;
-      bucket.taxDrag = +Math.max(0, base * (kest / 100)).toFixed(2);
+      bucket.taxDrag = +Math.max(0, base * (rate / 100)).toFixed(2);
     }
     bucket.netReturn = +(bucket.expectedReturn - bucket.costs - bucket.taxDrag).toFixed(2);
     newBuckets[index] = bucket;
@@ -124,10 +129,12 @@ export function PortfolioBuilderSection() {
   };
 
   const updateKestRate = (newRate: number) => {
-    // Recompute taxDrag for all buckets with the new KESt rate
-    const newBuckets = portfolio.buckets.map((b) => {
+    // Recompute taxDrag for securities buckets with the new KESt rate.
+    // Cash (Topf 0) folgt dem eigenen Einlagen-Satz (AP7).
+    const newBuckets = portfolio.buckets.map((b, i) => {
+      const rate = i === 0 ? (portfolio.depositTaxRate ?? 25) : newRate;
       const base = b.expectedReturn - b.costs;
-      const taxDrag = +Math.max(0, base * (newRate / 100)).toFixed(2);
+      const taxDrag = +Math.max(0, base * (rate / 100)).toFixed(2);
       return {
         ...b,
         taxDrag,
@@ -140,18 +147,62 @@ export function PortfolioBuilderSection() {
     });
   };
 
+  // AP7: eigener KESt-Satz für Bankeinlagen-Zinsen (Default 25 %).
+  const updateDepositTaxRate = (newRate: number) => {
+    const newBuckets = portfolio.buckets.map((b, i) => {
+      if (i !== 0) return b;
+      const base = b.expectedReturn - b.costs;
+      const taxDrag = +Math.max(0, base * (newRate / 100)).toFixed(2);
+      return {
+        ...b,
+        taxDrag,
+        netReturn: +(b.expectedReturn - b.costs - taxDrag).toFixed(2),
+      };
+    }) as PortfolioConfig["buckets"];
+    dispatch({
+      type: "SET_PORTFOLIO",
+      payload: { depositTaxRate: newRate, buckets: newBuckets },
+    });
+  };
+
+  // AP1: Fixierung einzelner Allokationen (Lock) — reiner Bedienkomfort,
+  // komponentenlokal je Phase (kein Datenmodell-Feld, keine Persistenz).
+  const [locksAcc, setLocksAcc] = useState<[boolean, boolean, boolean]>([false, false, false]);
+  const [locksWd, setLocksWd] = useState<[boolean, boolean, boolean]>([false, false, false]);
+  const activeLocks = editingWithdrawal ? locksWd : locksAcc;
+  const toggleLock = (index: number) => {
+    const setter = editingWithdrawal ? setLocksWd : setLocksAcc;
+    setter((prev) => {
+      const next = [...prev] as [boolean, boolean, boolean];
+      next[index] = !next[index];
+      return next;
+    });
+  };
+
   // Re-normalisiert drei Gewichte auf 100 %, nachdem `index` auf `newValue`
-  // gesetzt wurde (proportionale Verteilung der Differenz auf die anderen).
+  // gesetzt wurde. Die Differenz wird proportional NUR auf die nicht
+  // fixierten anderen Töpfe verteilt (AP1); fixierte Werte bleiben exakt
+  // stehen. Ist keine Verteilung möglich, bleibt alles unverändert
+  // (der bewegte Slider „springt zurück", Summe bleibt 100).
   const renormalize = (
     current: [number, number, number],
     index: number,
     newValue: number,
+    locks: [boolean, boolean, boolean] = [false, false, false],
   ): [number, number, number] => {
+    if (locks[index]) return current;
     const out: [number, number, number] = [...current];
-    const diff = newValue - out[index];
-    out[index] = newValue;
-    const others = [0, 1, 2].filter((i) => i !== index);
+    const others = [0, 1, 2].filter((i) => i !== index && !locks[i]);
+    if (others.length === 0) return current;
+    // Obergrenze: 100 − Summe der fixierten übrigen Töpfe.
+    const lockedSum = [0, 1, 2]
+      .filter((i) => i !== index && locks[i])
+      .reduce((s, i) => s + out[i], 0);
+    const clamped = Math.max(0, Math.min(100 - lockedSum, newValue));
+    const diff = clamped - out[index];
     const otherTotal = others.reduce((s, i) => s + out[i], 0);
+    if (diff > 0 && otherTotal <= 0) return current; // nichts zu entnehmen
+    out[index] = clamped;
     if (otherTotal > 0) {
       for (const i of others) {
         const ratio = out[i] / otherTotal;
@@ -173,11 +224,11 @@ export function PortfolioBuilderSection() {
 
   const updateAllocation = (index: number, newValue: number) => {
     if (editingWithdrawal && wd) {
-      const allocs = renormalize([...wd.allocations], index, newValue);
+      const allocs = renormalize([...wd.allocations], index, newValue, locksWd);
       dispatch({ type: "SET_PORTFOLIO", payload: { withdrawalPhase: { ...wd, allocations: allocs } } });
       return;
     }
-    const allocs = renormalize(accAllocations, index, newValue);
+    const allocs = renormalize(accAllocations, index, newValue, locksAcc);
     const newBuckets = portfolio.buckets.map((b, i) => ({ ...b, allocation: allocs[i] })) as PortfolioConfig["buckets"];
     dispatch({ type: "SET_PORTFOLIO", payload: { buckets: newBuckets } });
   };
@@ -325,6 +376,39 @@ export function PortfolioBuilderSection() {
                 ))}
               </div>
 
+              {/* AP3: Dynamische Allokation — Wechselzeitpunkt vorziehen */}
+              <div className="rounded-lg bg-white ring-1 ring-slate-200 p-3" data-design-id="switch-years-field">
+                <Label htmlFor="switchYears" className="text-xs font-semibold">
+                  {t("portfolio.twoPhaseSwitchYearsLabel")}
+                </Label>
+                <div className="flex items-center gap-3 mt-1">
+                  <Input
+                    id="switchYears"
+                    type="number"
+                    value={wd?.switchYearsBeforeRetirement ?? 0}
+                    onChange={(e) => {
+                      const maxYears = Math.max(0, state.client.retirementAge - state.client.currentAge);
+                      const v = Math.max(0, Math.min(maxYears, parseInt(e.target.value) || 0));
+                      patchWithdrawal({ switchYearsBeforeRetirement: v });
+                    }}
+                    min={0}
+                    max={Math.max(0, state.client.retirementAge - state.client.currentAge)}
+                    className="h-9 w-24"
+                  />
+                  <span className="text-xs text-slate-500">
+                    {(wd?.switchYearsBeforeRetirement ?? 0) > 0
+                      ? t("portfolio.twoPhaseSwitchYearsActive").replace(
+                          "{age}",
+                          String(state.client.retirementAge - (wd?.switchYearsBeforeRetirement ?? 0)),
+                        )
+                      : t("portfolio.twoPhaseSwitchYearsAtRetirement")}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  {t("portfolio.twoPhaseSwitchYearsHint")}
+                </p>
+              </div>
+
               {/* Hinweis: KESt beim Umschichten */}
               <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
                 <span className="text-sm">ℹ️</span>
@@ -443,13 +527,37 @@ export function PortfolioBuilderSection() {
               </div>
               <div data-design-id={`bucket-allocation-${index}`}>
                 <Label className="text-xs flex items-center justify-between">
-                  <span>{t("portfolio.allocation")}</span>
+                  <span className="flex items-center gap-1.5">
+                    {t("portfolio.allocation")}
+                    {/* AP1: Fixierung — verteilt Slider-Änderungen nur auf
+                        die nicht fixierten Töpfe. */}
+                    <button
+                      type="button"
+                      onClick={() => toggleLock(index)}
+                      title={activeLocks[index] ? t("portfolio.unlockAllocation") : t("portfolio.lockAllocation")}
+                      className={`text-[13px] leading-none transition-opacity ${activeLocks[index] ? "opacity-100" : "opacity-30 hover:opacity-70"}`}
+                      data-design-id={`bucket-lock-${index}`}
+                    >
+                      {activeLocks[index] ? "🔒" : "🔓"}
+                    </button>
+                  </span>
                   {editingWithdrawal && (
                     <span className="text-[9px] text-[#5a8a50] font-semibold">{t("portfolio.phaseWithdrawal")}</span>
                   )}
                 </Label>
-                <Slider value={[activeAllocations[index]]} onValueChange={([val]) => updateAllocation(index, val)} max={100} min={0} step={1} className="my-2" />
-                <div className="text-right text-sm font-bold">{activeAllocations[index]}%</div>
+                <Slider
+                  value={[activeAllocations[index]]}
+                  onValueChange={([val]) => updateAllocation(index, val)}
+                  max={100}
+                  min={0}
+                  step={1}
+                  disabled={activeLocks[index]}
+                  className={`my-2 ${activeLocks[index] ? "opacity-50" : ""}`}
+                />
+                <div className="text-right text-sm font-bold">
+                  {activeAllocations[index]}%
+                  {activeLocks[index] && <span className="ml-1 text-[10px] text-slate-400 font-normal">{t("portfolio.lockedBadge")}</span>}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div data-design-id={`bucket-return-${index}`}>
@@ -488,6 +596,9 @@ export function PortfolioBuilderSection() {
 
       {/* Topf 4: Private Equity (deterministisch, optional) — nur Pro-Modus */}
       {isPro && <PrivateEquityBucket />}
+
+      {/* Produkt-Töpfe WBA/LV (AP8) — nur Pro-Modus, PE-Muster */}
+      {isPro && <ProductBuckets />}
 
       {/* Klassik-Erklärbox zur Allokation (nur in Klassik) */}
       {!isPro && (
@@ -653,6 +764,26 @@ export function PortfolioBuilderSection() {
                 className="mt-1"
               />
               <p className="text-xs text-slate-500 mt-1">{t("portfolio.kestHint")}</p>
+            </div>
+
+            {/* AP7: eigener Satz für Zinsen aus Bankeinlagen (jährliche
+                Besteuerung bei Zufluss, kein Höchststand-Modell). */}
+            <div data-design-id="deposit-tax-field">
+              <Label htmlFor="depositTaxRate" className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded bg-[#8FB687]/15 text-[#5a8a50] flex items-center justify-center text-[10px] font-bold">€st</span>
+                {t("portfolio.depositTaxLabel")}
+              </Label>
+              <Input
+                id="depositTaxRate"
+                type="number"
+                value={portfolio.depositTaxRate ?? 25}
+                onChange={(e) => updateDepositTaxRate(parseFloat(e.target.value) || 0)}
+                step={0.5}
+                min={0}
+                max={100}
+                className="mt-1"
+              />
+              <p className="text-xs text-slate-500 mt-1">{t("portfolio.depositTaxHint")}</p>
               {!isPro && (
                 <div className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50/60 p-2">
                   <div className="text-[11px] font-semibold text-[#20201E]">

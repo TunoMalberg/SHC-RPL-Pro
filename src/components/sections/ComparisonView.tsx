@@ -29,6 +29,7 @@ import type {
   MifidProfile,
 } from "@/lib/types";
 import { fmtEur, fmtPct } from "@/lib/format";
+import { computeConfigHash } from "@/lib/configHash";
 import { validatePlanInputs } from "@/lib/validation";
 import { toast } from "sonner";
 
@@ -125,9 +126,12 @@ export function ComparisonView() {
         );
       }
 
+      const assembled = assembleComparison(variants, targetSource);
+      // AP6: Fingerabdruck für den Stale-Hinweis.
+      assembled.configHash = computeConfigHash(client, inputs, portfolio, liquidityEvents);
       dispatch({
         type: "SET_COMPARISON_RESULT",
-        payload: assembleComparison(variants, targetSource),
+        payload: assembled,
       });
       setProgressPct(100);
       setProgressStep("");
@@ -157,6 +161,17 @@ export function ComparisonView() {
         <h2 className="text-2xl font-bold text-slate-900">{t("compare.viewTitle")}</h2>
         <p className="text-slate-500 mt-1">{t("compare.viewSubtitle")}</p>
       </div>
+
+      {/* AP6: Stale-Hinweis analog Ergebnis-Dashboard. */}
+      {comparison?.configHash &&
+        comparison.configHash !== computeConfigHash(client, inputs, portfolio, liquidityEvents) && (
+          <div
+            className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            data-design-id="comparison-stale-warning"
+          >
+            ⚠️ {t("results.staleWarning")}
+          </div>
+        )}
 
       {/* Konfiguration + Start */}
       <Card data-design-id="comparison-config-card">

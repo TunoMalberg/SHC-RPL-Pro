@@ -16,6 +16,11 @@ import type {
   SimulationSettings,
 } from "../types";
 import { DISPLAY_CONFIG } from "../displayConfig";
+import {
+  LV_ANNUAL_COST_PCT,
+  LV_INSURANCE_TAX_PCT,
+  LV_UPFRONT_COST_PCT,
+} from "../defaults";
 import { deflateSeries, realReturn } from "./valuation";
 import { rankAgainstCorridor } from "./corridor";
 
@@ -103,7 +108,34 @@ export function buildCalculationTrace(
       correlationMatrix: portfolio.correlationMatrix,
       inflationRatePct: inputs.inflationRate,
       kestRatePct: portfolio.kestRate ?? 27.5,
+      depositTaxRatePct: portfolio.depositTaxRate ?? 25,
       withdrawalPhase: portfolio.withdrawalPhase ?? null,
+      // Produkt-Töpfe WBA/LV (AP8): alle Parameter + Sperr-Alter.
+      products:
+        (portfolio.wohnbauanleihen?.length ?? 0) > 0 ||
+        (portfolio.lebensversicherungen?.length ?? 0) > 0
+          ? {
+              wohnbauanleihen: (portfolio.wohnbauanleihen ?? []).map((w) => ({
+                name: w.name,
+                amountEur: w.amount,
+                couponPct: w.couponPct,
+                termYears: w.termYears,
+                purchaseAge: w.purchaseAge,
+                maturityAge: w.purchaseAge + w.termYears,
+              })),
+              lebensversicherungen: (portfolio.lebensversicherungen ?? []).map((l) => ({
+                name: l.name,
+                erlagEur: l.amount,
+                expectedReturnPct: l.expectedReturnPct,
+                insuranceTaxPct: LV_INSURANCE_TAX_PCT,
+                upfrontCostPct: LV_UPFRONT_COST_PCT,
+                annualCostPct: LV_ANNUAL_COST_PCT,
+                lockYears: l.lockYears,
+                lockEndAge: l.purchaseAge + l.lockYears,
+                payoutAge: l.payoutAge ?? null,
+              })),
+            }
+          : null,
     },
     simulation: {
       numSimulations: settings.numSimulations,

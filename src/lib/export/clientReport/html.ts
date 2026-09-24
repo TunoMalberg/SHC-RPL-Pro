@@ -160,7 +160,7 @@ const DE_STRINGS = {
   mifidBalancedDesc: "Ausgewogenes Verhältnis von Sicherheit und Wachstum. Zwischenzeitliche Schwankungen werden in Kauf genommen, weil langfristig höhere Erträge angestrebt werden — typische Wahl für Altersvorsorge.",
   mifidGrowthName: "Wachstum",
   mifidGrowthDesc: "Langfristiger Vermögensaufbau steht im Vordergrund. Höhere Schwankungen sind möglich; ein längerer Anlagehorizont und ein ruhiger Umgang mit Kursrückgängen werden vorausgesetzt.",
-  mifidSpeculativeName: "Spekulativ",
+  mifidSpeculativeName: "Dynamisch",
   mifidSpeculativeDesc: "Maximale Renditechancen, mit entsprechend höheren Risiken. Auch stärkere Wertrückgänge sollten Sie aushalten können, ohne Ihre Anlagestrategie zu ändern.",
   /* Private Equity (Topf 4) */
   peTitle: "Private Equity (Topf 4)",
@@ -305,7 +305,7 @@ const EN_STRINGS: typeof DE_STRINGS = {
   mifidBalancedDesc: "A balanced mix of safety and growth. Interim fluctuations are accepted in exchange for higher long-term returns — the typical choice for retirement planning.",
   mifidGrowthName: "Growth",
   mifidGrowthDesc: "Long-term wealth building is the priority. Higher fluctuations are possible; a longer investment horizon and a calm approach to market setbacks are required.",
-  mifidSpeculativeName: "Speculative",
+  mifidSpeculativeName: "Dynamic",
   mifidSpeculativeDesc: "Maximum return potential with correspondingly higher risks. You should be able to tolerate pronounced drawdowns without changing your investment strategy.",
   /* Private Equity (bucket 4) */
   peTitle: "Private Equity (bucket 4)",
@@ -1022,8 +1022,8 @@ export async function generateClientHtmlReport(
 
   /* details section (collapsed by default) */
   const methodologyText = opts.locale === "de"
-    ? `Die Simulation verwendet 10.000 Monte-Carlo-Pfade auf Basis korrelierter log-normaler Renditen. Kosten und die österreichische Kapitalertragsteuer von ${portfolio.kestRate}% werden auf Netto-Renditen abgezogen. Inflationsanpassungen (${inputs.inflationRate}% p.a.) gelten für Entnahmen und Pensionen.`
-    : `The simulation uses 10,000 Monte-Carlo paths based on correlated log-normal returns. Costs and Austrian capital-gains tax of ${portfolio.kestRate}% are deducted for net returns. Inflation adjustments (${inputs.inflationRate}% p.a.) apply to withdrawals and pensions.`;
+    ? `Die Simulation verwendet 10.000 Monte-Carlo-Pfade auf Basis korrelierter log-normaler Renditen. Kosten werden laufend abgezogen; Wertpapiergewinne werden nach dem Höchststand-Prinzip mit ${portfolio.kestRate}% KESt besteuert, Zinsen auf Bankeinlagen jährlich mit ${portfolio.depositTaxRate ?? 25}%. Inflationsanpassungen (${inputs.inflationRate}% p.a.) gelten für Entnahmen und Pensionen.`
+    : `The simulation uses 10,000 Monte-Carlo paths based on correlated log-normal returns. Costs are deducted continuously; securities gains are taxed via the high-watermark principle at ${portfolio.kestRate}%, interest on bank deposits annually at ${portfolio.depositTaxRate ?? 25}%. Inflation adjustments (${inputs.inflationRate}% p.a.) apply to withdrawals and pensions.`;
 
   const detailsBlock = `
     <button class="details-toggle" id="details-btn" type="button"
@@ -1062,7 +1062,10 @@ export async function generateClientHtmlReport(
           <tbody>
             <tr><td>${esc(S.inflationRow)}</td><td class="num">${fmtPct(opts.locale, inputs.inflationRate)} p.a.</td></tr>
             <tr><td>${esc(S.kestRow)}</td><td class="num">${fmtPct(opts.locale, portfolio.kestRate)}</td></tr>
+            <tr><td>${opts.locale === "de" ? "KESt Bankeinlagen" : "Tax on bank deposits"}</td><td class="num">${fmtPct(opts.locale, portfolio.depositTaxRate ?? 25)}</td></tr>
             <tr><td>${opts.locale === "de" ? "Rebalancing" : "Rebalancing"}</td><td class="num">${esc(portfolio.rebalancingFrequency)} · ${portfolio.rebalancingThreshold}%</td></tr>
+            ${(portfolio.wohnbauanleihen ?? []).map((w) => `<tr><td>${opts.locale === "de" ? "Wohnbauanleihe" : "Housing bond"} ${esc(w.name)}</td><td class="num">${fmtEur(opts.locale, w.amount)} · ${fmtPct(opts.locale, w.couponPct)} ${opts.locale === "de" ? "steuerfrei" : "tax-free"} · ${w.termYears} J</td></tr>`).join("")}
+            ${(portfolio.lebensversicherungen ?? []).map((l) => `<tr><td>${opts.locale === "de" ? "Fondspolizze" : "Life insurance"} ${esc(l.name)}</td><td class="num">${fmtEur(opts.locale, l.amount)} · ${opts.locale === "de" ? `Bindung ${l.lockYears} J, Erträge KESt-frei` : `lock ${l.lockYears} yrs, returns tax-free`}</td></tr>`).join("")}
           </tbody>
         </table>
       </div>
