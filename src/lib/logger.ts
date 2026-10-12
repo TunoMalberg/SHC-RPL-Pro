@@ -11,6 +11,8 @@
  * Komponenten und Edge-Middleware identisch verwendet werden.
  */
 
+import { reportClientError } from "./errorReport";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LogContext {
@@ -73,7 +75,12 @@ export const logger = {
   debug: (msg: string, ctx?: LogContext) => emit("debug", msg, ctx),
   info:  (msg: string, ctx?: LogContext) => emit("info",  msg, ctx),
   warn:  (msg: string, ctx?: LogContext, err?: unknown) => emit("warn",  msg, ctx, err),
-  error: (msg: string, ctx?: LogContext, err?: unknown) => emit("error", msg, ctx, err),
+  error: (msg: string, ctx?: LogContext, err?: unknown) => {
+    emit("error", msg, ctx, err);
+    // Im Browser zusätzlich ans Fehlerprotokoll — nur Meldung + Code-Stelle,
+    // nie der Kontext (ctx), damit keine Eingaben mitgesendet werden.
+    reportClientError("logger", err instanceof Error ? err : msg, ctx?.scope);
+  },
 };
 
 export default logger;

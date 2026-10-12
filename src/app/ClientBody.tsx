@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { AppProvider } from "@/components/AppProvider";
 import { Toaster } from "@/components/ui/sonner";
+import { installGlobalErrorReporting } from "@/lib/errorReport";
 
 export default function ClientBody({
   children,
@@ -11,6 +12,7 @@ export default function ClientBody({
 }) {
   useEffect(() => {
     document.body.className = "antialiased font-sans";
+    installGlobalErrorReporting();
   }, []);
 
   return (

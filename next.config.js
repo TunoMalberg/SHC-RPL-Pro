@@ -27,6 +27,8 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig = {
+  // App-Version für das Fehlerprotokoll (src/lib/errorReport.ts).
+  env: { NEXT_PUBLIC_APP_VERSION: require('./package.json').version },
   // Use standalone output only for Docker/self-hosted builds (not Vercel)
   ...(process.env.VERCEL ? {} : { output: 'standalone' }),
   distDir: process.env.VERCEL ? '.next' : (process.env.BUILD_DIR || '.next-build'),

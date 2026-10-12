@@ -3,6 +3,9 @@
 # Läuft bei jeder Änderung auf GitHub — unabhängig vom Bank-Rechner und
 # dessen Proxy. Ausgeliefert wird nur, wenn ALLE Prüfungen grün sind:
 #   Typprüfung → Stilprüfung → Tests → Produktions-Build
+#   → Klicktests (Paket 3: die App wird im Browser bedient wie von einem
+#     Berater — bei Pull Requests und auf main)
+#   → nach dem Livegang: Kurzprüfung der Produktions-Seite
 #
 #  - Änderung auf `main`         → Prüfungen, danach Produktions-Deployment
 #  - Pull Request                → Prüfungen, danach Vorschau-Deployment
@@ -54,9 +57,41 @@ jobs:
       - name: Produktions-Build
         run: bun run build:vercel
 
+  e2e:
+    name: Klicktests
+    needs: check
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Abhängigkeiten installieren
+        run: bun install --frozen-lockfile
+
+      - name: Browser installieren
+        run: npx playwright install --with-deps chromium
+
+      - name: Klicktests (Desktop + Handy)
+        run: npx playwright test
+
+      - name: Testbericht sichern (bei Fehlern)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klicktest-bericht
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
   deploy-production:
     name: Produktions-Deployment
-    needs: check
+    needs: [check, e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -78,9 +113,32 @@ jobs:
           url=$(npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN")
           echo "Produktion: $url" >> "$GITHUB_STEP_SUMMARY"
 
+  smoke-production:
+    name: Kurzprüfung Produktion
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Abhängigkeiten installieren
+        run: bun install --frozen-lockfile
+
+      - name: Browser installieren
+        run: npx playwright install --with-deps chromium
+
+      - name: Produktions-Seite bedienen
+        env:
+          E2E_BASE_URL: https://app.veyder-malberg.com
+        run: npx playwright test --grep @smoke --project desktop
+
   deploy-preview:
     name: Vorschau-Deployment
-    needs: check
+    needs: [check, e2e]
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
