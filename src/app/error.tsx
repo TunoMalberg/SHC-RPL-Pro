@@ -13,6 +13,7 @@
 
 import { useEffect } from "react";
 import { logger } from "@/lib/logger";
+import { reportClientError } from "@/lib/errorReport";
 
 export default function GlobalError({
   error,
@@ -23,6 +24,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     logger.error("App-level error boundary triggered", { scope: "app/error", digest: error.digest }, error);
+    reportClientError("boundary", error, "app/error");
   }, [error]);
 
   return (

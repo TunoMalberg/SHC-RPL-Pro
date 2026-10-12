@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 /.next-build/
 .env*.local
+
+# Klicktests (Playwright)
+/test-results/
+/playwright-report/
+/blob-report/

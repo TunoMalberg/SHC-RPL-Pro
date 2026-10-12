@@ -49,6 +49,7 @@
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@eslint/eslintrc": "^3.3.7",
+    "@playwright/test": "1.56.1",
     "@types/bun": "^1.4.3",
     "@types/node": "^20.19.43",
     "@types/react": "^18.3.31",

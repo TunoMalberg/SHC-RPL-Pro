@@ -125,3 +125,37 @@ Wert; Zinseszins entsteht über die Jahre. Wertpapier-Töpfe und fondsgebundene
 LV rechnen nach derselben Logik. Vorher ergab dieselbe Eingabe 5,65 % p.a.
 Wirkung auf die Referenzfälle: Erfolgsquoten 0–3 Prozentpunkte niedriger;
 historischer Backtest unverändert (echte Renditen).
+
+## Klicktests und Betrieb (Paket 3)
+
+**Klicktests** (`e2e/`, Playwright): Bei jedem Pull Request und vor jedem
+Livegang baut GitHub die App wie für die Produktion und bedient sie im
+Browser wie eine Beraterin:
+
+- Klassik: Eingaben → Simulation → Ergebnisse, Historie, Einzelpfad, Kundenansicht
+- Pro: alle 13 Reiter öffnen sich ohne Fehler
+- Hinweise statt leerer Seiten, wenn noch keine Simulation läuft
+- Szenarien speichern, vergleichen und ansehen; Vergleichsansicht berechnen
+- Exporte: Excel, PowerPoint, HTML-Kundenreport, PDF werden erzeugt und geprüft
+- Sprache Englisch; Handybreite ohne seitliches Verrutschen
+
+Jeder Test schlägt auch dann fehl, wenn die App im Hintergrund Fehler wirft.
+Nur Dummy-Daten („Erika Test"). Bei Fehlern liegt der Bericht samt
+Bildschirmfoto als „klicktest-bericht" am GitHub-Lauf. Auf Bank-Arbeitsplätzen
+ist die Browser-Fernsteuerung per IT-Richtlinie gesperrt — dort laufen die
+Klicktests nicht lokal, nur auf GitHub.
+
+**Kurzprüfung nach dem Livegang:** Nach jeder Auslieferung öffnet GitHub
+`https://app.veyder-malberg.com`, startet eine Simulation und prüft Ergebnis
+und Backtest.
+
+**Fehlerprotokoll:** Fehler im Browser eines Beraters werden an die eigene
+Route `/api/client-error` gemeldet und stehen im Vercel-Protokoll (Suchwort
+`client-error`). Kein externer Dienst. Gesendet werden nur Fehlerart,
+bereinigte Meldung (Beträge, Jahreszahlen, lange Ziffernfolgen und
+E-Mail-Adressen unkenntlich), Code-Stelle, Seitenpfad und App-Version —
+nie Eingaben, Ergebnisse oder Kundendaten. Höchstens 10 Meldungen je Seite.
+
+**Rechenzeit-Grenzen** (`src/lib/engine/performance.test.ts`): schlagen an,
+wenn eine Änderung die Simulation spürbar verlangsamt (z. B. Standardfall
+10.000 Pfade über 3 s; lokal 0,35 s).
