@@ -181,8 +181,10 @@ export const REFERENCE_CASES: ReferenceCase[] = [
   },
   {
     id: "pensioniert",
-    title: "Bereits in Pension (70 J, Pensionsantritt 65)",
-    client: { ...baseClient(), birthYear: 1956, currentAge: 70, retirementAge: 65 },
+    // Pensionsantritt vor heute ist in der App gesperrt (Validierung) —
+    // bereits pensioniert heißt: Pensionsantritt = heutiges Alter.
+    title: "Bereits in Pension (70 J, Pensionsantritt = heute)",
+    client: { ...baseClient(), birthYear: 1956, currentAge: 70, retirementAge: 70 },
     inputs: { ...baseInputs(), initialCapital: 700_000, monthlySavings: 0 },
     portfolio: withPortfolio((p) => {
       p.withdrawalPhase = {

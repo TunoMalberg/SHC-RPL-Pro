@@ -87,7 +87,9 @@ Abweichung 0,00 €. Zur fachlichen Durchsicht durch eine Kollegin/einen Kollege
 der Bank gedacht.
 
 **Gemeinsamer Rechenkern** (`src/lib/engine/pathCore.ts`): Monte-Carlo-
-Simulation und Einzelpfad rechnen mit derselben Funktion; jede Rechenregel
+Simulation, Einzelpfad und historischer Backtest rechnen mit derselben
+Funktion (der Backtest mit echten Jahresrenditen und echter Inflation, ohne
+Private Equity und Produkt-Töpfe, weil es dafür keine historischen Reihen gibt); jede Rechenregel
 steht genau einmal im Code. Ein Test stellt sicher, dass der Einzelpfad den
 Worst-/Best-Case-Pfad der Simulation exakt reproduziert.
 
@@ -104,6 +106,14 @@ eingefroren):
    dasselbe Szenario wie der Simulationspfad gleicher Nummer.
 4. PE-Wert am Laufzeitende: beide verwenden jetzt den zuletzt gebuchten Wert.
 
+Historischer Backtest — durch den gemeinsamen Kern neu berücksichtigt:
+
+5. Zweiphasen-Allokation (Wechsel auf das Entnahme-Portfolio).
+6. Sparsteigerung p.a. bei nominaler Eingabe (vorher ignoriert).
+7. Liquiditätsereignisse mit gebrochenem Alter (z. B. 62,5) — vorher nie gebucht.
+8. Erfolgskriterium wie Monte-Carlo (Vermögen reicht nicht mehr für die
+   nächste Entnahme) statt „Kapital = 0".
+9. Drawdown als reiner Marktverlust wie Monte-Carlo, ohne Entnahmen.
+
 Offen bleibt bewusst: Der Einzelpfad rechnet immer in Jahresschritten, auch
-wenn die Simulation monatlich rechnet; der historische Backtest hat noch eine
-eigene, vereinfachte Rechnung.
+wenn die Simulation monatlich rechnet.

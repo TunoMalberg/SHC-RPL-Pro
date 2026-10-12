@@ -121,6 +121,10 @@ export function computeSnapshot(c: ReferenceCase): Snapshot {
       finalWealthByStartYear: Object.fromEntries(
         hist.scenarios.map((s) => [String(s.startYear), s.finalWealth]),
       ),
+      failedStartYears: hist.scenarios.filter((s) => !s.success).map((s) => s.startYear),
+      maxDrawdownByStartYear: Object.fromEntries(
+        hist.scenarios.map((s) => [String(s.startYear), s.maxDrawdown]),
+      ),
     },
   };
 

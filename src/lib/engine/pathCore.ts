@@ -2,8 +2,10 @@
  * Gemeinsamer Rechenkern (Paket 2, Punkt 6).
  *
  * EIN Pfad = Schritt für Schritt (Jahr oder Monat) die vollständige
- * Vermögensentwicklung eines Kunden. Monte-Carlo-Simulation und Einzelpfad
- * verwenden denselben Kern — jede Rechenregel steht genau einmal hier.
+ * Vermögensentwicklung eines Kunden. Monte-Carlo-Simulation, Einzelpfad und
+ * historischer Backtest verwenden denselben Kern — jede Rechenregel steht
+ * genau einmal hier. Der Backtest liefert statt Zufallsrenditen die echten
+ * Jahresrenditen und Inflationsraten (`MarketScenario`).
  *
  * Reihenfolge je Schritt (unverändert gegenüber dem Produktivstand):
  *   1. Renditen; Zinsen der Liquidität sofort mit KESt Bankeinlagen besteuert
@@ -355,6 +357,15 @@ export interface StepDetail {
   cumulativeInflation: number;
 }
 
+/**
+ * Vorgegebener Marktverlauf statt Zufallsrenditen (historischer Backtest):
+ * Netto-Rendite je Topf (nach Kosten) und Inflation des Schritts.
+ */
+export interface MarketScenario {
+  returns(step: number): number[];
+  inflation(step: number): number;
+}
+
 export interface PathRecorder {
   onStep(detail: StepDetail): void;
 }
@@ -381,10 +392,11 @@ export interface PathOutcome {
 export function simulatePath(
   ctx: PathContext,
   sim: number,
-  opts: { collectPath?: boolean; recorder?: PathRecorder } = {},
+  opts: { collectPath?: boolean; recorder?: PathRecorder; market?: MarketScenario } = {},
 ): PathOutcome {
   const { inputs, client, stepsPerYear } = ctx;
   const rec = opts.recorder;
+  const market = opts.market;
   const rng = new SeededRandom(ctx.baseSeed + sim);
   const peTimeline: PETimelineEntry[] = !ctx.hasPE
     ? []
@@ -451,7 +463,9 @@ export function simulatePath(
       : null;
 
     // ── 1. Renditen; Zinsen der Liquidität sofort besteuert ─────────
-    const returns = generateCorrelatedReturns(rng, ctx.cholesky, ctx.means, ctx.vols);
+    const returns = market
+      ? market.returns(step)
+      : generateCorrelatedReturns(rng, ctx.cholesky, ctx.means, ctx.vols);
     const cashInterest = bucketValues[0] * returns[0];
     const cashTaxPaid = Math.max(0, cashInterest) * ctx.depositTaxRate;
     if (d) {
@@ -478,7 +492,7 @@ export function simulatePath(
     const ddNow = marketPeak > 0 ? (marketPeak - marketIndex) / marketPeak : 0;
     if (ddNow > marketMaxDD) marketMaxDD = ddNow;
 
-    cumulativeInflation *= 1 + ctx.inflationPerStep;
+    cumulativeInflation *= 1 + (market ? market.inflation(step) : ctx.inflationPerStep);
 
     // ── 2. Private Equity (Bestand), jährlich am Jahresanfang ───────
     if (ctx.hasPE && yearStart) {
