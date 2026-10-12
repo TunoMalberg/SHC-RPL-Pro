@@ -95,8 +95,17 @@ export const FormattedNumberInput = React.forwardRef<
               ? String(value ?? 0).replace(".", ",")
               : String(Math.round(value ?? 0));
         setRawText(editable);
-        // Select all so user can type replacement quickly
-        requestAnimationFrame(() => e.target.select());
+        // Alles markieren, damit die neue Zahl den Wert direkt ersetzt.
+        // iOS ignoriert select() im Fokus-Ereignis bzw. per rAF →
+        // setSelectionRange nach dem Fokus-Durchlauf.
+        const el = e.currentTarget;
+        setTimeout(() => {
+          try {
+            el.setSelectionRange(0, el.value.length);
+          } catch {
+            /* Feld bereits verlassen */
+          }
+        }, 0);
         onFocus?.(e);
       }}
       onChange={(e) => {
