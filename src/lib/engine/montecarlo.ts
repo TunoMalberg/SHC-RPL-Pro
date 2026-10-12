@@ -11,129 +11,15 @@ import type {
 } from "../types";
 import { buildDeflators } from "./valuation";
 import {
-  SeededRandom,
-  choleskyDecomposition,
-  generateCorrelatedReturns,
-} from "./random";
-import {
   computePortfolioReturn,
   computePortfolioVolatility,
   computeSharpeRatio,
-  rebalancePortfolio,
-  rebalanceThreeBuckets,
 } from "./portfolio";
-import {
-  computePETimeline,
-  buildStochasticEnsemble,
-  type PETimelineEntry,
-  type PEEnsemble,
-} from "./privateEquity";
-import {
-  computeRemainingWithdrawals,
-  createPEProgramRuntime,
-  type PEProgramRuntime,
-} from "./peProgram";
-import {
-  computeProductTimeline,
-  createLvRuntime,
-  hasProductHoldings,
-  shockFromReturn,
-} from "./products";
-import { PE_STOCHASTIC_ENSEMBLE_SIZE } from "../defaults";
+import { buildPathContext, simulatePath, type StepDetail } from "./pathCore";
 
-/**
- * Wendet die deterministischen PE-Cashflows eines Jahres auf die
- * Liquid-Buckets an: Capital Calls drainen Cash (Kaskade über
- * Anleihen → Aktien), Netto-Distributions fliessen in Cash.
- *
- * Mutation: bucketValues wird in-place verändert.
- * Rückgabe: aktualisiertes highWatermark.
- */
-function applyPECashflowsToBuckets(
-  bucketValues: number[],
-  call: number,
-  distNet: number,
-  highWatermark: number,
-): number {
-  let hw = highWatermark;
-  if (call > 0) {
-    const cashAvail = bucketValues[0];
-    if (cashAvail >= call) {
-      bucketValues[0] -= call;
-    } else {
-      const remaining = call - cashAvail;
-      bucketValues[0] = 0;
-      const restTotal = bucketValues[1] + bucketValues[2];
-      if (restTotal > 0) {
-        const ratio = Math.min(1, remaining / restTotal);
-        bucketValues[1] *= 1 - ratio;
-        bucketValues[2] *= 1 - ratio;
-      }
-    }
-    hw = Math.max(0, hw - call);
-  }
-  if (distNet > 0) {
-    bucketValues[0] += distNet;
-    // Netto-Distributions sind bereits versteuert → heben High-Watermark
-    // analog zu einer Einzahlung an, damit kein Doppel-KESt entsteht.
-    hw += distNet;
-  }
-  return hw;
-}
-
-/**
- * Einmalige Umschichtung des liquiden Portfolios (Cash/Anleihen/Aktien) auf
- * die Zielgewichte der Entnahmephase bei Pensionsantritt.
- *
- * Steuerlogik (konsistent mit dem High-Watermark-KESt-Modell der Engine):
- *   - Der eingebettete (noch unversteuerte) Gewinn ist `total − highWatermark`.
- *   - Beim Umschichten wird nur der Anteil realisiert, der tatsächlich
- *     „umgeschlagen" wird. Der Turnover ist das klassische Portfolio-
- *     Turnover-Maß: ½·Σ|w_ziel − w_ist| ∈ [0, 1].
- *   - KESt fällt auf den realisierten Gewinnanteil an
- *     (`realizedGain = embeddedGain × turnover`, `tax = realizedGain × kest`).
- *   - Der verbleibende unrealisierte Gewinn bleibt steuerlich gestundet →
- *     der High-Watermark wird entsprechend nachgezogen.
- *
- * Mutiert `bucketValues` in place und gibt den neuen High-Watermark zurück.
- *
- * @param bucketValues  [Cash, Anleihen, Aktien] — wird in place überschrieben
- * @param targetWeights Zielgewichte der Entnahmephase (Summe ≈ 1)
- * @param highWatermark aktueller steuerlicher Höchststand
- * @param kestRate      KESt-Satz als Bruch (z. B. 0.275)
- * @returns neuer High-Watermark nach der Umschichtung
- */
-export function switchToWithdrawalAllocation(
-  bucketValues: number[],
-  targetWeights: number[],
-  highWatermark: number,
-  kestRate: number,
-): number {
-  const total = bucketValues[0] + bucketValues[1] + bucketValues[2];
-  if (total <= 0) return highWatermark;
-
-  // Turnover = ½·Σ|w_ziel − w_ist|
-  let turnover = 0;
-  for (let i = 0; i < 3; i++) {
-    const wIst = bucketValues[i] / total;
-    turnover += Math.abs(targetWeights[i] - wIst);
-  }
-  turnover *= 0.5;
-
-  const embeddedGain = Math.max(0, total - highWatermark);
-  const realizedGain = embeddedGain * turnover;
-  const tax = realizedGain * kestRate;
-  const totalAfter = total - tax;
-
-  // Auf Zielgewichte umschichten (nach Steuer).
-  for (let i = 0; i < 3; i++) {
-    bucketValues[i] = targetWeights[i] * totalAfter;
-  }
-
-  // Verbleibender (nicht realisierter) Gewinn bleibt gestundet.
-  const remainingUnrealizedGain = embeddedGain - realizedGain;
-  return Math.max(0, totalAfter - remainingUnrealizedGain);
-}
+// Rechenregeln je Pfad stehen im gemeinsamen Kern (pathCore.ts). Diese
+// Datei sammelt nur noch die Ergebnisse (Statistik, Perzentile, Tabelle).
+export { switchToWithdrawalAllocation } from "./pathCore";
 
 export function runMonteCarloSimulation(
   client: ClientProfile,
@@ -142,518 +28,39 @@ export function runMonteCarloSimulation(
   settings: SimulationSettings,
   liquidityEvents: LiquidityEvent[] = []
 ): SimulationResult {
+  const ctx = buildPathContext(client, inputs, portfolio, settings, liquidityEvents);
+  const { stepsPerYear, totalSteps, totalYears, peEnsemble, peTimelineDefault, peRuntime } = ctx;
   const accumulationYears = Math.max(0, client.retirementAge - client.currentAge);
-  const withdrawalYears = Math.max(0, client.lifeExpectancy - client.retirementAge);
-  const totalYears = accumulationYears + withdrawalYears;
-  const stepsPerYear = 12 / settings.timeStepMonths;
-  const totalSteps = Math.ceil(totalYears * stepsPerYear);
-  const accumulationSteps = Math.ceil(accumulationYears * stepsPerYear);
+  const hasPE = ctx.hasPE;
+  const desiredMonthly = ctx.desiredMonthly;
+  const inflateWithdrawals = ctx.inflateWithdrawals;
 
-  // ── Phasen-Portfolios ───────────────────────────────────────────
-  // Ansparphase nutzt `portfolio.buckets`-Gewichte; die Entnahmephase
-  // kann (optional) abweichende Gewichte + Rebalancing/Cash-Puffer haben.
-  // Rendite/Vola/Kosten je Topf sind IDENTISCH (kommen aus buckets).
-  const accWeights = portfolio.buckets.map((b) => b.allocation / 100);
-  const wd = portfolio.withdrawalPhase;
-  const wdWeights = wd
-    ? wd.allocations.map((a) => a / 100)
-    : accWeights;
-  const accRebalFreq = portfolio.rebalancingFrequency;
-  const accRebalThreshold = portfolio.rebalancingThreshold;
-  const accCashYears = portfolio.cashYearsTarget ?? 2;
-  const wdRebalFreq = wd ? wd.rebalancingFrequency : accRebalFreq;
-  const wdCashYears = wd ? wd.cashYearsTarget : accCashYears;
-  // AP3: Dynamische Allokation — Umschichtung optional X Jahre VOR dem
-  // Pensionsantritt. switchStep trennt die ALLOKATIONS-Regime (acc/wd),
-  // accumulationSteps weiterhin die CASHFLOW-Phasen (Sparen/Entnehmen).
-  // X = 0 (Default): switchStep === accumulationSteps → bit-identisch.
-  const switchYears = Math.max(0, wd?.switchYearsBeforeRetirement ?? 0);
-  const switchStep = Math.max(
-    0,
-    accumulationSteps - Math.ceil(switchYears * stepsPerYear),
-  );
-  // Startgewichte: wenn das Wechsel-Regime sofort gilt (bereits pensioniert
-  // oder X ≥ Jahre bis Pension), direkt die Entnahmegewichte.
-  const startWeights = switchStep > 0 || !wd ? accWeights : wdWeights;
-
-  // KORREKTUR (2025-11-11): Mittelwert = Brutto-Rendite abzüglich laufender Kosten.
-  // KESt wird NICHT mehr als kontinuierlicher Drag in den Mittelwert gezogen,
-  // sondern erst ausgelöst, wenn ein neuer Höchststand erreicht wird (siehe unten).
-  const means = portfolio.buckets.map(
-    (b) => ((b.expectedReturn - b.costs) / 100) / stepsPerYear
-  );
-  const vols = portfolio.buckets.map(
-    (b) => (b.volatility / 100) / Math.sqrt(stepsPerYear)
-  );
-  const kestRate = (portfolio.kestRate ?? 27.5) / 100;
-  // AP7: KESt auf Bankeinlagen-Zinsen (jährliche Besteuerung bei Zufluss).
-  const depositTaxRate = (portfolio.depositTaxRate ?? 25) / 100;
-
-  const corrMatrix = portfolio.correlationMatrix;
-  const cholesky = choleskyDecomposition(corrMatrix);
-
-  const inflationPerStep = Math.pow(1 + inputs.inflationRate / 100, 1 / stepsPerYear) - 1;
-  const savingsPerStep = inputs.monthlySavings * settings.timeStepMonths;
-  // CR 4: Der Entnahmewunsch ist optional (null = „berechnen, was möglich
-  // ist"). Engine-intern wird null als 0 gerechnet; der Aufrufer (Simulation
-  // Panel) ersetzt den Lauf in diesem Modus durch die typische Korridor-
-  // Entnahme und markiert das Ergebnis via `withdrawalAssumption`.
-  const desiredMonthly = inputs.desiredMonthlyWithdrawal ?? 0;
-  const withdrawalPerStep = desiredMonthly * settings.timeStepMonths;
-  const pensionPerStep = inputs.monthlyPension * settings.timeStepMonths;
-  // Steuerung Entnahme- und Pensions-Inflation:
-  //
-  // FIX (2026-Q4): vorher war der Ausdruck
-  //   inflateWithdrawals = useRealValues || inflateWithdrawalToRetirement
-  // → da `useRealValues` standardmäßig true ist, hat der Schieber
-  //   `inflateWithdrawalToRetirement` faktisch nie etwas geändert
-  //   (vom OR überschattet).
-  //
-  // Korrekte Semantik (jetzt entkoppelt):
-  //   - `useRealValues`                  → steuert NUR die Sparphase
-  //                                         (Sparrate wächst mit Inflation)
-  //   - `inflateWithdrawalToRetirement`  → steuert NUR Entnahme + Pension
-  //                                         (heutige Kaufkraft → mit Infl.
-  //                                         hochgerechnet, sodass an Tag 1
-  //                                         der Pension der zukünftige
-  //                                         Nominalbetrag entnommen wird).
-  //
-  // Default für die Entnahme-Inflation ist seit 2026-Q4 ON — die
-  // realistische Annahme für Beratungsgespräche, weil Berater mit
-  // heutigen Kaufkraft-Beträgen rechnen.
-  const inflateWithdrawals = inputs.inflateWithdrawalToRetirement !== false;
-
-  // PE-Timeline (Topf 4). Drei Modi:
-  //  - 'simple'    : klassische Compound-Balance NAV.
-  //  - 'realistic' : Compound + J-Curve-Overlay (Fee-Drag).
-  //  - 'full'      : J-Curve + Stochastik. Pro MC-Pfad wird ein
-  //                  Szenario aus dem Ensemble gewählt; das Ergebnis
-  //                  liefert zusätzlich p25/p75-Bänder.
-  // Calls werden aus Cash gedrainet (Kaskade), Netto-Distributions
-  // fließen in Cash. NAV wird als zusätzliches Vermögen geführt.
-  const peFunds = portfolio.peFunds ?? [];
-  const peMode = portfolio.peModelingMode ?? "realistic";
-  const peStochastic = peMode === "full" && peFunds.length > 0;
-  const peEnsemble: PEEnsemble | null = peStochastic
-    ? buildStochasticEnsemble(
-        peFunds,
-        client.currentAge,
-        totalYears,
-        kestRate,
-        PE_STOCHASTIC_ENSEMBLE_SIZE,
-        (settings.randomSeed ?? 42) ^ 0xa17b1e,
-      )
-    : null;
-  const peTimelineDefault: PETimelineEntry[] =
-    peFunds.length > 0
-      ? peEnsemble
-        ? peEnsemble.median
-        : computePETimeline(peFunds, client.currentAge, totalYears, kestRate, peMode)
-      : [];
-  const hasPE = peTimelineDefault.length > 0;
-  // Pro Sim wählen wir das anzuwendende Szenario:
-  // - simple/realistic: ein einziges deterministisches Szenario.
-  // - full           : `sim % ensembleSize`-tes Szenario aus dem Ensemble.
-  const peTimelineForSim = (sim: number): PETimelineEntry[] => {
-    if (!hasPE) return [];
-    if (peEnsemble) {
-      return peEnsemble.scenarios[sim % peEnsemble.scenarios.length];
-    }
-    return peTimelineDefault;
-  };
-
-  // Rollierendes PE-Programm (Zielquote). Läuft ADDITIV zum Bestand
-  // (statische peFunds-Timeline oben bleibt unberührt). Jeder Pfad
-  // entscheidet jährlich selbst über neue Commitments (Pacing + Guards
-  // in peProgram.ts); ohne Programm bleibt alles bit-identisch.
-  const peProgramCfg =
-    portfolio.peProgram?.enabled && portfolio.peProgram.targetQuotaPct > 0
-      ? portfolio.peProgram
-      : null;
-  const peRuntime: PEProgramRuntime | null = peProgramCfg
-    ? createPEProgramRuntime(
-        peProgramCfg,
-        portfolio,
-        totalYears,
-        kestRate,
-        peMode,
-        settings.randomSeed ?? 42,
-      )
-    : null;
-  // Restliche Netto-Entnahmen je Jahr (deterministisch → einmal vorab).
-  const remainingWithdrawals = peRuntime
-    ? computeRemainingWithdrawals(client, inputs, totalYears)
-    : null;
-  // Programm-NAV je [Pfad][Jahr] für Cross-Path-Perzentile des PE-Charts.
+  // Programm-NAV bzw. Produktwert je [Pfad][Jahr] für Cross-Path-Perzentile.
   const peProgNavMatrix: number[][] | null = peRuntime ? [] : null;
-
-  // ── Produkt-Töpfe WBA/LV (AP8): deterministische Timeline, einmal
-  //    vorab — Käufe/Kupons/Auszahlungen + Wert je Jahr (PE-Muster). ──
-  const productTimeline = computeProductTimeline(
-    portfolio.wohnbauanleihen ?? [],
-    portfolio.lebensversicherungen ?? [],
-    client.currentAge,
-    totalYears,
-  );
-  const hasProducts = hasProductHoldings(productTimeline);
-  // LV als Mantel über der VV: pfadweise stochastisch, Gleichlauf mit dem
-  // Aktien-Topf (eigener Zufallsstrom → ohne LV bit-identisch).
-  const lvRuntime = createLvRuntime(
-    portfolio.lebensversicherungen ?? [],
-    client.currentAge,
-    totalYears,
-    settings.randomSeed ?? 42,
-  );
-  // Produktwert je [Pfad][Jahr] für Cross-Path-Perzentile.
-  const productValueMatrix: number[][] | null = hasProducts ? [] : null;
+  const productValueMatrix: number[][] | null = ctx.hasProducts ? [] : null;
 
   const allFinalValues: number[] = [];
   const allPaths: number[][] = [];
   // Best/Worst-Simulationsindex (niedrigstes/höchstes Endvermögen) —
-  // wird genutzt, um im Reiter „Einzelpfad" gezielt den exakten Worst-/
-  // Best-Case-Pfad reproduzieren zu können (gleicher Seed-Offset).
+  // der Reiter „Einzelpfad" reproduziert diese Pfade exakt (gleicher Index).
   let bestSimIndex = 0;
   let worstSimIndex = 0;
   let bestFinalValue = Number.NEGATIVE_INFINITY;
   let worstFinalValue = Number.POSITIVE_INFINITY;
-  // FIX (2026-Q2): Reiner Markt-Drawdown.
-  // Der bisherige MaxDD wurde auf dem Vermögenspfad inkl. Sparraten,
-  // Entnahmen, KESt und Liquiditätsereignissen berechnet → der
-  // monotone Vermögensabbau in der Entnahmephase wurde fälschlich
-  // als "Drawdown" ausgewiesen (typisch +10–20 pp Inflation).
-  // Wir tracken jetzt zusätzlich einen reinen Marktindex pro Pfad
-  // (gewichtete Brutto-Renditen aller Töpfe, ohne Cash-Flows),
-  // der die übliche Definition «größter Peak-to-Trough-Verlust»
-  // erfüllt und den Tooltip-Versprechen «20–40 %» entspricht.
+  // Reiner Markt-Drawdown je Pfad (ohne Sparraten/Entnahmen/KESt).
   const marketDrawdowns: number[] = [];
   let successCount = 0;
   const failureYears: number[] = [];
 
-  // FIX (2026-Q3): Pro Sim eigene SeededRandom-Instanz mit Seed = base+sim.
-  // Damit erzeugt MC für simIndex N exakt die gleiche Pfadhistorie wie der
-  // Reiter „Einzelpfad" via runDetailedSingleSimulation(N) (gleiches Seeding,
-  // gleicher Pseudo-Zufall). Dadurch zeigen die Buttons „Worst-/Best-Case-Pfad"
-  // im Einzelpfad-Reiter die Cashflows der jeweiligen MC-Pfade reproduzierbar
-  // an. Statistisch ändert sich gegenüber dem alten gemeinsamen RNG nichts:
-  // 10 000 unabhängige Seeds liefern eine gleichwertige Stichprobenverteilung;
-  // nur einzelne Pfadergebnisse verschieben sich. Reproduzierbarkeit ist hier
-  // wichtiger als historische Bit-Identität der Stichprobe.
-  const baseSeed = settings.randomSeed ?? 42;
-
   for (let sim = 0; sim < settings.numSimulations; sim++) {
-    const rng = new SeededRandom(baseSeed + sim);
-    const peTimeline = peTimelineForSim(sim);
-    let bucketValues = startWeights.map((w) => w * inputs.initialCapital);
-    // Phasenwechsel-Flag: garantiert, dass die einmalige Umschichtung auf
-    // das Entnahme-Portfolio (inkl. Switch-KESt) genau einmal passiert.
-    let switchedToWithdrawal = false;
-    // PE-NAV zu Beginn = 0 (Fonds starten zu definierten Altersstufen).
-    let peNavCurrent = hasPE ? peTimeline[0].totalNav : 0;
-    // Rollierendes PE-Programm: eigener Pfad-Zustand + separater NAV.
-    const peState = peRuntime ? peRuntime.newPathState(sim) : null;
-    let peProgNavCurrent = 0;
-    // Produkt-Töpfe (AP8): Wert läuft deterministisch mit (pfadunabhängig);
-    // startet bei 0 — der Kauf (Drain + Wertaufbau) erfolgt im Jahres-Block
-    // von Schritt 0.
-    let productValueCurrent = 0;
-    const lvState = lvRuntime.active ? lvRuntime.newPathState(sim) : null;
-    // Akkumulierter Aktienschock seit dem letzten Jahres-Block (Gleichlauf LV).
-    let equityShockSum = 0;
-    let equityShockSteps = 0;
-    const productValueYears: number[] | null = hasProducts ? [] : null;
-    const peProgNavYears: number[] | null = peState ? [] : null;
-    const path: number[] = [inputs.initialCapital + peNavCurrent];
-    // Reiner Marktindex (startet bei 1) — nur Renditen, keine Cash-Flows.
-    let marketIndex = 1;
-    let marketPeak = 1;
-    let marketMaxDD = 0;
-    let failed = false;
-    let failureStep = -1;
-    let cumulativeInflation = 1;
-    // FIX B: Steuerlicher Höchststand (High-Watermark) — initial = Startkapital.
-    // KESt fällt NUR an, wenn das Portfolio diesen Höchststand überschreitet.
-    let highWatermark = inputs.initialCapital;
-
-    for (let step = 0; step < totalSteps; step++) {
-      const returns = generateCorrelatedReturns(rng, cholesky, means, vols);
-
-      // AP7: Zinsen auf Bankeinlagen (Topf 0) werden JÄHRLICH bei Zufluss
-      // besteuert (eigener Satz, Default 25 %) — nicht über das
-      // Höchststand-Modell. Der Netto-Zins wird signiert in den Watermark
-      // eingerechnet (wie eine Ein-/Auszahlung): positiver Zins hebt ihn um
-      // (Zins − Steuer), negativer senkt ihn um |Zins| — dadurch erfasst die
-      // End-of-Step-Watermark-KESt nur noch Anleihen-/Aktien-Gewinne und
-      // Cash-Verluste schirmen keine Wertpapiergewinne ab.
-      const cashInterest = bucketValues[0] * returns[0];
-      const cashTaxPaid = Math.max(0, cashInterest) * depositTaxRate;
-      bucketValues[0] += cashInterest - cashTaxPaid;
-      bucketValues[1] *= 1 + returns[1];
-      bucketValues[2] *= 1 + returns[2];
-      highWatermark = Math.max(0, highWatermark + cashInterest - cashTaxPaid);
-      if (lvState) {
-        equityShockSum += shockFromReturn(returns[2], means[2], vols[2]);
-        equityShockSteps++;
-      }
-
-      // Reine Marktrendite des Schritts = strategische Allokation × Topf-Renditen.
-      // KESt wird hier NICHT abgezogen — der Marktindex misst Brutto-Marktrisiko.
-      // (KESt ist eine deterministische Steuer auf Gewinne und keine Marktbewegung.)
-      const mktWeights = step < switchStep ? accWeights : wdWeights;
-      const marketStepReturn = mktWeights.reduce((s, w, i) => s + w * returns[i], 0);
-      marketIndex *= 1 + marketStepReturn;
-      if (marketIndex > marketPeak) marketPeak = marketIndex;
-      const ddNow = marketPeak > 0 ? (marketPeak - marketIndex) / marketPeak : 0;
-      if (ddNow > marketMaxDD) marketMaxDD = ddNow;
-
-      const isAccumulation = step < accumulationSteps;
-      cumulativeInflation *= 1 + inflationPerStep;
-
-      // PE-Cashflows: einmal pro Jahr am Jahresanfang anwenden.
-      // (Calls bevor Sparrate/Entnahme, damit Drains konservativ verrechnet werden.)
-      if (hasPE && step % stepsPerYear === 0) {
-        const yIdx = Math.floor(step / stepsPerYear);
-        const peEntry = peTimeline[yIdx];
-        if (peEntry) {
-          highWatermark = applyPECashflowsToBuckets(
-            bucketValues,
-            peEntry.totalCall,
-            peEntry.totalDistNet,
-            highWatermark,
-          );
-          peNavCurrent = peEntry.totalNav;
-        }
-      }
-
-      // Rollierendes PE-Programm: jährliche Commitment-Entscheidung +
-      // Cashflows (nach dem Bestand-Block, damit `liquid` die Bestand-
-      // Calls bereits konservativ berücksichtigt).
-      if (peState && peRuntime && remainingWithdrawals && step % stepsPerYear === 0) {
-        const yIdx = Math.floor(step / stepsPerYear);
-        const liquidNow =
-          bucketValues[0] + bucketValues[1] + bucketValues[2];
-        const staticPeNavAtPeak = hasPE
-          ? peTimeline[Math.min(yIdx + peRuntime.tPeak, peTimeline.length - 1)]
-              ?.totalNav ?? 0
-          : 0;
-        const remainingNow = remainingWithdrawals[yIdx] ?? 0;
-        const remainingNext = remainingWithdrawals[yIdx + 1] ?? 0;
-        const prog = peState.processYear({
-          yearIdx: yIdx,
-          liquid: liquidNow,
-          staticPeNavNow: peNavCurrent,
-          staticPeNavAtPeak,
-          netAnnualWithdrawal: Math.max(0, remainingNow - remainingNext),
-          remainingWithdrawalsNominal: remainingNow,
-          isWithdrawalPhase: !isAccumulation,
-        });
-        highWatermark = applyPECashflowsToBuckets(
-          bucketValues,
-          prog.call,
-          prog.distNet,
-          highWatermark,
-        );
-        peProgNavCurrent = prog.nav;
-        // Gesamt-PE-NAV (Bestand + Programm) für Cross-Path-Perzentile.
-        peProgNavYears?.push(peNavCurrent + peProgNavCurrent);
-      }
-
-      // ── Produkt-Töpfe WBA/LV (AP8): Käufe drainen die Cash-Kaskade
-      //    (Watermark −1:1), steuerfreie Kupons/Auszahlungen fließen in
-      //    Cash (Watermark +1:1) — identische Semantik wie PE-Cashflows,
-      //    daher keine Watermark-KESt auf steuerfreie Produktflüsse. ────
-      if (hasProducts && step % stepsPerYear === 0) {
-        const yIdx = Math.floor(step / stepsPerYear);
-        const prodEntry = productTimeline[yIdx];
-        if (prodEntry) {
-          // LV pfadweise: Wachstum mit dem Aktienschock des Jahres
-          // (Σz/√n über die Schritte seit dem letzten Block).
-          const zEq =
-            equityShockSteps > 0 ? equityShockSum / Math.sqrt(equityShockSteps) : 0;
-          equityShockSum = 0;
-          equityShockSteps = 0;
-          const lv = lvState ? lvState.advanceYear(yIdx, zEq) : { lvValue: 0, lvPayout: 0 };
-          highWatermark = applyPECashflowsToBuckets(
-            bucketValues,
-            prodEntry.purchases,
-            prodEntry.coupons + prodEntry.wbaPayouts + lv.lvPayout,
-            highWatermark,
-          );
-          productValueCurrent = prodEntry.wbaValue + lv.lvValue;
-          productValueYears?.push(productValueCurrent);
-        }
-      }
-
-      // ── Allokationswechsel: einmalige Umschichtung auf das Entnahme-
-      //    Portfolio — zum Pensionsantritt oder (AP3) bereits X Jahre
-      //    davor (switchStep). Guard switchStep > 0 verhindert ein
-      //    Phantom-Steuerereignis beim Direktstart in den wd-Gewichten. ─
-      if (wd && !switchedToWithdrawal && step >= switchStep && switchStep > 0) {
-        highWatermark = switchToWithdrawalAllocation(
-          bucketValues,
-          wdWeights,
-          highWatermark,
-          kestRate,
-        );
-        switchedToWithdrawal = true;
-      }
-
-      if (isAccumulation) {
-        const adjustedSavings = inputs.useRealValues
-          ? savingsPerStep * cumulativeInflation
-          : savingsPerStep *
-            Math.pow(1 + inputs.annualSavingsIncrease / 100 / stepsPerYear, step);
-
-        // AP3: Nach vorgezogenem Wechsel fließen Sparraten in die
-        // Entnahme-Gewichte (das Portfolio hält bereits die Zielstruktur).
-        const saveWeights = step < switchStep ? accWeights : wdWeights;
-        for (let i = 0; i < 3; i++) {
-          bucketValues[i] += saveWeights[i] * adjustedSavings;
-        }
-        // Einzahlung hebt den Höchststand 1:1 (kein Steuerereignis).
-        highWatermark += adjustedSavings;
-      } else {
-        const adjustedWithdrawal = inflateWithdrawals
-          ? withdrawalPerStep * cumulativeInflation
-          : withdrawalPerStep;
-
-        const currentAge =
-          client.currentAge + step / stepsPerYear;
-        const hasPension = currentAge >= inputs.pensionStartAge;
-        const adjustedPension = hasPension
-          ? inflateWithdrawals
-            ? pensionPerStep * cumulativeInflation
-            : pensionPerStep
-          : 0;
-
-        const netWithdrawal = Math.max(0, adjustedWithdrawal - adjustedPension);
-        const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
-
-        // Erfolgskriterium inkl. PE-NAV (Wunsch des Auftraggebers:
-        // "PE immer in der Erfolgsquote ja"). PE-NAV ist illiquide,
-        // wird hier aber zur Vermögensbestimmung zugerechnet.
-        // Programm-NAV (rollierendes PE-Programm) zählt ebenfalls.
-        // Produkt-Töpfe zählen — wie PE-NAV — zum Vermögen im Erfolgs-
-        // kriterium (gesperrt, aber vorhanden); entnehmbar sind sie nie.
-        const totalWithPE =
-          totalPortfolio + peNavCurrent + peProgNavCurrent + productValueCurrent;
-        if (totalWithPE <= netWithdrawal && !failed) {
-          failed = true;
-          failureStep = step;
-        }
-
-        if (totalPortfolio > 0) {
-          const cashAvailable = bucketValues[0];
-          if (cashAvailable >= netWithdrawal) {
-            bucketValues[0] -= netWithdrawal;
-          } else {
-            const remaining = netWithdrawal - cashAvailable;
-            bucketValues[0] = 0;
-            const restTotal = bucketValues[1] + bucketValues[2];
-            if (restTotal > 0) {
-              const ratio = Math.min(1, remaining / restTotal);
-              bucketValues[1] *= 1 - ratio;
-              bucketValues[2] *= 1 - ratio;
-            }
-          }
-        }
-        // Entnahme senkt den Höchststand 1:1 (vereinfachte Durchschnittsbetrachtung).
-        highWatermark = Math.max(0, highWatermark - netWithdrawal);
-      }
-
-      const currentAgeAtStep = client.currentAge + step / stepsPerYear;
-      for (const le of liquidityEvents) {
-        const leStepAge = le.age;
-        const prevAge = client.currentAge + (step - 1) / stepsPerYear;
-        if (currentAgeAtStep >= leStepAge && prevAge < leStepAge) {
-          const amount = le.amount;
-          if (amount > 0) {
-            const injectWeights = step < switchStep ? accWeights : wdWeights;
-            for (let i = 0; i < 3; i++) {
-              bucketValues[i] += injectWeights[i] * amount;
-            }
-            highWatermark += amount;
-          } else {
-            const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
-            if (totalPortfolio > 0) {
-              const withdrawRatio = Math.min(1, Math.abs(amount) / totalPortfolio);
-              for (let i = 0; i < 3; i++) {
-                bucketValues[i] *= 1 - withdrawRatio;
-              }
-            }
-            highWatermark = Math.max(0, highWatermark - Math.abs(amount));
-          }
-        }
-      }
-
-      const shouldRebalance = checkRebalancing(
-        step,
-        stepsPerYear,
-        step < switchStep ? accRebalFreq : wdRebalFreq
-      );
-      if (shouldRebalance) {
-        if (step < switchStep) {
-          bucketValues = rebalancePortfolio(
-            bucketValues,
-            accWeights,
-            accRebalThreshold
-          );
-        } else if (step < accumulationSteps) {
-          // AP3: Fenster zwischen vorgezogenem Wechsel und Pensionsantritt —
-          // klassisches Rebalancing auf die Entnahme-Gewichte mit der
-          // Entnahme-Schwelle (Cash-Puffer-Logik erst ab der Entnahmephase;
-          // erstmalige Nutzung von wd.rebalancingThreshold).
-          bucketValues = rebalancePortfolio(
-            bucketValues,
-            wdWeights,
-            wd?.rebalancingThreshold ?? accRebalThreshold
-          );
-        } else {
-          const annualWithdrawalForTarget = inflateWithdrawals
-            ? desiredMonthly * 12 * cumulativeInflation
-            : desiredMonthly * 12;
-          const pensionForTarget =
-            (client.currentAge + step / stepsPerYear) >= inputs.pensionStartAge
-              ? (inflateWithdrawals ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
-              : 0;
-          const netAnnualWithdrawal = Math.max(0, annualWithdrawalForTarget - pensionForTarget);
-
-          const result = rebalanceThreeBuckets(
-            bucketValues,
-            netAnnualWithdrawal / stepsPerYear,
-            wdCashYears,
-            returns[2]
-          );
-          bucketValues = result.values;
-        }
-      }
-
-      // FIX B: High-Watermark-KESt — Steuer nur bei neuem Höchststand fällig.
-      // Verlustjahre und Erholungen bis zum letzten Hoch lösen keine Steuer aus.
-      const beforeTaxTotal = bucketValues.reduce((a, b) => a + b, 0);
-      if (beforeTaxTotal > highWatermark && beforeTaxTotal > 0) {
-        const taxableGain = beforeTaxTotal - highWatermark;
-        const tax = taxableGain * kestRate;
-        const factor = (beforeTaxTotal - tax) / beforeTaxTotal;
-        bucketValues = bucketValues.map((v) => v * factor);
-        highWatermark = beforeTaxTotal - tax;
-      }
-
-      // Aktualisiere PE-NAV für aktuellen Schritt (innerhalb eines
-      // Jahres bleibt NAV konstant; aktualisiert wird zu Beginn jedes
-      // neuen Jahres oben). Pfadwert = liquide + PE-NAV.
-      const totalLiquid = Math.max(0, bucketValues.reduce((a, b) => a + b, 0));
-      path.push(totalLiquid + peNavCurrent + peProgNavCurrent + productValueCurrent);
-    }
-
-    const finalLiquid = Math.max(0, bucketValues.reduce((a, b) => a + b, 0));
-    const finalValue = finalLiquid + peNavCurrent + peProgNavCurrent + productValueCurrent;
+    const out = simulatePath(ctx, sim, { collectPath: true });
+    const finalValue = out.finalValue;
     allFinalValues.push(finalValue);
-    allPaths.push(path);
-    marketDrawdowns.push(marketMaxDD);
-    if (peProgNavYears && peProgNavMatrix) peProgNavMatrix.push(peProgNavYears);
-    if (productValueYears && productValueMatrix) productValueMatrix.push(productValueYears);
+    allPaths.push(out.path as number[]);
+    marketDrawdowns.push(out.marketMaxDD);
+    if (out.peProgNavYears && peProgNavMatrix) peProgNavMatrix.push(out.peProgNavYears);
+    if (out.productValueYears && productValueMatrix) productValueMatrix.push(out.productValueYears);
 
-    // Best/Worst-Sim-Index nach Endvermögen tracken.
     if (finalValue > bestFinalValue) {
       bestFinalValue = finalValue;
       bestSimIndex = sim;
@@ -663,12 +70,10 @@ export function runMonteCarloSimulation(
       worstSimIndex = sim;
     }
 
-    if (!failed) {
+    if (!out.failed) {
       successCount++;
     } else {
-      failureYears.push(
-        client.currentAge + failureStep / stepsPerYear
-      );
+      failureYears.push(client.currentAge + out.failureStep / stepsPerYear);
     }
   }
 
@@ -1018,6 +423,12 @@ export function generateWithdrawalHeatmap(
   return results;
 }
 
+
+/**
+ * Einzelpfad: derselbe Kern wie die Monte-Carlo-Simulation, in
+ * Jahresschritten, mit Protokoll jeder Buchung. Pfad-Index N zeigt exakt
+ * den Monte-Carlo-Pfad N (bei jährlichem Simulationsschritt identisch).
+ */
 export function runDetailedSingleSimulation(
   client: ClientProfile,
   inputs: FinancialInputs,
@@ -1026,501 +437,76 @@ export function runDetailedSingleSimulation(
   simIndex = 0,
   liquidityEvents: LiquidityEvent[] = []
 ): DetailedSimTrace {
-  const accumulationYears = Math.max(0, client.retirementAge - client.currentAge);
-  const withdrawalYears = Math.max(0, client.lifeExpectancy - client.retirementAge);
-  const totalYears = accumulationYears + withdrawalYears;
-
-  // Phasen-Portfolios (siehe runMonteCarloSimulation).
-  const accWeights = portfolio.buckets.map((b) => b.allocation / 100);
-  const wd = portfolio.withdrawalPhase;
-  const wdWeights = wd ? wd.allocations.map((a) => a / 100) : accWeights;
-  const accRebalFreq = portfolio.rebalancingFrequency;
-  const accRebalThreshold = portfolio.rebalancingThreshold;
-  const accCashYears = portfolio.cashYearsTarget ?? 2;
-  const wdRebalFreq = wd ? wd.rebalancingFrequency : accRebalFreq;
-  const wdCashYears = wd ? wd.cashYearsTarget : accCashYears;
-  // AP3: vorgezogener Allokationswechsel — identische Regime-Trennung wie
-  // in der MC-Schleife (switchYear = Allokation, accumulationYears = Cashflow).
-  const switchYearsTrace = Math.max(0, wd?.switchYearsBeforeRetirement ?? 0);
-  const switchYear = Math.max(0, accumulationYears - Math.ceil(switchYearsTrace));
-  const startWeights = switchYear > 0 || !wd ? accWeights : wdWeights;
-
-  // KORREKTUR (2025-11-11): Brutto minus Kosten — KESt läuft über Watermark.
-  const annualMeans = portfolio.buckets.map(
-    (b) => (b.expectedReturn - b.costs) / 100
-  );
-  const annualVols = portfolio.buckets.map((b) => b.volatility / 100);
-  const kestRate = (portfolio.kestRate ?? 27.5) / 100;
-  // AP7: jährliche KESt auf Bankeinlagen-Zinsen (identisch zur MC-Schleife).
-  const depositTaxRateTrace = (portfolio.depositTaxRate ?? 25) / 100;
-
-  const corrMatrix = portfolio.correlationMatrix;
-  const cholesky = choleskyDecomposition(corrMatrix);
-
-  const seed = (settings.randomSeed ?? 42) + simIndex;
-  const rng = new SeededRandom(seed);
-
-  // PE-Timeline (analog runMonteCarloSimulation, aber für den ausgewählten
-  // Detail-Pfad immer deterministisch — Bei stochastischem Modus zeigen wir
-  // den Median-Pfad als Repräsentanten; alle Bänder bleiben in der MC-Engine).
-  const peFunds = portfolio.peFunds ?? [];
-  const peMode = portfolio.peModelingMode ?? "realistic";
-  const peTimeline =
-    peFunds.length > 0
-      ? computePETimeline(peFunds, client.currentAge, totalYears, kestRate, peMode)
-      : [];
-  const hasPE = peTimeline.length > 0;
-
-  // Rollierendes PE-Programm — identische Integration wie in
-  // runMonteCarloSimulation (gleicher Seed-Strom via simIndex, daher
-  // reproduziert der Trace exakt die Programm-Entscheidungen des
-  // MC-Pfads mit demselben Index).
-  const peProgramCfg =
-    portfolio.peProgram?.enabled && portfolio.peProgram.targetQuotaPct > 0
-      ? portfolio.peProgram
-      : null;
-  const peRuntime = peProgramCfg
-    ? createPEProgramRuntime(
-        peProgramCfg,
-        portfolio,
-        totalYears,
-        kestRate,
-        peMode,
-        settings.randomSeed ?? 42,
-      )
-    : null;
-  const peState = peRuntime ? peRuntime.newPathState(simIndex) : null;
-  const remainingWithdrawals = peRuntime
-    ? computeRemainingWithdrawals(client, inputs, totalYears)
-    : null;
-  let peProgNavFinal = 0;
-
-  // Produkt-Töpfe WBA/LV (AP8) — deterministische Timeline wie MC-Engine.
-  const productTimelineTrace = computeProductTimeline(
-    portfolio.wohnbauanleihen ?? [],
-    portfolio.lebensversicherungen ?? [],
-    client.currentAge,
-    totalYears,
-  );
-  const hasProductsTrace = hasProductHoldings(productTimelineTrace);
-  let productValueTrace = 0;
-  // LV stochastisch — gleicher Zufallsstrom wie MC-Pfad gleichen Index.
-  const lvRuntimeTrace = createLvRuntime(
-    portfolio.lebensversicherungen ?? [],
-    client.currentAge,
-    totalYears,
-    settings.randomSeed ?? 42,
-  );
-  const lvStateTrace = lvRuntimeTrace.active ? lvRuntimeTrace.newPathState(simIndex) : null;
-
-  let bucketValues = startWeights.map((w) => w * inputs.initialCapital);
-  let cumulativeInflation = 1;
-  let highWatermark = inputs.initialCapital;
-  let failed = false;
-  let switchedToWithdrawal = false;
-  // Spiegelt die Semantik in `runMonteCarloSimulation` (siehe FIX 2026-Q4):
-  // entkoppelt — `useRealValues` betrifft nur die Sparphase,
-  // `inflateWithdrawalToRetirement` exklusiv die Entnahme + Pension.
-  // Default seit 2026-Q4: Entnahme-Inflation ON.
-  const inflateWithdrawalsTrace = inputs.inflateWithdrawalToRetirement !== false;
-
+  const ctx = buildPathContext(client, inputs, portfolio, settings, liquidityEvents, 1);
+  const showPE = ctx.hasPE || ctx.peRuntime !== null;
+  const showProducts = ctx.hasProducts;
   const rows: DetailedYearRow[] = [];
 
-  for (let y = 0; y < totalYears; y++) {
-    const age = client.currentAge + y;
-    const isAccumulation = y < accumulationYears;
-    const phase = isAccumulation ? "Anspar" : "Entnahme";
-
-    const startCash = bucketValues[0];
-    const startBonds = bucketValues[1];
-    const startEquities = bucketValues[2];
-    const startTotal = startCash + startBonds + startEquities;
-
-    const returns = generateCorrelatedReturns(rng, cholesky, annualMeans, annualVols);
-
-    const returnCash = startCash * returns[0];
-    const returnBonds = startBonds * returns[1];
-    const returnEquities = startEquities * returns[2];
-
-    // AP7: jährliche KESt auf Bankeinlagen-Zinsen (wie MC-Hauptschleife) —
-    // returnCash bleibt brutto (Anzeige), die Steuer steht in cashTax.
-    const cashTax = Math.max(0, returnCash) * depositTaxRateTrace;
-    bucketValues[0] += returnCash - cashTax;
-    bucketValues[1] += returnBonds;
-    bucketValues[2] += returnEquities;
-    highWatermark = Math.max(0, highWatermark + returnCash - cashTax);
-
-    const inflationThisYear = inputs.inflationRate / 100;
-    cumulativeInflation *= 1 + inflationThisYear;
-
-    // PE-Cashflows nach Renditen, vor Sparrate/Entnahme.
-    let peCall = 0;
-    let peDistGross = 0;
-    let peDistNet = 0;
-    let peNavThisYear = 0;
-    if (hasPE && y < peTimeline.length) {
-      const entry = peTimeline[y];
-      peCall = entry.totalCall;
-      peDistGross = entry.totalDistGross;
-      peDistNet = entry.totalDistNet;
-      peNavThisYear = entry.totalNav;
-      highWatermark = applyPECashflowsToBuckets(
-        bucketValues,
-        peCall,
-        peDistNet,
-        highWatermark,
-      );
-    }
-
-    // Rollierendes PE-Programm (nach dem Bestand-Block, wie in der MC-Engine).
-    let peCommitted: number | undefined;
-    let peUnfunded: number | undefined;
-    if (peState && peRuntime && remainingWithdrawals) {
-      const liquidNow = bucketValues[0] + bucketValues[1] + bucketValues[2];
-      const staticPeNavAtPeak = hasPE
-        ? peTimeline[Math.min(y + peRuntime.tPeak, peTimeline.length - 1)]
-            ?.totalNav ?? 0
-        : 0;
-      const remainingNow = remainingWithdrawals[y] ?? 0;
-      const remainingNext = remainingWithdrawals[y + 1] ?? 0;
-      const prog = peState.processYear({
-        yearIdx: y,
-        liquid: liquidNow,
-        staticPeNavNow: peNavThisYear,
-        staticPeNavAtPeak,
-        netAnnualWithdrawal: Math.max(0, remainingNow - remainingNext),
-        remainingWithdrawalsNominal: remainingNow,
-        isWithdrawalPhase: !isAccumulation,
-      });
-      highWatermark = applyPECashflowsToBuckets(
-        bucketValues,
-        prog.call,
-        prog.distNet,
-        highWatermark,
-      );
-      peCall += prog.call;
-      peDistGross += prog.distGross;
-      peDistNet += prog.distNet;
-      peNavThisYear += prog.nav;
-      peProgNavFinal = prog.nav;
-      peCommitted = prog.committed;
-      peUnfunded = prog.unfunded;
-    }
-
-    // ── Produkt-Töpfe WBA/LV (AP8) — wie MC-Hauptschleife. ───────────
-    let productPurchase = 0;
-    let productCoupon = 0;
-    let productPayout = 0;
-    let wbaValueThisYear = 0;
-    let lvValueThisYear = 0;
-    if (hasProductsTrace && y < productTimelineTrace.length) {
-      const prodEntry = productTimelineTrace[y];
-      // LV pfadweise mit dem Aktienschock dieses Jahres (Jahresschritt).
-      const zEq = lvStateTrace
-        ? shockFromReturn(returns[2], annualMeans[2], annualVols[2])
-        : 0;
-      const lv = lvStateTrace ? lvStateTrace.advanceYear(y, zEq) : { lvValue: 0, lvPayout: 0 };
-      productPurchase = prodEntry.purchases;
-      productCoupon = prodEntry.coupons;
-      productPayout = prodEntry.wbaPayouts + lv.lvPayout;
-      wbaValueThisYear = prodEntry.wbaValue;
-      lvValueThisYear = lv.lvValue;
-      highWatermark = applyPECashflowsToBuckets(
-        bucketValues,
-        productPurchase,
-        productCoupon + productPayout,
-        highWatermark,
-      );
-      productValueTrace = wbaValueThisYear + lvValueThisYear;
-    }
-
-    let cashflow = 0;
-    let cashflowLabel = "";
-    // Tatsächliche Herkunft der Entnahme-Liquidität — wird je nach Topfbestand
-    // zur Laufzeit befüllt (Cash zuerst, Rest proportional aus Anleihen+Aktien).
-    let withdrawalFromCash = 0;
-    let withdrawalFromBonds = 0;
-    let withdrawalFromEquities = 0;
-
-    // AP3: Allokationswechsel auf Top-Level (wie MC-Schleife) — feuert zum
-    // Pensionsantritt oder bereits X Jahre davor (switchYear); Guard
-    // switchYear > 0 verhindert ein Phantom-Steuerereignis beim Direktstart.
-    let allocationSwitched = false;
-    if (wd && !switchedToWithdrawal && y >= switchYear && switchYear > 0) {
-      highWatermark = switchToWithdrawalAllocation(
-        bucketValues,
-        wdWeights,
-        highWatermark,
-        kestRate,
-      );
-      switchedToWithdrawal = true;
-      allocationSwitched = true;
-    }
-
-    if (isAccumulation) {
-      const annualSavings = inputs.monthlySavings * 12;
-      const adjustedSavings = inputs.useRealValues
-        ? annualSavings * cumulativeInflation
-        : annualSavings * Math.pow(1 + inputs.annualSavingsIncrease / 100, y);
-
-      cashflow = adjustedSavings;
-      cashflowLabel = "Sparrate";
-
-      // AP3: nach vorgezogenem Wechsel Sparraten in die Entnahme-Gewichte.
-      const saveWeights = y < switchYear ? accWeights : wdWeights;
-      for (let i = 0; i < 3; i++) {
-        bucketValues[i] += saveWeights[i] * adjustedSavings;
-      }
-      highWatermark += adjustedSavings;
-    } else {
-      const desiredMonthlyTrace = inputs.desiredMonthlyWithdrawal ?? 0;
-      const annualWithdrawal = inflateWithdrawalsTrace
-        ? desiredMonthlyTrace * 12 * cumulativeInflation
-        : desiredMonthlyTrace * 12;
-
-      const ageForPension = age;
-      const hasPension = ageForPension >= inputs.pensionStartAge;
-      const annualPension = hasPension
-        ? inflateWithdrawalsTrace
-          ? inputs.monthlyPension * 12 * cumulativeInflation
-          : inputs.monthlyPension * 12
-        : 0;
-
-      const netWithdrawal = Math.max(0, annualWithdrawal - annualPension);
-      cashflow = -netWithdrawal;
-      cashflowLabel = hasPension
-        ? `Entnahme ${Math.round(annualWithdrawal)} − Pension ${Math.round(annualPension)}`
-        : "Entnahme";
-
-      const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
-
-      // Erfolgskriterium inkl. PE-NAV + Produkt-Töpfen (siehe MC-Engine).
-      if (totalPortfolio + peNavThisYear + productValueTrace <= netWithdrawal && !failed) {
-        failed = true;
-      }
-
-      if (totalPortfolio > 0 && netWithdrawal > 0) {
-        const cashAvailable = bucketValues[0];
-        if (cashAvailable >= netWithdrawal) {
-          bucketValues[0] -= netWithdrawal;
-          withdrawalFromCash = netWithdrawal;
-        } else {
-          const remaining = netWithdrawal - cashAvailable;
-          withdrawalFromCash = cashAvailable;
-          bucketValues[0] = 0;
-          const restTotal = bucketValues[1] + bucketValues[2];
-          if (restTotal > 0) {
-            const ratio = Math.min(1, remaining / restTotal);
-            const soldBonds = bucketValues[1] * ratio;
-            const soldEquities = bucketValues[2] * ratio;
-            bucketValues[1] -= soldBonds;
-            bucketValues[2] -= soldEquities;
-            withdrawalFromBonds = soldBonds;
-            withdrawalFromEquities = soldEquities;
-          }
-        }
-      }
-      highWatermark = Math.max(0, highWatermark - netWithdrawal);
-    }
-
-    let liquidityEventAmount = 0;
-    let liquidityEventLabel = "";
-    // KONSISTENZ-FIX (CR 14): Crossing-Semantik wie in der MC-Engine
-    // (dort: prevAge < le.age <= currentAgeAtStep). Vorher wurde hier auf
-    // exakte Altersgleichheit geprüft — Ereignisse mit gebrochenem Alter
-    // (z. B. 62,5) feuerten im Einzelpfad nie, im MC-Lauf aber schon.
-    // Für ganzzahlige Alter ist das Verhalten unverändert.
-    const eventsThisYear = liquidityEvents.filter(
-      (le) => le.age > age - 1 && le.age <= age
-    );
-    if (eventsThisYear.length > 0) {
-      for (const le of eventsThisYear) {
-        liquidityEventAmount += le.amount;
-        liquidityEventLabel += (liquidityEventLabel ? "; " : "") + le.description;
-      }
-      if (liquidityEventAmount > 0) {
-        const injectWeights = y < switchYear ? accWeights : wdWeights;
-        for (let i = 0; i < 3; i++) {
-          bucketValues[i] += injectWeights[i] * liquidityEventAmount;
-        }
-        highWatermark += liquidityEventAmount;
-      } else if (liquidityEventAmount < 0) {
-        const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
-        if (totalPortfolio > 0) {
-          const withdrawRatio = Math.min(1, Math.abs(liquidityEventAmount) / totalPortfolio);
-          const soldCash = bucketValues[0] * withdrawRatio;
-          const soldBonds = bucketValues[1] * withdrawRatio;
-          const soldEquities = bucketValues[2] * withdrawRatio;
-          bucketValues[0] -= soldCash;
-          bucketValues[1] -= soldBonds;
-          bucketValues[2] -= soldEquities;
-          // Liquiditätsereignis-Auszahlung in dieselben Zähler buchen,
-          // damit der Tooltip im Einzelpfad alle echten Quellen zeigt.
-          withdrawalFromCash += soldCash;
-          withdrawalFromBonds += soldBonds;
-          withdrawalFromEquities += soldEquities;
-        }
-        highWatermark = Math.max(0, highWatermark - Math.abs(liquidityEventAmount));
-      }
-    }
-
-    const beforeRebalCash = bucketValues[0];
-    const beforeRebalBonds = bucketValues[1];
-    const beforeRebalEquities = bucketValues[2];
-
-    const shouldRebalance = checkRebalancingYearly(y, y < switchYear ? accRebalFreq : wdRebalFreq);
-    let rebalanced = false;
-    let rebalCashDelta = 0;
-    let rebalBondsDelta = 0;
-    let rebalEquitiesDelta = 0;
-    let rebalSource = "";
-
-    if (shouldRebalance) {
-      if (y < switchYear || isAccumulation) {
-        // AP3: bis zum Wechsel klassisch auf Anspar-Gewichte; im Fenster
-        // Wechsel→Pension klassisch auf Entnahme-Gewichte mit der
-        // Entnahme-Schwelle (Cash-Puffer erst ab der Entnahmephase).
-        const inWindow = y >= switchYear && isAccumulation;
-        const targetWeights = inWindow ? wdWeights : accWeights;
-        const threshold = inWindow
-          ? (wd?.rebalancingThreshold ?? accRebalThreshold)
-          : accRebalThreshold;
-        const newValues = rebalancePortfolio(bucketValues, targetWeights, threshold);
-        if (newValues[0] !== bucketValues[0] || newValues[1] !== bucketValues[1] || newValues[2] !== bucketValues[2]) {
-          rebalanced = true;
-          rebalCashDelta = newValues[0] - beforeRebalCash;
-          rebalBondsDelta = newValues[1] - beforeRebalBonds;
-          rebalEquitiesDelta = newValues[2] - beforeRebalEquities;
-          rebalSource = "Zielallokation";
-          bucketValues = newValues;
-        }
-      } else {
-        const annualWithdrawalForTarget = inflateWithdrawalsTrace
-          ? (inputs.desiredMonthlyWithdrawal ?? 0) * 12 * cumulativeInflation
-          : (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
-        const pensionForTarget = age >= inputs.pensionStartAge
-          ? (inflateWithdrawalsTrace ? inputs.monthlyPension * 12 * cumulativeInflation : inputs.monthlyPension * 12)
-          : 0;
-        const netAnnualForTarget = Math.max(0, annualWithdrawalForTarget - pensionForTarget);
-
-        const result = rebalanceThreeBuckets(
-          bucketValues,
-          netAnnualForTarget,
-          wdCashYears,
-          returns[2]
-        );
-        if (result.rebalanced) {
-          rebalanced = true;
-          rebalCashDelta = result.cashDelta;
-          rebalBondsDelta = result.bondsDelta;
-          rebalEquitiesDelta = result.equitiesDelta;
-          rebalSource = result.source;
-          bucketValues = result.values;
-        }
-      }
-    }
-
-    // FIX B: High-Watermark-KESt — Steuer nur bei neuem Höchststand fällig.
-    const preTaxTotal = bucketValues.reduce((a, b) => a + b, 0);
-    if (preTaxTotal > highWatermark && preTaxTotal > 0) {
-      const taxableGain = preTaxTotal - highWatermark;
-      const tax = taxableGain * kestRate;
-      const factor = (preTaxTotal - tax) / preTaxTotal;
-      bucketValues = bucketValues.map((v) => v * factor);
-      highWatermark = preTaxTotal - tax;
-    }
-
-    const endCash = Math.max(0, bucketValues[0]);
-    const endBonds = Math.max(0, bucketValues[1]);
-    const endEquities = Math.max(0, bucketValues[2]);
-    const endTotal = endCash + endBonds + endEquities;
-
-    bucketValues = [endCash, endBonds, endEquities];
-
-    rows.push({
-      year: client.birthYear + age,
-      age,
-      phase,
-      startTotal,
-      startCash,
-      startBonds,
-      startEquities,
-      returnCash,
-      returnBonds,
-      returnEquities,
-      returnCashPct: startCash > 0 ? returns[0] * 100 : 0,
-      returnBondsPct: startBonds > 0 ? returns[1] * 100 : 0,
-      returnEquitiesPct: startEquities > 0 ? returns[2] * 100 : 0,
-      cashTax,
-      allocationSwitched: allocationSwitched || undefined,
-      cashflow,
-      cashflowLabel,
-      liquidityEvent: liquidityEventAmount,
-      liquidityEventLabel,
-      rebalanced,
-      rebalCashDelta,
-      rebalBondsDelta,
-      rebalEquitiesDelta,
-      rebalSource,
-      withdrawalFromCash,
-      withdrawalFromBonds,
-      withdrawalFromEquities,
-      endCash,
-      endBonds,
-      endEquities,
-      endTotal,
-      cumulativeInflation,
-      peCall: hasPE || peState ? peCall : undefined,
-      peDistGross: hasPE || peState ? peDistGross : undefined,
-      peDistNet: hasPE || peState ? peDistNet : undefined,
-      peNav: hasPE || peState ? peNavThisYear : undefined,
-      peCommitted,
-      peUnfunded,
-      productPurchase: hasProductsTrace ? productPurchase : undefined,
-      productCoupon: hasProductsTrace ? productCoupon : undefined,
-      productPayout: hasProductsTrace ? productPayout : undefined,
-      wbaValue: hasProductsTrace ? wbaValueThisYear : undefined,
-      lvValue: hasProductsTrace ? lvValueThisYear : undefined,
-    });
-  }
-
-  // PE-NAV am Ende: letzter Eintrag der Timeline (Index = totalYears,
-  // sofern vorhanden, sonst der letzte erreichbare Eintrag) +
-  // Programm-NAV des letzten Jahres.
-  const peNavFinal =
-    (hasPE
-      ? peTimeline[Math.min(totalYears, peTimeline.length - 1)]?.totalNav ?? 0
-      : 0) + peProgNavFinal;
-  // Produkt-Töpfe (AP8) zählen — wie PE — zum Endvermögen.
-  const finalWealth =
-    bucketValues.reduce((a, b) => a + b, 0) + peNavFinal + productValueTrace;
+  const out = simulatePath(ctx, simIndex, {
+    recorder: {
+      onStep(d: StepDetail) {
+        const age = client.currentAge + d.step;
+        const startTotal = d.start[0] + d.start[1] + d.start[2];
+        rows.push({
+          year: client.birthYear + age,
+          age,
+          phase: d.isAccumulation ? "Anspar" : "Entnahme",
+          startTotal,
+          startCash: d.start[0],
+          startBonds: d.start[1],
+          startEquities: d.start[2],
+          returnCash: d.returnAmounts[0],
+          returnBonds: d.returnAmounts[1],
+          returnEquities: d.returnAmounts[2],
+          returnCashPct: d.start[0] > 0 ? d.returns[0] * 100 : 0,
+          returnBondsPct: d.start[1] > 0 ? d.returns[1] * 100 : 0,
+          returnEquitiesPct: d.start[2] > 0 ? d.returns[2] * 100 : 0,
+          cashTax: d.cashTax,
+          allocationSwitched: d.allocationSwitched || undefined,
+          cashflow: d.cashflow,
+          cashflowLabel: d.isAccumulation
+            ? "Sparrate"
+            : d.hasPension
+              ? `Entnahme ${Math.round(d.grossWithdrawal)} − Pension ${Math.round(d.pension)}`
+              : "Entnahme",
+          liquidityEvent: d.liquidityEvent,
+          liquidityEventLabel: d.liquidityEventLabel,
+          rebalanced: d.rebalanced,
+          rebalCashDelta: d.rebalDeltas[0],
+          rebalBondsDelta: d.rebalDeltas[1],
+          rebalEquitiesDelta: d.rebalDeltas[2],
+          rebalSource: d.rebalSource,
+          withdrawalFromCash: d.withdrawalFrom[0],
+          withdrawalFromBonds: d.withdrawalFrom[1],
+          withdrawalFromEquities: d.withdrawalFrom[2],
+          endCash: d.end[0],
+          endBonds: d.end[1],
+          endEquities: d.end[2],
+          endTotal: d.end[0] + d.end[1] + d.end[2],
+          cumulativeInflation: d.cumulativeInflation,
+          peCall: showPE ? d.peCall : undefined,
+          peDistGross: showPE ? d.peDistGross : undefined,
+          peDistNet: showPE ? d.peDistNet : undefined,
+          peNav: showPE ? d.peNav : undefined,
+          peCommitted: d.peCommitted,
+          peUnfunded: d.peUnfunded,
+          productPurchase: showProducts ? d.productPurchase : undefined,
+          productCoupon: showProducts ? d.productCoupon : undefined,
+          productPayout: showProducts ? d.productPayout : undefined,
+          wbaValue: showProducts ? d.wbaValue : undefined,
+          lvValue: showProducts ? d.lvValue : undefined,
+        });
+      },
+    },
+  });
 
   return {
     rows,
     simulationIndex: simIndex,
-    seed,
-    finalWealth: Math.max(0, finalWealth),
-    success: !failed,
+    seed: ctx.baseSeed + simIndex,
+    finalWealth: Math.max(0, out.finalValue),
+    success: !out.failed,
   };
-}
-
-function checkRebalancingYearly(year: number, frequency: string): boolean {
-  if (frequency === "none") return false;
-  if (frequency === "monthly" || frequency === "annually") return true;
-  if (frequency === "quarterly") return true;
-  return false;
-}
-
-function checkRebalancing(
-  step: number,
-  stepsPerYear: number,
-  frequency: string
-): boolean {
-  if (frequency === "none") return false;
-  if (frequency === "monthly") return true;
-  if (frequency === "quarterly") return step % Math.round(stepsPerYear / 4) === 0;
-  if (frequency === "annually") return step % stepsPerYear === 0;
-  return false;
 }
 
 function percentile(sortedArr: number[], p: number): number {
@@ -1574,4 +560,3 @@ function computePercentilePaths(
 
 // computeMaxDrawdown wurde 2026-Q2 entfernt — der Markt-Drawdown wird
 // jetzt inkrementell pro Pfad als reiner Marktindex (ohne Cash-Flows)
-// in der Hauptschleife geführt (siehe `marketDrawdowns`).

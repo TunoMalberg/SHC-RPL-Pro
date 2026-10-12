@@ -6,7 +6,9 @@ import type {
   PortfolioConfig,
   ClientProfile,
   LiquidityEvent,
+  SimulationSettings,
 } from "../types";
+import { buildPathContext, simulatePath } from "./pathCore";
 
 // Historische Marktdaten 1970–2024
 // Aktien: MSCI World Total Return in EUR (vor 1999: umgerechnet über DEM/ATS-Wechselkurs)
@@ -78,24 +80,6 @@ export const historicalData: HistoricalData[] = [
 ];
 
 /**
- * Historischer Backtest mit rollierenden Ruhestandsszenarien.
- *
- * Steuer- und Kostenmodell (seit 2025-11-11):
- *  • Kosten werden jedes Jahr vom Bruttoertrag abgezogen (Fondskosten, TER).
- *  • Die österreichische KESt (portfolio.kestRate, Default 27,5 %) wird
- *    AUSSCHLIESSLICH dann realisiert, wenn das Portfolio einen neuen
- *    Höchststand (High-Watermark) überschreitet. Nur der Zuwachs über dem
- *    letzten Höchststand wird besteuert; Verluste und Erholungen bis zum
- *    vorherigen Hoch bleiben steuerfrei.
- *  • Einzahlungen (Sparraten, positive Liquiditätsereignisse) erhöhen den
- *    Höchststand 1:1 (kein Steuerereignis). Entnahmen senken ihn 1:1.
- *
- * Inflation:
- *  • Die Sparraten und Entnahmen werden mit dem KUMULATIVEN Produkt der
- *    historischen österreichischen VPI-Jahresraten des jeweiligen Zeit-
- *    fensters skaliert (vorher: Einzeljahres-Inflation hoch y — falsch).
- */
-/**
  * Geometrische Mittelwerte (annualisierte Brutto-Renditen) pro Topf
  * über den gesamten hinterlegten Datensatz (1970–2024).
  *
@@ -133,222 +117,82 @@ export function computeHistoricalGrossReturns(
   };
 }
 
+/**
+ * Historischer Backtest mit rollierenden Zeitfenstern.
+ *
+ * Gerechnet wird mit dem gemeinsamen Rechenkern (pathCore.ts) — dieselben
+ * Regeln wie Monte-Carlo und Einzelpfad (Kosten, KESt auf Bankeinlagen,
+ * Höchststand-KESt, Zweiphasen-Allokation, Umschichtung, Liquiditätspuffer,
+ * Liquiditätsereignisse, Erfolgskriterium). Statt Zufallsrenditen laufen die
+ * echten Jahresrenditen (nach Kosten) und die echte österreichische
+ * Inflation des jeweiligen Zeitfensters durch.
+ *
+ * Private Equity, PE-Programm, Wohnbauanleihe und Lebensversicherung sind im
+ * Backtest bewusst ausgeschaltet: dafür gibt es keine historischen Reihen.
+ */
 export function runHistoricalBacktest(
   client: ClientProfile,
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   liquidityEvents: LiquidityEvent[] = []
 ): HistoricalAnalysis {
-  const withdrawalYears = client.lifeExpectancy - client.retirementAge;
-  const accumulationYears = client.retirementAge - client.currentAge;
-  const totalYears = accumulationYears + withdrawalYears;
-  const weights = portfolio.buckets.map((b) => b.allocation / 100);
-  // KORREKTUR: Nur Kosten (TER) als laufender Drag — KESt läuft separat über Watermark.
+  const liquidOnly: PortfolioConfig = {
+    ...portfolio,
+    peFunds: [],
+    peProgram: undefined,
+    wohnbauanleihen: [],
+    lebensversicherungen: [],
+  };
+  const settings: SimulationSettings = {
+    numSimulations: 1,
+    timeStepMonths: 12,
+    mode: "fixed_withdrawal",
+  };
+  const ctx = buildPathContext(client, inputs, liquidOnly, settings, liquidityEvents, 1);
+  const totalYears = ctx.totalSteps;
   const costs = portfolio.buckets.map((b) => b.costs / 100);
-  const kestRate = (portfolio.kestRate ?? 27.5) / 100;
-  // AP7: KESt auf Bankeinlagen-Zinsen — jährliche Besteuerung wie in der MC-Engine.
-  const depositTaxRate = (portfolio.depositTaxRate ?? 25) / 100;
-  const cashYearsTarget = portfolio.cashYearsTarget ?? 2;
 
   const scenarios: HistoricalResult[] = [];
 
-  for (
-    let startIdx = 0;
-    startIdx <= historicalData.length - totalYears;
-    startIdx++
-  ) {
+  for (let startIdx = 0; startIdx <= historicalData.length - totalYears; startIdx++) {
     const startYear = historicalData[startIdx].year;
-    let buckets = weights.map((w) => w * inputs.initialCapital);
-    let capital = inputs.initialCapital;
-    // FIX B: Steuerlicher Höchststand (High-Watermark) — initial = Startkapital.
-    let highWatermark = inputs.initialCapital;
-    // FIX A: Kumulative Inflation als Produkt der tatsächlichen VPI-Jahresraten.
-    let cumulativeInflation = 1;
-    const path: number[] = [capital];
-    let success = true;
-    let maxVal = capital;
-    let maxDrawdown = 0;
+    const yearReturns = (step: number): number[] => {
+      const d = historicalData[startIdx + step];
+      return [
+        d.cashReturn / 100 - costs[0],
+        d.bondReturn / 100 - costs[1],
+        d.equityReturn / 100 - costs[2],
+      ];
+    };
+
+    // Schlechtestes Portfoliojahr (Allokation des jeweiligen Regimes).
     let worstYear = startYear;
     let worstReturn = 0;
-
     for (let y = 0; y < totalYears; y++) {
-      const data = historicalData[startIdx + y];
-
-      const returns = [
-        data.cashReturn / 100 - costs[0],
-        data.bondReturn / 100 - costs[1],
-        data.equityReturn / 100 - costs[2],
-      ];
-
-      const portfolioReturn = weights.reduce(
-        (sum, w, i) => sum + w * returns[i],
-        0
-      );
-
-      if (portfolioReturn < worstReturn) {
-        worstReturn = portfolioReturn;
-        worstYear = data.year;
+      const weights = y < ctx.switchStep ? ctx.accWeights : ctx.wdWeights;
+      const r = yearReturns(y).reduce((s, v, i) => s + weights[i] * v, 0);
+      if (r < worstReturn) {
+        worstReturn = r;
+        worstYear = historicalData[startIdx + y].year;
       }
-
-      const isAccumulation = y < accumulationYears;
-
-      // AP7: Zinsen auf Bankeinlagen jährlich besteuern (Netto-Zins hebt/
-      // senkt den Watermark signiert — wie in der MC-Engine, siehe dort).
-      const cashInterest = buckets[0] * returns[0];
-      const cashTaxPaid = Math.max(0, cashInterest) * depositTaxRate;
-      buckets[0] += cashInterest - cashTaxPaid;
-      buckets[1] *= 1 + returns[1];
-      buckets[2] *= 1 + returns[2];
-      highWatermark = Math.max(0, highWatermark + cashInterest - cashTaxPaid);
-
-      // FIX A: VPI-Rate dieses Jahres in den kumulativen Index multiplizieren.
-      // Damit skalieren Sparraten/Entnahmen mit dem echten historischen
-      // Preisniveau des jeweiligen Zeitfensters (z. B. 1970–2015 mit
-      // Ölkrisen-Hochs Anfang der 1970er).
-      cumulativeInflation *= 1 + data.inflation / 100;
-
-      if (isAccumulation) {
-        const savings =
-          inputs.monthlySavings *
-          12 *
-          (inputs.useRealValues ? cumulativeInflation : 1);
-        for (let i = 0; i < 3; i++) {
-          buckets[i] += weights[i] * savings;
-        }
-        // Einzahlung hebt den Höchststand 1:1 (kein Steuerereignis).
-        highWatermark += savings;
-
-        const total = buckets.reduce((a, b) => a + b, 0);
-        const currentWeights = buckets.map((v) => v / total);
-        const needsRebalance = currentWeights.some(
-          (w, i) => Math.abs(w - weights[i]) > portfolio.rebalancingThreshold / 100
-        );
-        if (needsRebalance && portfolio.rebalancingFrequency !== "none") {
-          buckets = weights.map((w) => w * total);
-        }
-      } else {
-        // KONSISTENZ-FIX (CR 14): Entnahme + Pension folgen — wie in der
-        // MC-Engine seit dem FIX 2026-Q4 (Commit e967b66) — dem Schalter
-        // `inflateWithdrawalToRetirement`, nicht mehr `useRealValues`
-        // (das nur die Sparphase steuert). Vorher konnten Backtest und
-        // Monte-Carlo bei identischen Eingaben auseinanderlaufen.
-        const inflateWithdrawalsHist =
-          inputs.inflateWithdrawalToRetirement !== false;
-        const desiredMonthlyHist = inputs.desiredMonthlyWithdrawal ?? 0;
-        const withdrawal = inflateWithdrawalsHist
-          ? desiredMonthlyHist * 12 * cumulativeInflation
-          : desiredMonthlyHist * 12;
-
-        const ageNow = client.currentAge + y;
-        const pension =
-          ageNow >= inputs.pensionStartAge
-            ? inflateWithdrawalsHist
-              ? inputs.monthlyPension * 12 * cumulativeInflation
-              : inputs.monthlyPension * 12
-            : 0;
-
-        const netWithdrawal = Math.max(0, withdrawal - pension);
-
-        const totalPortfolio = buckets.reduce((a, b) => a + b, 0);
-        if (totalPortfolio > 0) {
-          if (buckets[0] >= netWithdrawal) {
-            buckets[0] -= netWithdrawal;
-          } else {
-            const remaining = netWithdrawal - buckets[0];
-            buckets[0] = 0;
-            const restTotal = buckets[1] + buckets[2];
-            if (restTotal > 0) {
-              const ratio = Math.min(1, remaining / restTotal);
-              buckets[1] *= 1 - ratio;
-              buckets[2] *= 1 - ratio;
-            }
-          }
-        }
-        // Entnahme senkt den steuerlichen Höchststand 1:1 (vereinfachte
-        // Durchschnittsbetrachtung — der im Entnahmebetrag enthaltene
-        // Gewinn­anteil wurde bereits über Watermark-Events besteuert).
-        highWatermark = Math.max(0, highWatermark - netWithdrawal);
-
-        if (portfolio.rebalancingFrequency !== "none") {
-          const targetCash = netWithdrawal * cashYearsTarget;
-          const deficit = targetCash - buckets[0];
-          if (deficit > 0) {
-            if (returns[2] > 0) {
-              const transferFromEquities = Math.min(deficit, buckets[2]);
-              buckets[2] -= transferFromEquities;
-              buckets[0] += transferFromEquities;
-              const stillNeeded = deficit - transferFromEquities;
-              if (stillNeeded > 0 && buckets[1] > 0) {
-                const transferFromBonds = Math.min(stillNeeded, buckets[1]);
-                buckets[1] -= transferFromBonds;
-                buckets[0] += transferFromBonds;
-              }
-            } else {
-              const transferFromBonds = Math.min(deficit, buckets[1]);
-              buckets[1] -= transferFromBonds;
-              buckets[0] += transferFromBonds;
-            }
-          }
-        }
-      }
-
-      const ageAtStep = client.currentAge + y;
-      for (const le of liquidityEvents) {
-        if (le.age === ageAtStep) {
-          if (le.amount > 0) {
-            for (let i = 0; i < 3; i++) {
-              buckets[i] += weights[i] * le.amount;
-            }
-            highWatermark += le.amount;
-          } else {
-            const tp = buckets.reduce((a, b) => a + b, 0);
-            if (tp > 0) {
-              const wr = Math.min(1, Math.abs(le.amount) / tp);
-              for (let i = 0; i < 3; i++) {
-                buckets[i] *= 1 - wr;
-              }
-            }
-            highWatermark = Math.max(0, highWatermark - Math.abs(le.amount));
-          }
-        }
-      }
-
-      // FIX B: High-Watermark-KESt — NUR wenn ein neuer Höchststand erreicht wird,
-      // wird der Zuwachs über dem bisherigen Höchststand mit KESt versteuert.
-      // Verlustjahre und Erholungen unter dem letzten Hoch lösen keine Steuer aus.
-      const endTotal = buckets.reduce((a, b) => a + b, 0);
-      if (endTotal > highWatermark && endTotal > 0) {
-        const taxableGain = endTotal - highWatermark;
-        const tax = taxableGain * kestRate;
-        const factor = (endTotal - tax) / endTotal;
-        buckets[0] *= factor;
-        buckets[1] *= factor;
-        buckets[2] *= factor;
-        highWatermark = endTotal - tax;
-      }
-
-      capital = Math.max(0, buckets.reduce((a, b) => a + b, 0));
-      buckets = buckets.map((b) => Math.max(0, b));
-
-      if (capital > maxVal) maxVal = capital;
-      const dd = maxVal > 0 ? (maxVal - capital) / maxVal : 0;
-      if (dd > maxDrawdown) maxDrawdown = dd;
-
-      if (capital <= 0) {
-        success = false;
-        capital = 0;
-        buckets = [0, 0, 0];
-      }
-      path.push(capital);
     }
+
+    const out = simulatePath(ctx, 0, {
+      collectPath: true,
+      market: {
+        returns: yearReturns,
+        inflation: (step) => historicalData[startIdx + step].inflation / 100,
+      },
+    });
 
     scenarios.push({
       startYear,
       endYear: startYear + totalYears,
-      success,
-      finalWealth: Math.max(0, capital),
-      maxDrawdown,
-      path,
+      success: !out.failed,
+      finalWealth: Math.max(0, out.finalValue),
+      // Reiner Markt-Drawdown (ohne Sparraten/Entnahmen) — wie Monte-Carlo.
+      maxDrawdown: out.marketMaxDD,
+      path: out.path as number[],
       worstYear,
       worstReturn: worstReturn * 100,
     });

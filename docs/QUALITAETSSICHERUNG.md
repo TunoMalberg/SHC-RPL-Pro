@@ -63,3 +63,65 @@ bun run check
 | `postcss-selector-parser` | Tailwind 3 (nur beim Bauen) | Korrektur erst in Version 7, die Tailwind 3 nicht unterstützt |
 | `image-size` | PowerPoint-Export | betrifft Bildformate JXL/HEIF/ICNS; der Export verarbeitet nur eigene PNG-Logos |
 | `uuid` | Excel-Export | betrifft Funktionen v3/v5/v6 mit Puffer; der Excel-Export nutzt nur v4 |
+
+## Rechenrichtigkeit (Paket 2)
+
+**Referenzfälle mit eingefrorenen Ergebnissen** (`src/lib/engine/golden/`):
+13 typische Kundensituationen (Standard, Liquiditätsereignisse, Zweiphasen-
+Allokation, Private Equity in allen Modi, PE-Programm, Wohnbauanleihe/LV,
+Monatsschritt, bereits pensioniert, nominal ohne KESt, knappes Budget …).
+Jedes Ergebnis — Erfolgsquote, Perzentile, Pfade, Einzelpfad-Tabelle,
+historischer Backtest, Korridor — ist in `reference.golden.json` festgehalten.
+Ändert sich auch nur ein Wert um mehr als einen Bruchteil eines Cents, schlägt
+der Prüflauf fehl. Bewusste Änderungen werden nur mit Begründung im Commit neu
+eingefroren:
+
+    UPDATE_GOLDEN=1 bun test src/lib/engine/golden
+
+**Excel-Gegenrechnung** (`docs/Gegenrechnung_Referenzfaelle.xlsx`, erzeugt mit
+`bun scripts/gegenrechnung/generate.ts`): drei schwankungsfreie Fälle Jahr für
+Jahr mit offenen Excel-Formeln nachgerechnet (Rendite, Kosten, KESt auf
+Bankeinlagen, Sparrate/Entnahme/Pension, Entnahme-Reihenfolge,
+Liquiditätsereignisse, Höchststand-KESt) und mit der App verglichen —
+Abweichung 0,00 €. Zur fachlichen Durchsicht durch eine Kollegin/einen Kollegen
+der Bank gedacht.
+
+**Gemeinsamer Rechenkern** (`src/lib/engine/pathCore.ts`): Monte-Carlo-
+Simulation, Einzelpfad und historischer Backtest rechnen mit derselben
+Funktion (der Backtest mit echten Jahresrenditen und echter Inflation, ohne
+Private Equity und Produkt-Töpfe, weil es dafür keine historischen Reihen gibt); jede Rechenregel
+steht genau einmal im Code. Ein Test stellt sicher, dass der Einzelpfad den
+Worst-/Best-Case-Pfad der Simulation exakt reproduziert.
+
+Bei der Vereinheitlichung behobene Abweichungen (Referenzen bewusst neu
+eingefroren):
+
+1. „Quartalsweise umschichten" hat bei jährlichem Simulationsschritt in der
+   Hauptsimulation nie umgeschichtet — jetzt jeden Schritt (wie im Einzelpfad).
+2. Mehrere Liquiditätsereignisse im selben Jahr mit unterschiedlichem
+   Vorzeichen: der Einzelpfad hat sie saldiert, die Simulation einzeln
+   gebucht — jetzt überall einzeln.
+3. Private Equity „Vollständig": der Einzelpfad zeigte den Median-Verlauf,
+   die Simulation je Pfad ein eigenes Szenario — jetzt zeigt der Einzelpfad
+   dasselbe Szenario wie der Simulationspfad gleicher Nummer.
+4. PE-Wert am Laufzeitende: beide verwenden jetzt den zuletzt gebuchten Wert.
+
+Historischer Backtest — durch den gemeinsamen Kern neu berücksichtigt:
+
+5. Zweiphasen-Allokation (Wechsel auf das Entnahme-Portfolio).
+6. Sparsteigerung p.a. bei nominaler Eingabe (vorher ignoriert).
+7. Liquiditätsereignisse mit gebrochenem Alter (z. B. 62,5) — vorher nie gebucht.
+8. Erfolgskriterium wie Monte-Carlo (Vermögen reicht nicht mehr für die
+   nächste Entnahme) statt „Kapital = 0".
+9. Drawdown als reiner Marktverlust wie Monte-Carlo, ohne Entnahmen.
+
+Offen bleibt bewusst: Der Einzelpfad rechnet immer in Jahresschritten, auch
+wenn die Simulation monatlich rechnet.
+
+**Renditelogik (fachliche Entscheidung 12.10.2026):** Eingegebene Renditen
+sind Jahreserträge ohne unterjährigen Zinseszins: 7,0 % Brutto − 1,5 % Kosten
+= 5,50 % p.a. Der Durchschnitt der simulierten Jahresrenditen ist genau dieser
+Wert; Zinseszins entsteht über die Jahre. Wertpapier-Töpfe und fondsgebundene
+LV rechnen nach derselben Logik. Vorher ergab dieselbe Eingabe 5,65 % p.a.
+Wirkung auf die Referenzfälle: Erfolgsquoten 0–3 Prozentpunkte niedriger;
+historischer Backtest unverändert (echte Renditen).
