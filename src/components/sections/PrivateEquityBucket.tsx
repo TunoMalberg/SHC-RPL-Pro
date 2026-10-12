@@ -787,7 +787,7 @@ function PEFundRow({ fund, idx }: PEFundRowProps) {
   const numChange =
     (key: keyof PEFund) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = parseFloat(e.target.value);
+      const v = Number.parseFloat(e.target.value);
       update(key, (Number.isFinite(v) ? v : 0) as PEFund[typeof key]);
     };
 

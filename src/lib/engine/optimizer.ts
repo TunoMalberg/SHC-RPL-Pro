@@ -332,7 +332,7 @@ export function optimizePortfolio(
 export function enumerateAllocations(
   step: number,
   peSteps: number[],
-  minCashPct: number = 0,
+  minCashPct = 0,
 ): AllocationCandidate[] {
   const out: AllocationCandidate[] = [];
   if (100 % step !== 0) return out;
@@ -545,7 +545,7 @@ export function computeObjective(
   successRate: number,
   medianFinalWealth: number,
   maxDrawdown: number,
-  initialCapital: number = 0,
+  initialCapital = 0,
   meanFinalWealth?: number,
 ): number {
   const success01 = successRate / 100;

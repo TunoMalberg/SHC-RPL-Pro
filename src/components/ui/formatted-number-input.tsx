@@ -68,8 +68,8 @@ export const FormattedNumberInput = React.forwardRef<
       .replace(/\s/g, "")
       .replace(/\./g, "") // remove thousand dots
       .replace(",", "."); // comma → decimal point
-    const n = parseFloat(cleaned);
-    if (isNaN(n)) return 0;
+    const n = Number.parseFloat(cleaned);
+    if (Number.isNaN(n)) return 0;
     return allowNegative ? n : Math.max(0, n);
   };
 

@@ -126,7 +126,7 @@ export function FinancialInputsSection() {
             </div>
             <div data-design-id="annual-increase-field">
               <Label htmlFor="annualIncrease">{t("inputs.annualIncrease")}</Label>
-              <Input id="annualIncrease" type="number" value={inputs.annualSavingsIncrease} onChange={(e) => update("annualSavingsIncrease", parseFloat(e.target.value) || 0)} step={0.5} />
+              <Input id="annualIncrease" type="number" value={inputs.annualSavingsIncrease} onChange={(e) => update("annualSavingsIncrease", Number.parseFloat(e.target.value) || 0)} step={0.5} />
               <p className="text-xs text-slate-400 mt-1">{t("inputs.annualIncreaseHint")}</p>
             </div>
           </CardContent>
@@ -182,7 +182,7 @@ export function FinancialInputsSection() {
             </div>
             <div data-design-id="pension-start-age-field">
               <Label htmlFor="pensionAge">{t("inputs.pensionStartAge")}</Label>
-              <Input id="pensionAge" type="number" value={inputs.pensionStartAge} onChange={(e) => update("pensionStartAge", parseInt(e.target.value) || 65)} />
+              <Input id="pensionAge" type="number" value={inputs.pensionStartAge} onChange={(e) => update("pensionStartAge", Number.parseInt(e.target.value) || 65)} />
               {/* Plausibilitäts-Hinweis (Iter 2): Pensionsantritt vor
                   Pensionsbeginn-Alter ist möglich (Frühpension), aber sollte
                   bewusst sein. Engine respektiert Reihenfolge bereits korrekt. */}
@@ -212,7 +212,7 @@ export function FinancialInputsSection() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div data-design-id="inflation-rate-field">
               <Label htmlFor="inflation">{t("inputs.inflationRate")}</Label>
-              <Input id="inflation" type="number" value={inputs.inflationRate} onChange={(e) => update("inflationRate", parseFloat(e.target.value) || 0)} step={0.1} />
+              <Input id="inflation" type="number" value={inputs.inflationRate} onChange={(e) => update("inflationRate", Number.parseFloat(e.target.value) || 0)} step={0.1} />
               <p className="text-xs text-slate-400 mt-1">{t("inputs.inflationHint")}</p>
             </div>
             <div className="flex items-center gap-3 pt-6" data-design-id="real-values-toggle">
@@ -453,7 +453,7 @@ function LiquidityEventGroup({
       <div className="grid grid-cols-1 sm:grid-cols-[80px_1fr_140px_auto] gap-2 items-end">
         <div>
           <Label htmlFor={`le-age-${kind}`} className="text-xs">{t("liquidity.age")}</Label>
-          <Input id={`le-age-${kind}`} type="number" value={newAge} onChange={(e) => setNewAge(parseInt(e.target.value) || minAge)} min={minAge} max={maxAge} className="h-9" />
+          <Input id={`le-age-${kind}`} type="number" value={newAge} onChange={(e) => setNewAge(Number.parseInt(e.target.value) || minAge)} min={minAge} max={maxAge} className="h-9" />
         </div>
         <div>
           <Label htmlFor={`le-desc-${kind}`} className="text-xs">{t("liquidity.desc")}</Label>

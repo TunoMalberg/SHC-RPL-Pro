@@ -16,7 +16,7 @@
  * Alle Assets liegen lokal → CSP-konform und im Bank-Intranet lauffähig.
  */
 
-import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont, RGB } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont, type RGB } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type {
   AdvisorProfile,
@@ -667,7 +667,7 @@ export async function generateClientPdfReport(
   const palette = ["#D31220", "#87BBE6", "#8FB687", "#FAC075", "#4D4A47", "#DA4D3E"];
   const hexToRgb = (hex: string) => {
     const h = hex.replace("#", "");
-    return rgb(parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255);
+    return rgb(Number.parseInt(h.slice(0, 2), 16) / 255, Number.parseInt(h.slice(2, 4), 16) / 255, Number.parseInt(h.slice(4, 6), 16) / 255);
   };
   const visibleBuckets = portfolio.buckets.filter((b) => b.allocation > 0);
   visibleBuckets.forEach((b, i) => {

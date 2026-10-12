@@ -1,0 +1,102 @@
+# Automatischer Prüflauf (Paket 1 — Sicherheitsnetz)
+#
+# Läuft bei jeder Änderung auf GitHub — unabhängig vom Bank-Rechner und
+# dessen Proxy. Ausgeliefert wird nur, wenn ALLE Prüfungen grün sind:
+#   Typprüfung → Stilprüfung → Tests → Produktions-Build
+#
+#  - Änderung auf `main`         → Prüfungen, danach Produktions-Deployment
+#  - Pull Request                → Prüfungen, danach Vorschau-Deployment
+#  - sonstige Zweige              → nur Prüfungen
+#
+# Das Deployment braucht das Repository-Secret VERCEL_TOKEN (einmalig in
+# GitHub unter Settings → Secrets and variables → Actions anzulegen). Fehlt
+# es, werden die Deploy-Schritte mit Hinweis übersprungen; die Prüfungen
+# laufen trotzdem.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Prüfungen
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Abhängigkeiten installieren (exakt laut Lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Typprüfung
+        run: bunx tsc --noEmit
+
+      - name: Stilprüfung
+        run: bun run lint:ci
+
+      - name: Tests
+        run: bun test src/
+
+      - name: Produktions-Build
+        run: bun run build:vercel
+
+  deploy-production:
+    name: Produktions-Deployment
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # Keine Geheimnisse — nur die Kennungen von Team und Projekt.
+      VERCEL_ORG_ID: team_qKeqJ4O8ssVIxQnGGSb9UIGj
+      VERCEL_PROJECT_ID: prj_hG9X7YMQe8LWzgjcUceZlBlTmAgT
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hinweis bei fehlendem Token
+        if: env.VERCEL_TOKEN == ''
+        run: echo "::warning::VERCEL_TOKEN ist nicht hinterlegt — Deployment übersprungen."
+
+      - name: Auf Vercel ausliefern (Produktion)
+        if: env.VERCEL_TOKEN != ''
+        run: |
+          url=$(npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN")
+          echo "Produktion: $url" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-preview:
+    name: Vorschau-Deployment
+    needs: check
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_qKeqJ4O8ssVIxQnGGSb9UIGj
+      VERCEL_PROJECT_ID: prj_hG9X7YMQe8LWzgjcUceZlBlTmAgT
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hinweis bei fehlendem Token
+        if: env.VERCEL_TOKEN == ''
+        run: echo "::warning::VERCEL_TOKEN ist nicht hinterlegt — Vorschau übersprungen."
+
+      - name: Auf Vercel ausliefern (Vorschau)
+        if: env.VERCEL_TOKEN != ''
+        run: |
+          url=$(npx --yes vercel@latest deploy --yes --token "$VERCEL_TOKEN")
+          echo "Vorschau-Adresse: $url" >> "$GITHUB_STEP_SUMMARY"

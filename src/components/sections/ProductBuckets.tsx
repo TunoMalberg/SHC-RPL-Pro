@@ -105,14 +105,14 @@ export function ProductBuckets() {
                       </div>
                       <div>
                         <Label className="text-xs">{t("products.coupon")}</Label>
-                        <Input type="number" value={w.couponPct} onChange={(e) => updateWba(w.id, { couponPct: parseFloat(e.target.value) || 0 })} step={0.1} className="h-8 text-sm" />
+                        <Input type="number" value={w.couponPct} onChange={(e) => updateWba(w.id, { couponPct: Number.parseFloat(e.target.value) || 0 })} step={0.1} className="h-8 text-sm" />
                       </div>
                       <div>
                         <Label className="text-xs">{t("products.termYears")}</Label>
                         <Input
                           type="number"
                           value={w.termYears}
-                          onChange={(e) => updateWba(w.id, { termYears: Math.max(WBA_MIN_TERM_YEARS, parseInt(e.target.value) || WBA_MIN_TERM_YEARS) })}
+                          onChange={(e) => updateWba(w.id, { termYears: Math.max(WBA_MIN_TERM_YEARS, Number.parseInt(e.target.value) || WBA_MIN_TERM_YEARS) })}
                           min={WBA_MIN_TERM_YEARS}
                           className="h-8 text-sm"
                         />
@@ -122,7 +122,7 @@ export function ProductBuckets() {
                         <Input
                           type="number"
                           value={w.purchaseAge}
-                          onChange={(e) => updateWba(w.id, { purchaseAge: Math.max(client.currentAge, parseInt(e.target.value) || client.currentAge) })}
+                          onChange={(e) => updateWba(w.id, { purchaseAge: Math.max(client.currentAge, Number.parseInt(e.target.value) || client.currentAge) })}
                           min={client.currentAge}
                           className="h-8 text-sm"
                         />
@@ -193,7 +193,7 @@ export function ProductBuckets() {
                       </div>
                       <div>
                         <Label className="text-xs" title={t("products.lvReturnHint")}>{t("products.lvReturn")}</Label>
-                        <Input type="number" value={l.expectedReturnPct} onChange={(e) => updateLv(l.id, { expectedReturnPct: parseFloat(e.target.value) || 0 })} step={0.1} className="h-8 text-sm" data-design-id={`lv-return-${l.id}`} />
+                        <Input type="number" value={l.expectedReturnPct} onChange={(e) => updateLv(l.id, { expectedReturnPct: Number.parseFloat(e.target.value) || 0 })} step={0.1} className="h-8 text-sm" data-design-id={`lv-return-${l.id}`} />
                       </div>
                       {/* Mantel über der Schelhammer-VV: Schwankung + Gleichlauf mit Aktien */}
                       <div>
@@ -201,7 +201,7 @@ export function ProductBuckets() {
                         <Input
                           type="number"
                           value={l.volatilityPct ?? LV_DEFAULT_VOL_PCT}
-                          onChange={(e) => updateLv(l.id, { volatilityPct: Math.max(0, parseFloat(e.target.value) || 0) })}
+                          onChange={(e) => updateLv(l.id, { volatilityPct: Math.max(0, Number.parseFloat(e.target.value) || 0) })}
                           step={0.5}
                           min={0}
                           className="h-8 text-sm"
@@ -214,7 +214,7 @@ export function ProductBuckets() {
                           type="number"
                           value={l.equityCorrelation ?? LV_DEFAULT_EQUITY_CORR}
                           onChange={(e) => {
-                            const v = parseFloat(e.target.value);
+                            const v = Number.parseFloat(e.target.value);
                             updateLv(l.id, { equityCorrelation: Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : LV_DEFAULT_EQUITY_CORR });
                           }}
                           step={0.05}
@@ -230,7 +230,7 @@ export function ProductBuckets() {
                           type="number"
                           value={l.purchaseAge}
                           onChange={(e) => {
-                            const age = Math.max(client.currentAge, parseInt(e.target.value) || client.currentAge);
+                            const age = Math.max(client.currentAge, Number.parseInt(e.target.value) || client.currentAge);
                             // Gesetzliche Bindefrist bei Kaufalter-Änderung
                             // automatisch neu ableiten (10 J ab 50, sonst 15 J).
                             updateLv(l.id, { purchaseAge: age, lockYears: deriveLvLockYears(age) });
@@ -246,7 +246,7 @@ export function ProductBuckets() {
                           value={l.lockYears}
                           onChange={(e) => {
                             const minLock = deriveLvLockYears(l.purchaseAge);
-                            updateLv(l.id, { lockYears: Math.max(minLock, parseInt(e.target.value) || minLock) });
+                            updateLv(l.id, { lockYears: Math.max(minLock, Number.parseInt(e.target.value) || minLock) });
                           }}
                           min={deriveLvLockYears(l.purchaseAge)}
                           className="h-8 text-sm"
@@ -258,7 +258,7 @@ export function ProductBuckets() {
                           type="number"
                           value={payoutAge}
                           onChange={(e) => {
-                            const v = parseInt(e.target.value) || lockEndAge;
+                            const v = Number.parseInt(e.target.value) || lockEndAge;
                             updateLv(l.id, { payoutAge: Math.max(lockEndAge, v) });
                           }}
                           min={lockEndAge}

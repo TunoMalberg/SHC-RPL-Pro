@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { parseHoldingsBuffer } from "@/lib/holdings/excelParser";
 
 export const runtime = "nodejs";

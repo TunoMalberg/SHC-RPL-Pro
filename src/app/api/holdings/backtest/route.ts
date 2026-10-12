@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/holdings/rateLimit";
 import { validateBacktestBody } from "@/lib/validation";
 import type { Holding, HoldingsBacktestResult } from "@/lib/holdings/types";

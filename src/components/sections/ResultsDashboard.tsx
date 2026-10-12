@@ -37,7 +37,7 @@ import {
 
 // AT Sterbetafel 2022/23 – combined m/f survival probabilities
 const AT_LIFE_TABLE = [
-  { age: 60, q: 1.000 }, { age: 65, q: 0.960 }, { age: 70, q: 0.910 },
+  { age: 60, q: 1 }, { age: 65, q: 0.96 }, { age: 70, q: 0.91 },
   { age: 75, q: 0.840 }, { age: 80, q: 0.720 }, { age: 85, q: 0.540 },
   { age: 90, q: 0.330 }, { age: 95, q: 0.150 }, { age: 100, q: 0.045 },
   { age: 105, q: 0.008 },

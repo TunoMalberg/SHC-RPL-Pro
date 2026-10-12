@@ -1,0 +1,20 @@
+# Wöchentliche automatische Prüfung auf veraltete oder unsichere
+# Bibliotheken (Paket 1). Dependabot öffnet dafür Pull Requests, die den
+# automatischen Prüflauf durchlaufen, bevor sie übernommen werden.
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      kleine-updates:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"

@@ -314,8 +314,8 @@ export function runMonteCarloSimulation(
   // Best-Case-Pfad reproduzieren zu können (gleicher Seed-Offset).
   let bestSimIndex = 0;
   let worstSimIndex = 0;
-  let bestFinalValue = -Infinity;
-  let worstFinalValue = Infinity;
+  let bestFinalValue = Number.NEGATIVE_INFINITY;
+  let worstFinalValue = Number.POSITIVE_INFINITY;
   // FIX (2026-Q2): Reiner Markt-Drawdown.
   // Der bisherige MaxDD wurde auf dem Vermögenspfad inkl. Sparraten,
   // Entnahmen, KESt und Liquiditätsereignissen berechnet → der
@@ -877,7 +877,7 @@ export function findSustainableWithdrawal(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   settings: SimulationSettings,
-  targetSuccessRate: number = 95,
+  targetSuccessRate = 95,
   liquidityEvents: LiquidityEvent[] = [],
   opts: SustainableWithdrawalOptions = {}
 ): number {
@@ -927,7 +927,7 @@ export function findRequiredCapital(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   settings: SimulationSettings,
-  targetSuccessRate: number = 95,
+  targetSuccessRate = 95,
   liquidityEvents: LiquidityEvent[] = []
 ): number {
   let low = 0;
@@ -960,7 +960,7 @@ export function findRequiredSavingsRate(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   settings: SimulationSettings,
-  targetSuccessRate: number = 95,
+  targetSuccessRate = 95,
   liquidityEvents: LiquidityEvent[] = []
 ): number {
   let low = 0;
@@ -1023,7 +1023,7 @@ export function runDetailedSingleSimulation(
   inputs: FinancialInputs,
   portfolio: PortfolioConfig,
   settings: SimulationSettings,
-  simIndex: number = 0,
+  simIndex = 0,
   liquidityEvents: LiquidityEvent[] = []
 ): DetailedSimTrace {
   const accumulationYears = Math.max(0, client.retirementAge - client.currentAge);

@@ -337,7 +337,7 @@ export function SimulationPanel() {
                 onValueChange={(v) =>
                   dispatch({
                     type: "SET_SETTINGS",
-                    payload: { timeStepMonths: parseInt(v) },
+                    payload: { timeStepMonths: Number.parseInt(v) },
                   })
                 }
               >
@@ -362,7 +362,7 @@ export function SimulationPanel() {
                     type: "SET_SETTINGS",
                     payload: {
                       randomSeed: e.target.value
-                        ? parseInt(e.target.value)
+                        ? Number.parseInt(e.target.value)
                         : undefined,
                     },
                   })
