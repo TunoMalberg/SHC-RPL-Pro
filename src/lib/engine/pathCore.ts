@@ -225,8 +225,13 @@ export function buildPathContext(
   const switchYears = Math.max(0, wd?.switchYearsBeforeRetirement ?? 0);
   const switchStep = Math.max(0, accumulationSteps - Math.ceil(switchYears * stepsPerYear));
 
-  // Mittelwert = Brutto-Rendite − laufende Kosten; KESt läuft separat.
-  const means = portfolio.buckets.map((b) => (b.expectedReturn - b.costs) / 100 / stepsPerYear);
+  // Eingabe = Jahresertrag (Brutto − laufende Kosten, ohne unterjährigen
+  // Zinseszins). ln(1 + r) als Drift → der Durchschnitt der Jahresrenditen
+  // ist genau r (7 % − 1,5 % = 5,5 % p.a.); Zinseszins über die Jahre.
+  // Gleiche Logik wie die fondsgebundene LV (products.ts). KESt separat.
+  const means = portfolio.buckets.map(
+    (b) => Math.log(1 + Math.max(-0.99, (b.expectedReturn - b.costs) / 100)) / stepsPerYear,
+  );
   const vols = portfolio.buckets.map((b) => b.volatility / 100 / Math.sqrt(stepsPerYear));
   const kestRate = (portfolio.kestRate ?? 27.5) / 100;
   const desiredMonthly = inputs.desiredMonthlyWithdrawal ?? 0;

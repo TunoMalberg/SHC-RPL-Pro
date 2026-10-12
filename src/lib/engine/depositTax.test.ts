@@ -64,9 +64,9 @@ function cashOnlyPortfolio(cashReturnPct: number, depositTaxRate?: number): Port
 }
 
 describe("Cash-Zins-KESt (AP7)", () => {
-  // Die Engine zieht Renditen lognormal (GBM mit Itô-Korrektur): bei
-  // 0 Vola ist die effektive Jahresrendite e^µ − 1, nicht µ.
-  const effRate = (pct: number) => Math.exp(pct / 100) - 1;
+  // Eingegebene Renditen sind Jahreserträge: bei 0 Vola ist die
+  // Jahresrendite exakt der eingegebene Satz (Zinseszins über die Jahre).
+  const effRate = (pct: number) => pct / 100;
 
   test("100 % Cash, 2 % Zins: Endwert = Kapital × (1 + zins·0,75)^Jahre — keine zusätzliche Watermark-KESt", () => {
     const p = cashOnlyPortfolio(2, 25);

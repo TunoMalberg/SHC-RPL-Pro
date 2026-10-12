@@ -117,3 +117,11 @@ Historischer Backtest — durch den gemeinsamen Kern neu berücksichtigt:
 
 Offen bleibt bewusst: Der Einzelpfad rechnet immer in Jahresschritten, auch
 wenn die Simulation monatlich rechnet.
+
+**Renditelogik (fachliche Entscheidung 12.10.2026):** Eingegebene Renditen
+sind Jahreserträge ohne unterjährigen Zinseszins: 7,0 % Brutto − 1,5 % Kosten
+= 5,50 % p.a. Der Durchschnitt der simulierten Jahresrenditen ist genau dieser
+Wert; Zinseszins entsteht über die Jahre. Wertpapier-Töpfe und fondsgebundene
+LV rechnen nach derselben Logik. Vorher ergab dieselbe Eingabe 5,65 % p.a.
+Wirkung auf die Referenzfälle: Erfolgsquoten 0–3 Prozentpunkte niedriger;
+historischer Backtest unverändert (echte Renditen).

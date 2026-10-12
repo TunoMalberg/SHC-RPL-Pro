@@ -291,10 +291,10 @@ function buildCaseSheet(wb: ExcelJS.Workbook, c: ExcelCase): { finalExcel: strin
       set("hw0", `${C.hw4}${prev}`);
       set("infl", `${C.infl}${prev}*(1+${IN["Inflation p.a."]})`, "0.000000");
     }
-    // Rendite = EXP(Brutto − Kosten) − 1 (stetige Verzinsung, siehe Übersicht)
-    set("rC", `EXP(${IN["Rendite Liquidität brutto"]}-${IN["Kosten Liquidität"]})-1`, PCT);
-    set("rB", `EXP(${IN["Rendite Anleihen brutto"]}-${IN["Kosten Anleihen"]})-1`, PCT);
-    set("rE", `EXP(${IN["Rendite Aktien brutto"]}-${IN["Kosten Aktien"]})-1`, PCT);
+    // Jahresrendite = Brutto − Kosten (Eingabe p.a.; Zinseszins über die Jahre)
+    set("rC", `${IN["Rendite Liquidität brutto"]}-${IN["Kosten Liquidität"]}`, PCT);
+    set("rB", `${IN["Rendite Anleihen brutto"]}-${IN["Kosten Anleihen"]}`, PCT);
+    set("rE", `${IN["Rendite Aktien brutto"]}-${IN["Kosten Aktien"]}`, PCT);
     set("zins", `${f("sC")}*${f("rC")}`);
     set("est", `MAX(0,${f("zins")})*${IN["KESt Bankeinlagen"]}`);
     set("c1", `${f("sC")}+${f("zins")}-${f("est")}`);
@@ -374,12 +374,12 @@ async function main() {
     ["Eingaben", "Gelbe Zellen sind Eingaben und dürfen zum Testen verändert werden (die App-Spalte bleibt dann natürlich stehen)."],
     ["Vereinfachung", "Alle Fälle ohne Schwankung (Volatilität 0) und ohne Umschichtung, damit jede Zahl eindeutig nachrechenbar ist."],
     [""],
-    ["Zur Prüfung vorgelegte Modellannahme", ""],
+    ["Modellannahme", ""],
     [
       "Renditeformel",
-      "Die App verzinst stetig: Jahresrendite = EXP(Brutto − Kosten) − 1. Aus 7,0 % Brutto − 1,5 % Kosten werden so 5,65 % statt 5,50 %. " +
-        "Bei Schwankung ist der Mittelwert der Jahresrenditen ebenfalls EXP(Brutto − Kosten) − 1. Die fondsgebundene LV rechnet dagegen mit " +
-        "ln(1 + Ertragserwartung), trifft also die Eingabe genau. Bitte fachlich entscheiden, welche Lesart der eingegebenen Renditen gilt.",
+      "Eingegebene Renditen sind Jahreserträge: Jahresrendite = Brutto − Kosten (7,0 % − 1,5 % = 5,50 % p.a.). Zinseszins entsteht über die Jahre. " +
+        "Bei Schwankung ist der Durchschnitt der Jahresrenditen genau dieser Wert; der typische (mittlere) Verlauf liegt wegen der Schwankung darunter. " +
+        "Wertpapier-Töpfe und fondsgebundene LV rechnen nach derselben Logik.",
     ],
     [""],
     ["Fall", "Ende Gesamt Excel / App / Abweichung"],
