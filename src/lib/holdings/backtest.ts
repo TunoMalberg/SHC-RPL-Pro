@@ -186,8 +186,8 @@ export function runHoldingsBacktest(
   // Forward-fill prices for each position over `dates`
   const ffPrices = new Map<string, number[]>();
   for (const p of seriesWithPrices) {
-    const arr: number[] = new Array(dates.length).fill(NaN);
-    let last = NaN;
+    const arr: number[] = new Array(dates.length).fill(Number.NaN);
+    let last = Number.NaN;
     for (let i = 0; i < dates.length; i++) {
       const d = dates[i];
       const v = p.pricesEUR.get(d);

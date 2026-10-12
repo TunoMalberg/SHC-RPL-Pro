@@ -487,8 +487,8 @@ export function buildStochasticEnsemble(
   currentAge: number,
   totalYears: number,
   kestRate: number = DEFAULT_KEST_RATE,
-  ensembleSize: number = 100,
-  seed: number = 12345,
+  ensembleSize = 100,
+  seed = 12345,
 ): PEEnsemble {
   const navMatrix: number[][] = []; // [scenario][year]
   const scenarios: PETimelineEntry[][] = [];
@@ -553,7 +553,7 @@ export function buildStochasticEnsemble(
   // sind. Alternativ könnten wir eine synthetische Median-Timeline bauen,
   // aber das kann Cashflows zerreissen.
   let bestIdx = 0;
-  let bestErr = Infinity;
+  let bestErr = Number.POSITIVE_INFINITY;
   for (let s = 0; s < scenarios.length; s++) {
     let err = 0;
     for (let y = 0; y < yearCount; y++) {

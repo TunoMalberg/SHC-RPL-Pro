@@ -109,7 +109,7 @@ export function PortfolioBuilderSection() {
     if (field === "name" || field === "label") {
       (bucket as Record<string, unknown>)[field] = value;
     } else {
-      (bucket as Record<string, unknown>)[field] = typeof value === "string" ? parseFloat(value) || 0 : value;
+      (bucket as Record<string, unknown>)[field] = typeof value === "string" ? Number.parseFloat(value) || 0 : value;
     }
     // When gross return or costs change, auto-recalculate taxDrag as
     //   taxDrag = max(0, (expectedReturn − costs) × rate / 100)
@@ -388,7 +388,7 @@ export function PortfolioBuilderSection() {
                     value={wd?.switchYearsBeforeRetirement ?? 0}
                     onChange={(e) => {
                       const maxYears = Math.max(0, state.client.retirementAge - state.client.currentAge);
-                      const v = Math.max(0, Math.min(maxYears, parseInt(e.target.value) || 0));
+                      const v = Math.max(0, Math.min(maxYears, Number.parseInt(e.target.value) || 0));
                       patchWithdrawal({ switchYearsBeforeRetirement: v });
                     }}
                     min={0}
@@ -640,7 +640,7 @@ export function PortfolioBuilderSection() {
                           {i === j ? (
                             <div className="text-center font-bold text-slate-400 bg-slate-50 rounded px-2 py-1">1.00</div>
                           ) : i < j ? (
-                            <Input type="number" value={portfolio.correlationMatrix[i][j]} onChange={(e) => updateCorrelation(i, j, parseFloat(e.target.value) || 0)} step={0.05} min={-1} max={1} className="h-8 text-sm text-center" />
+                            <Input type="number" value={portfolio.correlationMatrix[i][j]} onChange={(e) => updateCorrelation(i, j, Number.parseFloat(e.target.value) || 0)} step={0.05} min={-1} max={1} className="h-8 text-sm text-center" />
                           ) : (
                             <div className="text-center text-slate-400 bg-slate-50 rounded px-2 py-1">{portfolio.correlationMatrix[i][j].toFixed(2)}</div>
                           )}
@@ -757,7 +757,7 @@ export function PortfolioBuilderSection() {
                 id="kestRate"
                 type="number"
                 value={portfolio.kestRate ?? 27.5}
-                onChange={(e) => updateKestRate(parseFloat(e.target.value) || 0)}
+                onChange={(e) => updateKestRate(Number.parseFloat(e.target.value) || 0)}
                 step={0.5}
                 min={0}
                 max={100}
@@ -777,7 +777,7 @@ export function PortfolioBuilderSection() {
                 id="depositTaxRate"
                 type="number"
                 value={portfolio.depositTaxRate ?? 25}
-                onChange={(e) => updateDepositTaxRate(parseFloat(e.target.value) || 0)}
+                onChange={(e) => updateDepositTaxRate(Number.parseFloat(e.target.value) || 0)}
                 step={0.5}
                 min={0}
                 max={100}

@@ -40,7 +40,7 @@ export function ClientProfileSection() {
             </div>
             <div data-design-id="client-birth-year-field">
               <Label htmlFor="birthYear">{t("client.birthYear")}</Label>
-              <Input id="birthYear" type="number" value={client.birthYear} onChange={(e) => { const birthYear = parseInt(e.target.value) || 1980; const currentAge = new Date().getFullYear() - birthYear; dispatch({ type: "SET_CLIENT", payload: { birthYear, currentAge } }); }} />
+              <Input id="birthYear" type="number" value={client.birthYear} onChange={(e) => { const birthYear = Number.parseInt(e.target.value) || 1980; const currentAge = new Date().getFullYear() - birthYear; dispatch({ type: "SET_CLIENT", payload: { birthYear, currentAge } }); }} />
             </div>
             <div data-design-id="client-current-age-field">
               <Label htmlFor="currentAge">{t("client.currentAge")}</Label>
@@ -49,7 +49,7 @@ export function ClientProfileSection() {
                 type="number"
                 value={client.currentAge}
                 onChange={(e) => {
-                  const currentAge = parseInt(e.target.value) || 0;
+                  const currentAge = Number.parseInt(e.target.value) || 0;
                   // Bidirektionaler Sync: Wenn das Alter geändert wird,
                   // ziehen wir das Geburtsjahr nach (Jahr - Alter), analog
                   // zum Sync-Verhalten beim Geburtsjahr-Feld oben.
@@ -75,7 +75,7 @@ export function ClientProfileSection() {
           <CardContent className="space-y-4">
             <div data-design-id="client-retirement-age-field">
               <Label htmlFor="retirementAge">{t("client.retirementAge")}</Label>
-              <Input id="retirementAge" type="number" value={client.retirementAge} onChange={(e) => update("retirementAge", parseInt(e.target.value) || 65)} />
+              <Input id="retirementAge" type="number" value={client.retirementAge} onChange={(e) => update("retirementAge", Number.parseInt(e.target.value) || 65)} />
               <p className="text-xs text-slate-400 mt-1">
                 {t("client.yearsToRetirement")}: {Math.max(0, client.retirementAge - client.currentAge)}
               </p>
@@ -95,7 +95,7 @@ export function ClientProfileSection() {
             </div>
             <div data-design-id="client-life-expectancy-field">
               <Label htmlFor="lifeExpectancy">{t("client.lifeExpectancy")}</Label>
-              <Input id="lifeExpectancy" type="number" value={client.lifeExpectancy} onChange={(e) => update("lifeExpectancy", parseInt(e.target.value) || 90)} />
+              <Input id="lifeExpectancy" type="number" value={client.lifeExpectancy} onChange={(e) => update("lifeExpectancy", Number.parseInt(e.target.value) || 90)} />
               <p className="text-xs text-slate-400 mt-1">
                 {t("client.withdrawalPeriod")}: {Math.max(0, client.lifeExpectancy - client.retirementAge)} {t("client.years")}
               </p>

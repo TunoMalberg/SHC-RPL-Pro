@@ -49,7 +49,7 @@ export function clamp(value: number, min: number, max: number, fallback: number 
 }
 
 /** Rundet auf n Nachkommastellen ohne Floating-Drift. */
-export function round(value: number, decimals: number = 2): number {
+export function round(value: number, decimals = 2): number {
   if (!Number.isFinite(value)) return 0;
   const f = 10 ** decimals;
   return Math.round(value * f) / f;
