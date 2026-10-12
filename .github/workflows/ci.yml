@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -101,7 +101,7 @@ jobs:
       VERCEL_ORG_ID: team_qKeqJ4O8ssVIxQnGGSb9UIGj
       VERCEL_PROJECT_ID: prj_hG9X7YMQe8LWzgjcUceZlBlTmAgT
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Hinweis bei fehlendem Token
         if: env.VERCEL_TOKEN == ''
@@ -119,7 +119,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -147,7 +147,7 @@ jobs:
       VERCEL_ORG_ID: team_qKeqJ4O8ssVIxQnGGSb9UIGj
       VERCEL_PROJECT_ID: prj_hG9X7YMQe8LWzgjcUceZlBlTmAgT
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Hinweis bei fehlendem Token
         if: env.VERCEL_TOKEN == ''
