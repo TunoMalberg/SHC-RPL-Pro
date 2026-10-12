@@ -188,7 +188,7 @@ function createInputsSheet(
       row++;
     }
     for (const l of lvList) {
-      ws.getCell(row, 1).value = safeCell(`LV ${l.name} (4% VersSt + 1% einmalig, 0,075% p.a., Bindung ${l.lockYears} J ab Alter ${l.purchaseAge}, Erträge KESt-frei)`);
+      ws.getCell(row, 1).value = safeCell(`LV ${l.name} (VV-Mantel: Rendite ${l.expectedReturnPct}% / Vola ${l.volatilityPct ?? 12}% / Korr. Aktien ${l.equityCorrelation ?? 0.8}; 4% VersSt + 1% einmalig, 0,075% p.a., Bindung ${l.lockYears} J ab Alter ${l.purchaseAge}, Erträge KESt-frei)`);
       ws.getCell(row, 1).font = { name: "Calibri", size: 10 };
       ws.getCell(row, 2).value = l.amount;
       ws.getCell(row, 2).numFmt = NUM_FMT_EUR;

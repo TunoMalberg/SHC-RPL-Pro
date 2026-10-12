@@ -199,8 +199,22 @@ export interface WBAHolding extends ProductHoldingBase {
  * (gesetzlich; auto-abgeleitet, editierbar). Vor Ablauf nicht entnehmbar.
  */
 export interface LVHolding extends ProductHoldingBase {
-  /** Erwartete Fondsrendite in % p.a. brutto (deterministisch, v1). */
+  /**
+   * Ertragserwartung der Vermögensverwaltung im LV-Mantel in % p.a.,
+   * NACH VV-Kosten (Default 6). Davon gehen nur noch die LV-Kosten ab.
+   */
   expectedReturnPct: number;
+  /**
+   * Volatilität der VV in % p.a. (Default 12). Die Polizze wird pfadweise
+   * stochastisch gerechnet; 0 = deterministisch (früheres Modell).
+   */
+  volatilityPct?: number;
+  /**
+   * Gleichlauf mit dem Aktien-Topf (Korrelation −1…1, Default 0,8).
+   * Die VV-Hülle schwankt mit dem Markt — Depot und Polizze fallen in
+   * Krisenjahren gemeinsam.
+   */
+  equityCorrelation?: number;
   /** Bindefrist in Jahren (auto: Kaufalter ≥ 50 → 10, sonst 15). */
   lockYears: number;
   /**
@@ -500,6 +514,8 @@ export interface CalculationTrace {
         name: string;
         erlagEur: number;
         expectedReturnPct: number;
+        volatilityPct: number;
+        equityCorrelation: number;
         insuranceTaxPct: number;
         upfrontCostPct: number;
         annualCostPct: number;
@@ -656,6 +672,9 @@ export interface SimulationResult {
    * deterministisch, pfadunabhängig (analog pePath).
    */
   productPath?: number[];
+  /** Produkt-Wertpfad P25/P75 über die Pfade (LV stochastisch). */
+  productPathP25?: number[];
+  productPathP75?: number[];
 }
 
 export interface HistoricalData {

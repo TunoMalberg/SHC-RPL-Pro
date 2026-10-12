@@ -290,6 +290,26 @@ export function validatePortfolio(p: PortfolioConfig): ValidationResult {
         severity: "error",
       });
     }
+    if (
+      l.volatilityPct !== undefined &&
+      (!Number.isFinite(l.volatilityPct) || l.volatilityPct < 0 || l.volatilityPct > 40)
+    ) {
+      fail(r, {
+        path: `portfolio.lebensversicherungen[${i}].volatilityPct`,
+        message: `Lebensversicherung „${l.name}": Volatilität unrealistisch (0–40 %).`,
+        severity: "warn",
+      });
+    }
+    if (
+      l.equityCorrelation !== undefined &&
+      (!Number.isFinite(l.equityCorrelation) || l.equityCorrelation < -1 || l.equityCorrelation > 1)
+    ) {
+      fail(r, {
+        path: `portfolio.lebensversicherungen[${i}].equityCorrelation`,
+        message: `Lebensversicherung „${l.name}": Korrelation muss zwischen −1 und 1 liegen.`,
+        severity: "error",
+      });
+    }
     if (!Number.isFinite(l.expectedReturnPct) || l.expectedReturnPct < -10 || l.expectedReturnPct > 30) {
       fail(r, {
         path: `portfolio.lebensversicherungen[${i}].expectedReturnPct`,

@@ -18,6 +18,8 @@ import type {
 import { DISPLAY_CONFIG } from "../displayConfig";
 import {
   LV_ANNUAL_COST_PCT,
+  LV_DEFAULT_EQUITY_CORR,
+  LV_DEFAULT_VOL_PCT,
   LV_INSURANCE_TAX_PCT,
   LV_UPFRONT_COST_PCT,
 } from "../defaults";
@@ -127,6 +129,8 @@ export function buildCalculationTrace(
                 name: l.name,
                 erlagEur: l.amount,
                 expectedReturnPct: l.expectedReturnPct,
+                volatilityPct: l.volatilityPct ?? LV_DEFAULT_VOL_PCT,
+                equityCorrelation: l.equityCorrelation ?? LV_DEFAULT_EQUITY_CORR,
                 insuranceTaxPct: LV_INSURANCE_TAX_PCT,
                 upfrontCostPct: LV_UPFRONT_COST_PCT,
                 annualCostPct: LV_ANNUAL_COST_PCT,

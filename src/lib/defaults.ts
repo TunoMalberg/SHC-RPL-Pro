@@ -214,6 +214,12 @@ export const LV_LOCK_YEARS = 15;
 export const LV_LOCK_YEARS_AGE50 = 10;
 /** Maximalzahl Produkt-Positionen je Typ. */
 export const MAX_PRODUCT_HOLDINGS = 10;
+/** LV als Mantel über der Schelhammer-VV: Ertragserwartung nach VV-Kosten (% p.a.). */
+export const LV_DEFAULT_RETURN_PCT = 6;
+/** Volatilität der VV im LV-Mantel (% p.a.). */
+export const LV_DEFAULT_VOL_PCT = 12;
+/** Gleichlauf der VV mit dem Aktien-Topf (Korrelation). */
+export const LV_DEFAULT_EQUITY_CORR = 0.8;
 
 /** Gesetzliche LV-Bindefrist: 10 Jahre ab Kaufalter ≥ 50, sonst 15. */
 export const deriveLvLockYears = (purchaseAge: number): number =>
@@ -244,7 +250,9 @@ export function makeDefaultLV(purchaseAge: number, index = 0): LVHolding {
     name: index === 0 ? "Fondspolizze 1" : `Fondspolizze ${index + 1}`,
     purchaseAge: age,
     amount: 100_000,
-    expectedReturnPct: 5.0,
+    expectedReturnPct: LV_DEFAULT_RETURN_PCT,
+    volatilityPct: LV_DEFAULT_VOL_PCT,
+    equityCorrelation: LV_DEFAULT_EQUITY_CORR,
     lockYears: deriveLvLockYears(age),
   };
 }

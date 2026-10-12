@@ -1065,7 +1065,7 @@ export async function generateClientHtmlReport(
             <tr><td>${opts.locale === "de" ? "KESt Bankeinlagen" : "Tax on bank deposits"}</td><td class="num">${fmtPct(opts.locale, portfolio.depositTaxRate ?? 25)}</td></tr>
             <tr><td>${opts.locale === "de" ? "Rebalancing" : "Rebalancing"}</td><td class="num">${esc(portfolio.rebalancingFrequency)} · ${portfolio.rebalancingThreshold}%</td></tr>
             ${(portfolio.wohnbauanleihen ?? []).map((w) => `<tr><td>${opts.locale === "de" ? "Wohnbauanleihe" : "Housing bond"} ${esc(w.name)}</td><td class="num">${fmtEur(opts.locale, w.amount)} · ${fmtPct(opts.locale, w.couponPct)} ${opts.locale === "de" ? "steuerfrei" : "tax-free"} · ${w.termYears} J</td></tr>`).join("")}
-            ${(portfolio.lebensversicherungen ?? []).map((l) => `<tr><td>${opts.locale === "de" ? "Fondspolizze" : "Life insurance"} ${esc(l.name)}</td><td class="num">${fmtEur(opts.locale, l.amount)} · ${opts.locale === "de" ? `Bindung ${l.lockYears} J, Erträge KESt-frei` : `lock ${l.lockYears} yrs, returns tax-free`}</td></tr>`).join("")}
+            ${(portfolio.lebensversicherungen ?? []).map((l) => `<tr><td>${opts.locale === "de" ? "Fondspolizze" : "Life insurance"} ${esc(l.name)}</td><td class="num">${fmtEur(opts.locale, l.amount)} · ${opts.locale === "de" ? `VV-Mantel ${fmtPct(opts.locale, l.expectedReturnPct)} Ertrag / ${fmtPct(opts.locale, l.volatilityPct ?? 12)} Schwankung · Bindung ${l.lockYears} J, Erträge KESt-frei` : `mandate wrapper ${fmtPct(opts.locale, l.expectedReturnPct)} return / ${fmtPct(opts.locale, l.volatilityPct ?? 12)} volatility · lock ${l.lockYears} yrs, returns tax-free`}</td></tr>`).join("")}
           </tbody>
         </table>
       </div>

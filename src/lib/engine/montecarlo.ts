@@ -33,7 +33,12 @@ import {
   createPEProgramRuntime,
   type PEProgramRuntime,
 } from "./peProgram";
-import { computeProductTimeline, hasProductHoldings } from "./products";
+import {
+  computeProductTimeline,
+  createLvRuntime,
+  hasProductHoldings,
+  shockFromReturn,
+} from "./products";
 import { PE_STOCHASTIC_ENSEMBLE_SIZE } from "../defaults";
 
 /**
@@ -291,6 +296,16 @@ export function runMonteCarloSimulation(
     totalYears,
   );
   const hasProducts = hasProductHoldings(productTimeline);
+  // LV als Mantel über der VV: pfadweise stochastisch, Gleichlauf mit dem
+  // Aktien-Topf (eigener Zufallsstrom → ohne LV bit-identisch).
+  const lvRuntime = createLvRuntime(
+    portfolio.lebensversicherungen ?? [],
+    client.currentAge,
+    totalYears,
+    settings.randomSeed ?? 42,
+  );
+  // Produktwert je [Pfad][Jahr] für Cross-Path-Perzentile.
+  const productValueMatrix: number[][] | null = hasProducts ? [] : null;
 
   const allFinalValues: number[] = [];
   const allPaths: number[][] = [];
@@ -341,6 +356,11 @@ export function runMonteCarloSimulation(
     // startet bei 0 — der Kauf (Drain + Wertaufbau) erfolgt im Jahres-Block
     // von Schritt 0.
     let productValueCurrent = 0;
+    const lvState = lvRuntime.active ? lvRuntime.newPathState(sim) : null;
+    // Akkumulierter Aktienschock seit dem letzten Jahres-Block (Gleichlauf LV).
+    let equityShockSum = 0;
+    let equityShockSteps = 0;
+    const productValueYears: number[] | null = hasProducts ? [] : null;
     const peProgNavYears: number[] | null = peState ? [] : null;
     const path: number[] = [inputs.initialCapital + peNavCurrent];
     // Reiner Marktindex (startet bei 1) — nur Renditen, keine Cash-Flows.
@@ -370,6 +390,10 @@ export function runMonteCarloSimulation(
       bucketValues[1] *= 1 + returns[1];
       bucketValues[2] *= 1 + returns[2];
       highWatermark = Math.max(0, highWatermark + cashInterest - cashTaxPaid);
+      if (lvState) {
+        equityShockSum += shockFromReturn(returns[2], means[2], vols[2]);
+        equityShockSteps++;
+      }
 
       // Reine Marktrendite des Schritts = strategische Allokation × Topf-Renditen.
       // KESt wird hier NICHT abgezogen — der Marktindex misst Brutto-Marktrisiko.
@@ -438,15 +462,24 @@ export function runMonteCarloSimulation(
       //    Cash (Watermark +1:1) — identische Semantik wie PE-Cashflows,
       //    daher keine Watermark-KESt auf steuerfreie Produktflüsse. ────
       if (hasProducts && step % stepsPerYear === 0) {
-        const prodEntry = productTimeline[Math.floor(step / stepsPerYear)];
+        const yIdx = Math.floor(step / stepsPerYear);
+        const prodEntry = productTimeline[yIdx];
         if (prodEntry) {
+          // LV pfadweise: Wachstum mit dem Aktienschock des Jahres
+          // (Σz/√n über die Schritte seit dem letzten Block).
+          const zEq =
+            equityShockSteps > 0 ? equityShockSum / Math.sqrt(equityShockSteps) : 0;
+          equityShockSum = 0;
+          equityShockSteps = 0;
+          const lv = lvState ? lvState.advanceYear(yIdx, zEq) : { lvValue: 0, lvPayout: 0 };
           highWatermark = applyPECashflowsToBuckets(
             bucketValues,
             prodEntry.purchases,
-            prodEntry.coupons + prodEntry.payouts,
+            prodEntry.coupons + prodEntry.wbaPayouts + lv.lvPayout,
             highWatermark,
           );
-          productValueCurrent = prodEntry.totalValue;
+          productValueCurrent = prodEntry.wbaValue + lv.lvValue;
+          productValueYears?.push(productValueCurrent);
         }
       }
 
@@ -618,6 +651,7 @@ export function runMonteCarloSimulation(
     allPaths.push(path);
     marketDrawdowns.push(marketMaxDD);
     if (peProgNavYears && peProgNavMatrix) peProgNavMatrix.push(peProgNavYears);
+    if (productValueYears && productValueMatrix) productValueMatrix.push(productValueYears);
 
     // Best/Worst-Sim-Index nach Endvermögen tracken.
     if (finalValue > bestFinalValue) {
@@ -687,6 +721,30 @@ export function runMonteCarloSimulation(
         return peEnsemble.navP75[yIdx] ?? 0;
       })
     : undefined;
+  // Produkt-Wertpfad: Perzentile über die Pfade je Jahr (LV stochastisch).
+  const productPathBands: {
+    productPath?: number[];
+    productPathP25?: number[];
+    productPathP75?: number[];
+  } = {};
+  if (productValueMatrix && productValueMatrix.length > 0 && productValueMatrix[0].length > 0) {
+    const yearCount = productValueMatrix[0].length;
+    const byYear = (q: number) =>
+      Array.from({ length: yearCount }, (_, y) =>
+        percentile(productValueMatrix.map((row) => row[y] ?? 0).sort((a, b) => a - b), q),
+      );
+    const p25 = byYear(25);
+    const p50 = byYear(50);
+    const p75 = byYear(75);
+    const at = (arr: number[]) =>
+      Array.from({ length: totalSteps + 1 }, (_, step) =>
+        arr[Math.min(Math.floor(step / stepsPerYear), yearCount - 1)],
+      );
+    productPathBands.productPath = at(p50);
+    productPathBands.productPathP25 = at(p25);
+    productPathBands.productPathP75 = at(p75);
+  }
+
   if (peProgNavMatrix && peProgNavMatrix.length > 0 && peProgNavMatrix[0].length > 0) {
     const yearCount = peProgNavMatrix[0].length;
     const p25ByYear = new Array<number>(yearCount).fill(0);
@@ -791,16 +849,9 @@ export function runMonteCarloSimulation(
     peMedianTVPI: peEnsemble ? peEnsemble.medianTVPI : undefined,
     worstSimIndex,
     bestSimIndex,
-    // Produkt-Töpfe WBA/LV (AP8): deterministischer Wertpfad (step-aligned).
-    productPath: hasProducts
-      ? Array.from({ length: totalSteps + 1 }, (_, step) => {
-          const yIdx = Math.min(
-            Math.floor(step / stepsPerYear),
-            productTimeline.length - 1,
-          );
-          return productTimeline[yIdx]?.totalValue ?? 0;
-        })
-      : undefined,
+    // Produkt-Töpfe WBA/LV: Cross-Path-Median + P25/P75 je Jahr
+    // (step-aligned; LV ist pfadabhängig).
+    ...productPathBands,
     valuation,
     // Benötigt aus dem Vermögen (heutige Kaufkraft): Wunsch − Pension,
     // null wenn kein Wunschbetrag erfasst (CR 19: Herleitung im Trace).
@@ -1053,6 +1104,14 @@ export function runDetailedSingleSimulation(
   );
   const hasProductsTrace = hasProductHoldings(productTimelineTrace);
   let productValueTrace = 0;
+  // LV stochastisch — gleicher Zufallsstrom wie MC-Pfad gleichen Index.
+  const lvRuntimeTrace = createLvRuntime(
+    portfolio.lebensversicherungen ?? [],
+    client.currentAge,
+    totalYears,
+    settings.randomSeed ?? 42,
+  );
+  const lvStateTrace = lvRuntimeTrace.active ? lvRuntimeTrace.newPathState(simIndex) : null;
 
   let bucketValues = startWeights.map((w) => w * inputs.initialCapital);
   let cumulativeInflation = 1;
@@ -1156,18 +1215,23 @@ export function runDetailedSingleSimulation(
     let lvValueThisYear = 0;
     if (hasProductsTrace && y < productTimelineTrace.length) {
       const prodEntry = productTimelineTrace[y];
+      // LV pfadweise mit dem Aktienschock dieses Jahres (Jahresschritt).
+      const zEq = lvStateTrace
+        ? shockFromReturn(returns[2], annualMeans[2], annualVols[2])
+        : 0;
+      const lv = lvStateTrace ? lvStateTrace.advanceYear(y, zEq) : { lvValue: 0, lvPayout: 0 };
       productPurchase = prodEntry.purchases;
       productCoupon = prodEntry.coupons;
-      productPayout = prodEntry.payouts;
+      productPayout = prodEntry.wbaPayouts + lv.lvPayout;
       wbaValueThisYear = prodEntry.wbaValue;
-      lvValueThisYear = prodEntry.lvValue;
+      lvValueThisYear = lv.lvValue;
       highWatermark = applyPECashflowsToBuckets(
         bucketValues,
         productPurchase,
         productCoupon + productPayout,
         highWatermark,
       );
-      productValueTrace = prodEntry.totalValue;
+      productValueTrace = wbaValueThisYear + lvValueThisYear;
     }
 
     let cashflow = 0;

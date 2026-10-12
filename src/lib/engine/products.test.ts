@@ -67,8 +67,9 @@ function zeroPortfolio(): PortfolioConfig {
 function wba(overrides: Partial<WBAHolding> = {}): WBAHolding {
   return { ...makeDefaultWBA(baseClient.currentAge), ...overrides };
 }
+/** LV-Polizze für deterministische Tests: Volatilität 0 = früheres Modell. */
 function lv(overrides: Partial<LVHolding> = {}): LVHolding {
-  return { ...makeDefaultLV(baseClient.currentAge), ...overrides };
+  return { ...makeDefaultLV(baseClient.currentAge), volatilityPct: 0, ...overrides };
 }
 
 describe("computeProductTimeline — WBA", () => {

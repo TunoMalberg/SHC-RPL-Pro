@@ -486,7 +486,7 @@ function addPortfolioSlide(pptx: Pptx, portfolio: PortfolioConfig) {
   if (wbaSum > 0 || lvSum > 0) {
     const parts: string[] = [];
     if (wbaSum > 0) parts.push(`Wohnbauanleihen ${fmtEur(wbaSum)} (Zinsen steuerfrei, mind. 11 J gebunden)`);
-    if (lvSum > 0) parts.push(`Fondspolizzen ${fmtEur(lvSum)} (4 % VersSt + 1 % einmalig, 0,075 % p.a., Erträge KESt-frei)`);
+    if (lvSum > 0) parts.push(`Fondspolizzen ${fmtEur(lvSum)} (Mantel über VV, mit Markt schwankend; 4 % VersSt + 1 % einmalig, 0,075 % p.a., Erträge KESt-frei)`);
     slide.addText(`Produkt-Töpfe: ${parts.join(" | ")}`, {
       x: 0.5, y: 3.18, w: 12.3, h: 0.25,
       fontSize: 9, fontFace: FONT_BODY, italic: true, color: COLORS.muted,

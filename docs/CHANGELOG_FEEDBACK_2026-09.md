@@ -22,6 +22,27 @@ wurden vor der Umsetzung vom Vorstand freigegeben.
 | 9 | Entnahme vs. Erfolgsquote | Achse präzisiert („Monatlicher Gesamtbetrag inkl. Pensionseinkünfte"), Tooltip trennt „davon Pension / aus dem Vermögen", Fußnote erklärt die Deckung ab Pensionszahlung. Die „4%-Regel"-Linie erscheint jetzt tatsächlich (nächstliegender Balken; vorher traf sie die Achse nie) inkl. exaktem Wert im Erklärkasten. |
 | 10 | KESt Barvermögen | Berechtigter Befund: Zinsen wurden nur bei neuem Portfolio-Höchststand besteuert (faktisch Verrechnung mit Kursverlusten inkl. unbegrenztem Vortrag — real unzulässig). Jetzt: **Zinsen des Liquiditäts-Topfs werden jährlich bei Zufluss besteuert**, eigener Satz „KESt Bankeinlagen" (Default 25 %, editierbar), ohne Verrechnung mit Kursverlusten; Wertpapiere bleiben beim Höchststand-Modell. Gilt in Monte-Carlo, Einzelpfad und historischem Backtest. |
 
+## Nachtrag 10/2026 — Lebensversicherung als Mantel über der Schelhammer-VV
+
+Die fondsgebundene LV wird nicht mehr mit fixer Rendite, sondern **pfadweise
+mit Schwankung** gerechnet — sie ist ein Mantel über der Vermögensverwaltung.
+
+- Neue Eingaben je Polizze: **Ertragserwartung VV** (Default 6 % p.a., nach
+  VV-Kosten), **Volatilität** (Default 12 % p.a.), **Gleichlauf mit Aktien**
+  (Korrelation, Default 0,8).
+- Rechenweg je Jahr: Wachstum = exp(ln(1+µ) − σ²/2 + σ·Z) × (1 − 0,075 %),
+  Z = 0,8 × Aktienschock desselben Jahres + Restschwankung. Die erwartete
+  Rendite entspricht exakt der Eingabe; bei Volatilität 0 ergibt sich das
+  frühere, feste Modell.
+- Depot und Polizze fallen in Krisenjahren weitgehend gemeinsam — das
+  Gesamtrisiko wird nicht schöngerechnet. Auszahlungsbetrag und Wert der
+  Polizze sind dadurch pfadabhängig und fließen so in Erfolgsquote,
+  Korridor und Endvermögen ein.
+- Pläne ohne Lebensversicherung rechnen unverändert (bit-identisch);
+  bestehende Pläne mit LV erhalten automatisch die neuen Defaults.
+- Tests: Erwartungstreue, Streuung, empirische Korrelation ≈ 0,8 bzw. 0,
+  Volatilität 0 = altes Modell, Validierung (Korrelation −1…1).
+
 ## Begründete Abweichungen vom Produktivbestand
 
 - **Cash-Zins-KESt (Punkt 10)**: Ergebnisse aller Pläne ändern sich leicht

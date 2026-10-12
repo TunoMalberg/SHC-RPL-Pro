@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { fmtEur } from "@/lib/format";
 import {
+  LV_DEFAULT_EQUITY_CORR,
+  LV_DEFAULT_VOL_PCT,
   MAX_PRODUCT_HOLDINGS,
   WBA_MIN_TERM_YEARS,
   deriveLvLockYears,
@@ -184,14 +186,43 @@ export function ProductBuckets() {
                         ×
                       </button>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       <div>
                         <Label className="text-xs">{t("products.lvAmount")}</Label>
                         <FormattedNumberInput value={l.amount} onChange={(v) => updateLv(l.id, { amount: v })} prefix="€ " className="h-8 text-sm" />
                       </div>
                       <div>
-                        <Label className="text-xs">{t("products.lvReturn")}</Label>
-                        <Input type="number" value={l.expectedReturnPct} onChange={(e) => updateLv(l.id, { expectedReturnPct: parseFloat(e.target.value) || 0 })} step={0.1} className="h-8 text-sm" />
+                        <Label className="text-xs" title={t("products.lvReturnHint")}>{t("products.lvReturn")}</Label>
+                        <Input type="number" value={l.expectedReturnPct} onChange={(e) => updateLv(l.id, { expectedReturnPct: parseFloat(e.target.value) || 0 })} step={0.1} className="h-8 text-sm" data-design-id={`lv-return-${l.id}`} />
+                      </div>
+                      {/* Mantel über der Schelhammer-VV: Schwankung + Gleichlauf mit Aktien */}
+                      <div>
+                        <Label className="text-xs">{t("products.lvVolatility")}</Label>
+                        <Input
+                          type="number"
+                          value={l.volatilityPct ?? LV_DEFAULT_VOL_PCT}
+                          onChange={(e) => updateLv(l.id, { volatilityPct: Math.max(0, parseFloat(e.target.value) || 0) })}
+                          step={0.5}
+                          min={0}
+                          className="h-8 text-sm"
+                          data-design-id={`lv-volatility-${l.id}`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs" title={t("products.lvCorrelationHint")}>{t("products.lvCorrelation")}</Label>
+                        <Input
+                          type="number"
+                          value={l.equityCorrelation ?? LV_DEFAULT_EQUITY_CORR}
+                          onChange={(e) => {
+                            const v = parseFloat(e.target.value);
+                            updateLv(l.id, { equityCorrelation: Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : LV_DEFAULT_EQUITY_CORR });
+                          }}
+                          step={0.05}
+                          min={-1}
+                          max={1}
+                          className="h-8 text-sm"
+                          data-design-id={`lv-correlation-${l.id}`}
+                        />
                       </div>
                       <div>
                         <Label className="text-xs">{t("products.purchaseAge")}</Label>
