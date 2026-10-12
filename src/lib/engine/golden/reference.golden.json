@@ -1423,6 +1423,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 1963183.0711294522,
    "medianFinalWealth": 1848780.2592769968,
+   "medianFinalWealthReal": 527907.7454706186,
    "worst": {
     "startYear": 1970,
     "finalWealth": 1598606.2576750317
@@ -2917,6 +2918,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 4361501.9971503,
    "medianFinalWealth": 4465017.345144,
+   "medianFinalWealthReal": 1114126.0975681474,
    "worst": {
     "startYear": 1978,
     "finalWealth": 3617755.6423493996
@@ -4411,6 +4413,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 2733936.3560134587,
    "medianFinalWealth": 2727986.5300601292,
+   "medianFinalWealthReal": 712684.4371454557,
    "worst": {
     "startYear": 1978,
     "finalWealth": 2273282.8427434936
@@ -5872,6 +5875,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 1982542.796135266,
    "medianFinalWealth": 2029546.9660280356,
+   "medianFinalWealthReal": 494769.6730714045,
    "worst": {
     "startYear": 1980,
     "finalWealth": 1543607.4677553815
@@ -7516,6 +7520,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 1963183.0711294522,
    "medianFinalWealth": 1848780.2592769968,
+   "medianFinalWealthReal": 527907.7454706186,
    "worst": {
     "startYear": 1970,
     "finalWealth": 1598606.2576750317
@@ -9160,6 +9165,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 1963183.0711294522,
    "medianFinalWealth": 1848780.2592769968,
+   "medianFinalWealthReal": 527907.7454706186,
    "worst": {
     "startYear": 1970,
     "finalWealth": 1598606.2576750317
@@ -10849,6 +10855,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 4630912.396239419,
    "medianFinalWealth": 4431962.979501482,
+   "medianFinalWealthReal": 1304824.6295768444,
    "worst": {
     "startYear": 1970,
     "finalWealth": 3848358.5202079285
@@ -12493,6 +12500,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 3106086.350076219,
    "medianFinalWealth": 3049389.153177519,
+   "medianFinalWealthReal": 861141.5543191894,
    "worst": {
     "startYear": 1970,
     "finalWealth": 2561786.389292349
@@ -13954,6 +13962,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 2040534.023646176,
    "medianFinalWealth": 1925296.3276569447,
+   "medianFinalWealthReal": 547251.7814009348,
    "worst": {
     "startYear": 1970,
     "finalWealth": 1673742.714496485
@@ -14665,6 +14674,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 704572.3762012864,
    "medianFinalWealth": 696545.5336022539,
+   "medianFinalWealthReal": 442486.23801261187,
    "worst": {
     "startYear": 1970,
     "finalWealth": 150985.7520134639
@@ -16176,6 +16186,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 1121320.0582819053,
    "medianFinalWealth": 1069763.9511356833,
+   "medianFinalWealthReal": 314181.96843052533,
    "worst": {
     "startYear": 1970,
     "finalWealth": 998908.4708643385
@@ -17637,6 +17648,7 @@
    "overallSuccessRate": 100,
    "averageFinalWealth": 6384782.88438253,
    "medianFinalWealth": 6045942.683346725,
+   "medianFinalWealthReal": 1742033.8687773861,
    "worst": {
     "startYear": 1978,
     "finalWealth": 5716091.231063614
@@ -19098,6 +19110,7 @@
    "overallSuccessRate": 0,
    "averageFinalWealth": 0,
    "medianFinalWealth": 0,
+   "medianFinalWealthReal": 0,
    "worst": {
     "startYear": 1970,
     "finalWealth": 0

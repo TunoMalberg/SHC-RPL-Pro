@@ -25,12 +25,13 @@ import {
 } from "@/lib/engine/montecarlo";
 import { runHistoricalBacktest } from "@/lib/engine/historical";
 import { computeCorridorWithdrawals } from "@/lib/engine/corridor";
+import { isPossibleMode, runPlanSimulation, withEffectiveWithdrawal } from "@/lib/engine/planRun";
 import { buildCalculationTrace } from "@/lib/engine/trace";
 // MiFID-Presets + Allokations-Helper leben jetzt zentral in comparison.ts
 // (geteilt mit der Vergleichsansicht — keine Doppeldefinition).
 import { MIFID_PRESETS, MIFID_ORDER, withMifidAllocation } from "@/lib/engine/comparison";
 import type { MifidProfile, Scenario, SimulationMode } from "@/lib/types";
-import { fmtEur } from "@/lib/format";
+import { fmtEur, formatAT } from "@/lib/format";
 import { computeConfigHash } from "@/lib/configHash";
 import { validatePlanInputs } from "@/lib/validation";
 import { logger } from "@/lib/logger";
@@ -82,6 +83,15 @@ export function SimulationPanel() {
          ─────────────────────────────────────────────────────────────── */
       if (settings.mode === "scenario_comparison") {
         const newScenarios: Scenario[] = [];
+        // Leerer Wunsch: alle Profile mit derselben typischen Entnahme des
+        // aktuellen Portfolios vergleichen (sonst liefen sie mit 0 €).
+        const runInputs = isPossibleMode(inputs)
+          ? withEffectiveWithdrawal(
+              inputs,
+              computeCorridorWithdrawals(client, inputs, portfolio, settings, liquidityEvents)
+                .scenarios.typical.totalMonthly,
+            )
+          : inputs;
         for (let i = 0; i < MIFID_ORDER.length; i++) {
           const profile = MIFID_ORDER[i];
           const profileLabel = t(`portfolio.mifid${profile.charAt(0).toUpperCase() + profile.slice(1)}`);
@@ -94,10 +104,11 @@ export function SimulationPanel() {
 
           const variantPortfolio = withMifidAllocation(portfolio, profile);
           const variantResult = runMonteCarloSimulation(
-            client, inputs, variantPortfolio, settings, liquidityEvents,
+            client, runInputs, variantPortfolio, settings, liquidityEvents,
           );
+          variantResult.withdrawalAssumption = isPossibleMode(inputs) ? "corridor_typical" : "user";
           variantResult.withdrawalHeatmap = generateWithdrawalHeatmap(
-            client, inputs, variantPortfolio, settings, liquidityEvents,
+            client, runInputs, variantPortfolio, settings, liquidityEvents,
           );
 
           newScenarios.push({
@@ -128,7 +139,7 @@ export function SimulationPanel() {
         await new Promise((r) => setTimeout(r, 20));
         const histRes = runHistoricalBacktest(
           client,
-          inputs,
+          runInputs,
           mainScenario?.portfolio ?? portfolio,
           liquidityEvents,
         );
@@ -156,17 +167,11 @@ export function SimulationPanel() {
       // Modus „berechnen, was möglich ist" (CR 4): Ohne Wunschbetrag läuft
       // der Haupt-MC mit der typischen Korridor-Entnahme; das Ergebnis wird
       // entsprechend markiert (keine Einordnung, keine Erfolgsquote).
-      const possibleMode = inputs.desiredMonthlyWithdrawal === null;
-      const effectiveInputs = possibleMode
-        ? { ...inputs, desiredMonthlyWithdrawal: corridor.scenarios.typical.totalMonthly }
-        : inputs;
-
-      const result = runMonteCarloSimulation(client, effectiveInputs, portfolio, settings, liquidityEvents);
+      const possibleMode = isPossibleMode(inputs);
+      const { result, effectiveInputs } = runPlanSimulation(
+        client, inputs, portfolio, settings, liquidityEvents, { corridor },
+      );
       result.corridor = corridor;
-      result.withdrawalAssumption = possibleMode ? "corridor_typical" : "user";
-      result.requiredMonthlyWithdrawal = possibleMode
-        ? null
-        : Math.max(0, (inputs.desiredMonthlyWithdrawal ?? 0) - inputs.monthlyPension);
       setProgressPct(40);
 
       if (settings.mode === "sustainable_withdrawal") {
@@ -182,7 +187,7 @@ export function SimulationPanel() {
         setProgressStep(t("sim.progressStep3"));
         await new Promise((r) => setTimeout(r, 20));
         result.requiredCapital = findRequiredCapital(
-          client, inputs, portfolio, settings, 95, liquidityEvents
+          client, effectiveInputs, portfolio, settings, 95, liquidityEvents
         );
         setProgressPct(55);
       }
@@ -191,7 +196,7 @@ export function SimulationPanel() {
         setProgressStep(t("sim.progressStep4"));
         await new Promise((r) => setTimeout(r, 20));
         result.requiredSavings = findRequiredSavingsRate(
-          client, inputs, portfolio, settings, 95, liquidityEvents
+          client, effectiveInputs, portfolio, settings, 95, liquidityEvents
         );
         setProgressPct(55);
       }
@@ -226,7 +231,8 @@ export function SimulationPanel() {
 
       setProgressStep(t("sim.progressStep6"));
       await new Promise((r) => setTimeout(r, 20));
-      const historicalResult = runHistoricalBacktest(client, inputs, portfolio, liquidityEvents);
+      // Gleiche Entnahme wie die Hauptsimulation (auch bei leerem Wunsch).
+      const historicalResult = runHistoricalBacktest(client, effectiveInputs, portfolio, liquidityEvents);
       dispatch({ type: "SET_HISTORICAL", payload: historicalResult });
 
       setProgressPct(100);
@@ -314,7 +320,7 @@ export function SimulationPanel() {
             </div>
 
             <div data-design-id="sim-count-field">
-              <Label>{t("sim.numSims")}: {settings.numSimulations.toLocaleString()}</Label>
+              <Label>{t("sim.numSims")}: {formatAT(settings.numSimulations)}</Label>
               <Slider
                 value={[settings.numSimulations]}
                 onValueChange={([val]) =>
@@ -438,7 +444,7 @@ export function SimulationPanel() {
               {running ? (
                 <span className="flex items-center gap-2">
                   <span className="animate-spin inline-block">⟳</span>
-                  {t("sim.progressLabel").replace("{n}", settings.numSimulations.toLocaleString())}
+                  {t("sim.progressLabel").replace("{n}", formatAT(settings.numSimulations))}
                 </span>
               ) : (
                 t("sim.runButton")

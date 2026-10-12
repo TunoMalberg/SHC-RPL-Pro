@@ -8,6 +8,7 @@ import type {
   LiquidityEvent,
   Scenario,
 } from "../types";
+import { formatAT } from "../format";
 import { safeCell } from "./sanitize";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -42,7 +43,7 @@ const FONT_HEADING = "Sitka Heading";
 const FONT_BODY = "Skeena";
 
 function fmt(n: number, decimals = 0): string {
-  return n.toLocaleString("de-AT", {
+  return formatAT(n, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -792,7 +793,7 @@ function addMonteCarloResults(
     // KONSISTENZ-FIX (CR 14): Entnahme-Inflation hängt seit e967b66 am
     // Schalter `inflateWithdrawalToRetirement`, nicht an `useRealValues`.
     // AP10-FIX: tatsächliche Simulationsanzahl statt fix „5.000".
-    `Basierend auf ${fmt(numSims ?? 10000)} Simulationen mit ${inputs.inflateWithdrawalToRetirement !== false ? "inflationsindexierten Entnahmen (Eingabe in heutiger Kaufkraft)" : "nominal konstanten Entnahmen"} von ${fmtEur(inputs.desiredMonthlyWithdrawal ?? 0)}/Monat (abzgl. ${fmtEur(inputs.monthlyPension)} Pension).`,
+    `Basierend auf ${fmt(numSims ?? 10000)} Simulationen mit ${inputs.inflateWithdrawalToRetirement !== false ? "inflationsindexierten Entnahmen (Eingabe in heutiger Kaufkraft)" : "nominal konstanten Entnahmen"} von ${fmtEur(inputs.desiredMonthlyWithdrawal ?? result.effectiveMonthlyWithdrawal ?? 0)}/Monat (abzgl. ${fmtEur(inputs.monthlyPension)} Pension).`,
     {
       x: 0.5,
       y: 4.65,
@@ -923,7 +924,7 @@ function addWithdrawalSlide(
   const retIdx = Math.min(Math.max(0, accYears) * stepsPerYearPpt, result.medianPath.length - 1);
   const capitalAtRet = result.medianPath[retIdx];
   const annualWithdrawal =
-    Math.max(0, (inputs.desiredMonthlyWithdrawal ?? 0) - inputs.monthlyPension) * 12;
+    Math.max(0, (inputs.desiredMonthlyWithdrawal ?? result.effectiveMonthlyWithdrawal ?? 0) - inputs.monthlyPension) * 12;
   const withdrawalRate = capitalAtRet > 0 ? (annualWithdrawal / capitalAtRet) * 100 : 0;
 
   slide.addText("Ihre Entnahmerate", {
@@ -1354,7 +1355,7 @@ function addRecommendationsSlide(
   const retIdx = Math.min(Math.max(0, accYears) * stepsPerYearRec, result.medianPath.length - 1);
   const capitalAtRet = result.medianPath[retIdx];
   const withdrawalRate = capitalAtRet > 0
-    ? (Math.max(0, (inputs.desiredMonthlyWithdrawal ?? 0) - inputs.monthlyPension) * 12 / capitalAtRet) * 100
+    ? (Math.max(0, (inputs.desiredMonthlyWithdrawal ?? result.effectiveMonthlyWithdrawal ?? 0) - inputs.monthlyPension) * 12 / capitalAtRet) * 100
     : 0;
 
   if (withdrawalRate > 4) {
@@ -1659,7 +1660,7 @@ function addDetailedTraceSlides(pptx: Pptx, trace: DetailedSimTrace, client: Cli
   });
 
   slide1.addText(
-    `Simulation #${trace.simulationIndex + 1} — ${trace.success ? "Erfolgreich" : "Kapital aufgebraucht"} — Endvermögen: € ${Math.round(trace.finalWealth).toLocaleString("de-AT")}`,
+    `Simulation #${trace.simulationIndex + 1} — ${trace.success ? "Erfolgreich" : "Kapital aufgebraucht"} — Endvermögen: € ${formatAT(Math.round(trace.finalWealth))}`,
     {
       x: 0.5, y: 0.75, w: 12, h: 0.3,
       fontSize: 11, fontFace: FONT_BODY,

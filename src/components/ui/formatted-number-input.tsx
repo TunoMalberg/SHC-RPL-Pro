@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { atFormatter } from "@/lib/format";
 
 interface FormattedNumberInputProps
   extends Omit<React.ComponentProps<"input">, "onChange" | "value" | "type"> {
@@ -54,7 +55,7 @@ export const FormattedNumberInput = React.forwardRef<
 
   const format = React.useCallback(
     (n: number) =>
-      new Intl.NumberFormat("de-AT", {
+      atFormatter({
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
       }).format(n),

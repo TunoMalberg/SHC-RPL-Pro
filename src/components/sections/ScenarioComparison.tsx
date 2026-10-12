@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct } from "@/lib/format";
-import { runMonteCarloSimulation, generateWithdrawalHeatmap } from "@/lib/engine/montecarlo";
+import { generateWithdrawalHeatmap } from "@/lib/engine/montecarlo";
+import { runPlanSimulation } from "@/lib/engine/planRun";
+import { computeConfigHash } from "@/lib/configHash";
 import type { Scenario } from "@/lib/types";
 import { useState } from "react";
 import {
@@ -27,7 +29,7 @@ const SCENARIO_COLORS = ["#D31220", "#87BBE6", "#8FB687", "#FAC075", "#8A83BE", 
 
 export function ScenarioComparisonSection() {
   const { state, dispatch } = useAppState();
-  const { scenarios, client, inputs, portfolio, settings, liquidityEvents } = state;
+  const { scenarios, client, inputs, portfolio, settings, liquidityEvents, result: currentResult } = state;
   const { t } = useI18n();
   const [scenarioName, setScenarioName] = useState("");
 
@@ -43,8 +45,15 @@ export function ScenarioComparisonSection() {
 
     // BUGFIX (AP5): liquidityEvents mitgeben — vorher wichen gespeicherte
     // Szenario-Ergebnisse vom Hauptlauf ab, sobald Ereignisse erfasst waren.
-    const result = runMonteCarloSimulation(client, scenario.inputs, scenario.portfolio, settings, liquidityEvents);
-    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, scenario.inputs, scenario.portfolio, settings, liquidityEvents);
+    // Leerer Wunsch: typische Korridor-Entnahme — aus dem aktuellen Lauf
+    // übernommen, wenn er zu genau diesen Eingaben gehört (spart die Bisektion).
+    const currentMatches =
+      currentResult?.configHash === computeConfigHash(client, inputs, portfolio, liquidityEvents);
+    const { result, effectiveInputs } = runPlanSimulation(
+      client, scenario.inputs, scenario.portfolio, settings, liquidityEvents,
+      { knownMonthly: currentMatches ? currentResult?.effectiveMonthlyWithdrawal : undefined },
+    );
+    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, effectiveInputs, scenario.portfolio, settings, liquidityEvents);
     scenario.result = result;
 
     dispatch({ type: "ADD_SCENARIO", payload: scenario });

@@ -28,7 +28,7 @@ export function ModeToggle() {
       title={t("mode.toggleTitle")}
     >
       <span
-        className="text-xs font-semibold text-[#20201E] mr-1"
+        className="hidden sm:inline text-xs font-semibold text-[#20201E] mr-1"
         data-design-id="mode-toggle-prefix"
       >
         {t("app.titleShort")}

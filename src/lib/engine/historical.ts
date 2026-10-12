@@ -185,11 +185,23 @@ export function runHistoricalBacktest(
       },
     });
 
+    // Kaufkraft: je Jahr mit der echten österreichischen Inflation des
+    // Fensters abzinsen (gleiche Inflation, mit der Entnahmen steigen).
+    const nominalPath = out.path as number[];
+    const pathReal: number[] = [];
+    let cpi = 1;
+    for (let i = 0; i < nominalPath.length; i++) {
+      if (i > 0) cpi *= 1 + historicalData[startIdx + i - 1].inflation / 100;
+      pathReal.push(nominalPath[i] / cpi);
+    }
+
     scenarios.push({
       startYear,
       endYear: startYear + totalYears,
       success: !out.failed,
       finalWealth: Math.max(0, out.finalValue),
+      finalWealthReal: Math.max(0, out.finalValue) / cpi,
+      pathReal,
       // Reiner Markt-Drawdown (ohne Sparraten/Entnahmen) — wie Monte-Carlo.
       maxDrawdown: out.marketMaxDD,
       path: out.path as number[],
@@ -203,14 +215,15 @@ export function runHistoricalBacktest(
     (a, b) => a.finalWealth - b.finalWealth
   );
 
-  const medianFinalWealth =
-    sortedByWealth.length > 0
-      ? sortedByWealth.length % 2 === 1
-        ? sortedByWealth[Math.floor(sortedByWealth.length / 2)].finalWealth
-        : (sortedByWealth[sortedByWealth.length / 2 - 1].finalWealth +
-            sortedByWealth[sortedByWealth.length / 2].finalWealth) /
-          2
-      : 0;
+  const median = (values: number[]): number => {
+    if (values.length === 0) return 0;
+    const v = [...values].sort((a, b) => a - b);
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 === 1 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+  const medianFinalWealth = median(scenarios.map((s) => s.finalWealth));
+  const avg = (values: number[]) =>
+    values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 
   return {
     scenarios,
@@ -218,11 +231,10 @@ export function runHistoricalBacktest(
       scenarios.length > 0
         ? (successfulScenarios.length / scenarios.length) * 100
         : 0,
-    averageFinalWealth:
-      scenarios.length > 0
-        ? scenarios.reduce((s, sc) => s + sc.finalWealth, 0) / scenarios.length
-        : 0,
+    averageFinalWealth: avg(scenarios.map((s) => s.finalWealth)),
     medianFinalWealth,
+    medianFinalWealthReal: median(scenarios.map((s) => s.finalWealthReal)),
+    averageFinalWealthReal: avg(scenarios.map((s) => s.finalWealthReal)),
     worstScenario: sortedByWealth[0],
     bestScenario: sortedByWealth[sortedByWealth.length - 1],
     drawdownDistribution: scenarios.map((s) => s.maxDrawdown * 100),

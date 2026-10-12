@@ -26,6 +26,7 @@ import type {
   Scenario,
   SimulationResult,
 } from "../../types";
+import { atFormatter } from "../../format";
 import type { Locale } from "../../i18n";
 import { hashPin } from "./crypto";
 import { buildEmbeddedSkeenaCss } from "./fonts";
@@ -397,14 +398,14 @@ const LEGAL_EN: LegalNotice = {
 
 /* ────────── formatters ────────── */
 function fmtEur(locale: Locale, v: number): string {
-  return new Intl.NumberFormat(locale === "de" ? "de-AT" : "en-GB", {
+  return (locale === "de" ? atFormatter : (o: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-GB", o))({
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(v);
 }
 function fmtPct(locale: Locale, v: number, digits = 1): string {
-  return new Intl.NumberFormat(locale === "de" ? "de-AT" : "en-GB", {
+  return (locale === "de" ? atFormatter : (o: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-GB", o))({
     style: "percent",
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

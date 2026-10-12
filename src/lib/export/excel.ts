@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { formatAT } from "../format";
 import type {
   ClientProfile,
   FinancialInputs,
@@ -556,7 +557,7 @@ function createMetricsSheet(
   styleSectionRow(ws, row, 2);
   row++;
 
-  const annualWithdrawal = (inputs.desiredMonthlyWithdrawal ?? 0) * 12;
+  const annualWithdrawal = (inputs.desiredMonthlyWithdrawal ?? result.effectiveMonthlyWithdrawal ?? 0) * 12;
   const capitalAtRet = result.medianPath[retIdx];
   const withdrawalRate = capitalAtRet > 0 ? annualWithdrawal / capitalAtRet : 0;
 
@@ -627,7 +628,7 @@ function createDetailedTraceSheet(
   };
   ws.mergeCells(row, 9, row, 12);
 
-  ws.getCell(row, 13).value = `Endvermögen: € ${Math.round(trace.finalWealth).toLocaleString("de-AT")}`;
+  ws.getCell(row, 13).value = `Endvermögen: € ${formatAT(Math.round(trace.finalWealth))}`;
   ws.getCell(row, 13).font = { bold: true, size: 10, name: "Calibri" };
   ws.mergeCells(row, 13, row, 16);
 

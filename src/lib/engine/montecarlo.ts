@@ -265,6 +265,7 @@ export function runMonteCarloSimulation(
         ? null
         : Math.max(0, inputs.desiredMonthlyWithdrawal - inputs.monthlyPension),
     withdrawalAssumption: "user",
+    effectiveMonthlyWithdrawal: desiredMonthly,
   };
 }
 

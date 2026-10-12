@@ -24,6 +24,7 @@ import type {
   Scenario,
   DetailedSimTrace,
 } from "../../types";
+import { atFormatter } from "../../format";
 import type { PETimelineEntry } from "../../engine/privateEquity";
 
 /* Corporate colours (Schelhammer Capital) */
@@ -43,14 +44,14 @@ export const REPORT_COLORS = {
   alternatives: "#FAC075",
 };
 
-const fmtEurCompact = new Intl.NumberFormat("de-AT", {
+const fmtEurCompact = atFormatter({
   notation: "compact",
   maximumFractionDigits: 1,
   currency: "EUR",
   style: "currency",
 });
 
-const fmtEurFull = new Intl.NumberFormat("de-AT", {
+const fmtEurFull = atFormatter({
   style: "currency",
   currency: "EUR",
   maximumFractionDigits: 0,
@@ -720,7 +721,9 @@ export function chartInteractionScript(): string {
   return `
 (function(){
   'use strict';
-  var fmtEur = new Intl.NumberFormat('de-AT', { style:'currency', currency:'EUR', maximumFractionDigits:0 });
+  var _nf = new Intl.NumberFormat('de-AT', { style:'currency', currency:'EUR', maximumFractionDigits:0 });
+  // Tausenderpunkt statt Leerzeichen (neuere Browser trennen de-AT mit Leerzeichen).
+  var fmtEur = { format: function(v){ return _nf.formatToParts(v).map(function(p){ return p.type==='group' ? '.' : p.value; }).join(''); } };
 
   function makeTooltip() {
     var tt = document.createElement('div');

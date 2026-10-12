@@ -17,6 +17,7 @@
  */
 
 import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont, type RGB } from "pdf-lib";
+import { atFormatter } from "../../format";
 import fontkit from "@pdf-lib/fontkit";
 import type {
   AdvisorProfile,
@@ -343,14 +344,14 @@ function footer(page: PDFPage, fonts: { body: PDFFont }, S: typeof DE, pageNo: n
    Formatters
    ────────────────────────────────────────── */
 function fmtEur(locale: Locale, v: number): string {
-  return new Intl.NumberFormat(locale === "de" ? "de-AT" : "en-GB", {
+  return (locale === "de" ? atFormatter : (o: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-GB", o))({
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(v);
 }
 function fmtPct(locale: Locale, v: number, digits = 1): string {
-  return new Intl.NumberFormat(locale === "de" ? "de-AT" : "en-GB", {
+  return (locale === "de" ? atFormatter : (o: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-GB", o))({
     style: "percent",
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

@@ -5,7 +5,7 @@ import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/EmptyState";
-import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
+import { fmtEur, fmtPct, fmtNum, formatAT } from "@/lib/format";
 import { computePETimeline } from "@/lib/engine/privateEquity";
 import { computeHistoricalGrossReturns } from "@/lib/engine/historical";
 import { rankAgainstCorridor } from "@/lib/engine/corridor";
@@ -788,8 +788,14 @@ export function ResultsDashboard() {
                   {t("compare.mcLabel")}
                 </div>
                 <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <span className="text-xs text-slate-500">{t("compare.median")}</span>
-                  <span className="text-2xl font-bold text-[#4D4A47]">{fmtEur(result.medianFinalWealth)}</span>
+                  <span className="text-xs text-slate-500">{t("compare.median")} {endValueSuffix}</span>
+                  <span className="text-2xl font-bold text-[#4D4A47]">
+                    {fmtEur(
+                      isReal
+                        ? result.valuation?.medianFinalWealthReal ?? result.medianFinalWealth * (deflators[endIdx] ?? 1)
+                        : result.medianFinalWealth,
+                    )}
+                  </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-2 mb-1">
                   <span className="text-xs text-slate-500">{t("compare.success")}</span>
@@ -797,7 +803,7 @@ export function ResultsDashboard() {
                 </div>
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-xs text-slate-500">{t("compare.scenarios")}</span>
-                  <span className="text-sm text-slate-700">{state.settings.numSimulations.toLocaleString()}</span>
+                  <span className="text-sm text-slate-700">{formatAT(state.settings.numSimulations)}</span>
                 </div>
               </div>
               <div className="rounded-lg border border-[#8FB687]/40 bg-[#8FB687]/10 p-4" data-design-id="mc-vs-hist-hist">
@@ -805,8 +811,12 @@ export function ResultsDashboard() {
                   {t("compare.histLabel")}
                 </div>
                 <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <span className="text-xs text-slate-500">{t("compare.median")}</span>
-                  <span className="text-2xl font-bold text-[#4D4A47]">{fmtEur(historicalResult.medianFinalWealth)}</span>
+                  <span className="text-xs text-slate-500">
+                    {t("compare.median")} {isReal ? t("valuation.suffixReal") : t("valuation.badgeNominal").toLowerCase()}
+                  </span>
+                  <span className="text-2xl font-bold text-[#4D4A47]">
+                    {fmtEur(isReal ? historicalResult.medianFinalWealthReal : historicalResult.medianFinalWealth)}
+                  </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-2 mb-1">
                   <span className="text-xs text-slate-500">{t("compare.success")}</span>
@@ -822,7 +832,7 @@ export function ResultsDashboard() {
             </div>
             <p className="text-xs text-slate-500 mt-3 leading-relaxed">
               {t("compare.note")
-                .replace("{n}", state.settings.numSimulations.toLocaleString())
+                .replace("{n}", formatAT(state.settings.numSimulations))
                 .replace("{eq}", String(portfolio.buckets[2].expectedReturn))
                 .replace("{b}", String(portfolio.buckets[1].expectedReturn))
                 .replace("{c}", String(portfolio.buckets[0].expectedReturn))}
@@ -1524,7 +1534,7 @@ export function ResultsDashboard() {
                   formatter={(value) => `${(Number(value) || 0).toFixed(1)}%`}
                   labelFormatter={(l) => {
                     const entry = heatmapData.find((e) => e.withdrawal === Number(l));
-                    const base = `€${Number(l).toLocaleString("de-AT")}/Monat`;
+                    const base = `€${formatAT(Number(l))}/Monat`;
                     if (!entry || inputs.monthlyPension <= 0) return base;
                     return `${base} — ${t("results.heatmapTooltipSplit")
                       .replace("{pension}", fmtEur(entry.pensionPart))

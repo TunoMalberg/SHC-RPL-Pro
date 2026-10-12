@@ -23,7 +23,7 @@ import { getLocalizedCrisis } from "@/lib/engine/historicalCrises";
 
 export function HistoricalAnalysisSection() {
   const { state } = useAppState();
-  const { historicalResult, client } = state;
+  const { historicalResult, client, valuationMode } = state;
   const { t, locale } = useI18n();
 
   if (!historicalResult) {
@@ -37,11 +37,19 @@ export function HistoricalAnalysisSection() {
     );
   }
 
-  const { scenarios, overallSuccessRate, averageFinalWealth, medianFinalWealth, worstScenario, bestScenario } = historicalResult;
+  const { scenarios, overallSuccessRate, worstScenario, bestScenario } = historicalResult;
+  // Bewertungsbasis wie im Rest der App (Header-Schalter): heutige Kaufkraft
+  // = je Zeitfenster mit der echten Inflation abgezinst; sonst nominal.
+  const isReal = valuationMode === "real";
+  const wealthOf = (s: (typeof scenarios)[number]) => (isReal ? s.finalWealthReal : s.finalWealth);
+  const pathOf = (s: (typeof scenarios)[number]) => (isReal ? s.pathReal : s.path);
+  const medianFinalWealth = isReal ? historicalResult.medianFinalWealthReal : historicalResult.medianFinalWealth;
+  const averageFinalWealth = isReal ? historicalResult.averageFinalWealthReal : historicalResult.averageFinalWealth;
+  const valueSuffix = isReal ? t("valuation.suffixReal") : t("valuation.badgeNominal").toLowerCase();
 
   const scenarioBarData = scenarios.map((s) => ({
     startYear: s.startYear,
-    finalWealth: Math.round(s.finalWealth),
+    finalWealth: Math.round(wealthOf(s)),
     success: s.success,
   }));
 
@@ -128,7 +136,7 @@ export function HistoricalAnalysisSection() {
   const pathChartData = Array.from({ length: pathLen }, (_, i) => {
     const row: Record<string, number> = { age: client.currentAge + i };
     for (const s of scenarios) {
-      row[`y_${s.startYear}`] = Math.round(s.path[i] ?? 0);
+      row[`y_${s.startYear}`] = Math.round(pathOf(s)[i] ?? 0);
     }
     return row;
   });
@@ -165,13 +173,13 @@ export function HistoricalAnalysisSection() {
         <Card data-design-id="hist-kpi-median-wealth">
           <CardContent className="pt-4 pb-4 text-center">
             <div className="text-2xl font-bold text-[#4D4A47]">{fmtEur(medianFinalWealth)}</div>
-            <div className="text-xs text-slate-500 mt-1">{t("hist.medianWealth")}</div>
+            <div className="text-xs text-slate-500 mt-1">{t("hist.medianWealth")} {valueSuffix}</div>
           </CardContent>
         </Card>
         <Card data-design-id="hist-kpi-avg-wealth">
           <CardContent className="pt-4 pb-4 text-center">
             <div className="text-2xl font-bold text-[#D31220]">{fmtEur(averageFinalWealth)}</div>
-            <div className="text-xs text-slate-500 mt-1">{t("hist.avgWealth")}</div>
+            <div className="text-xs text-slate-500 mt-1">{t("hist.avgWealth")} {valueSuffix}</div>
           </CardContent>
         </Card>
         <Card data-design-id="hist-kpi-worst">
@@ -398,7 +406,7 @@ export function HistoricalAnalysisSection() {
                         {s.success ? t("hist.passed") : t("hist.failed")}
                       </Badge>
                     </td>
-                    <td className="py-1.5 px-3 text-right font-medium">{fmtEur(s.finalWealth)}</td>
+                    <td className="py-1.5 px-3 text-right font-medium">{fmtEur(wealthOf(s))}</td>
                     <td className="py-1.5 px-3 text-right text-rose-600">{fmtPct(-s.maxDrawdown * 100)}</td>
                     <td className="py-1.5 px-3 text-right">{s.worstYear}</td>
                     <td className="py-1.5 px-3 text-right text-rose-600">{fmtPct(s.worstReturn)}</td>

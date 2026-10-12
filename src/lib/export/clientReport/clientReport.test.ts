@@ -107,14 +107,16 @@ const result: SimulationResult = {
 
 const hist: HistoricalAnalysis = {
   scenarios: [
-    { startYear: 1990, endYear: 2035, success: true, finalWealth: 1_000_000, maxDrawdown: -20, path: medianPath, worstYear: 2008, worstReturn: -30 },
-    { startYear: 2000, endYear: 2045, success: false, finalWealth: 400_000, maxDrawdown: -45, path: p10Path, worstYear: 2008, worstReturn: -38 },
+    { startYear: 1990, endYear: 2035, success: true, finalWealth: 1_000_000, finalWealthReal: 500_000, maxDrawdown: -20, path: medianPath, pathReal: medianPath, worstYear: 2008, worstReturn: -30 },
+    { startYear: 2000, endYear: 2045, success: false, finalWealth: 400_000, finalWealthReal: 200_000, maxDrawdown: -45, path: p10Path, pathReal: p10Path, worstYear: 2008, worstReturn: -38 },
   ],
   overallSuccessRate: 75,
   averageFinalWealth: 800_000,
   medianFinalWealth: 780_000,
-  worstScenario: { startYear: 2000, endYear: 2045, success: false, finalWealth: 400_000, maxDrawdown: -45, path: p10Path, worstYear: 2008, worstReturn: -38 },
-  bestScenario: { startYear: 1990, endYear: 2035, success: true, finalWealth: 1_000_000, maxDrawdown: -20, path: p90Path, worstYear: 2008, worstReturn: -30 },
+  medianFinalWealthReal: 390_000,
+  averageFinalWealthReal: 400_000,
+  worstScenario: { startYear: 2000, endYear: 2045, success: false, finalWealth: 400_000, finalWealthReal: 200_000, maxDrawdown: -45, path: p10Path, pathReal: p10Path, worstYear: 2008, worstReturn: -38 },
+  bestScenario: { startYear: 1990, endYear: 2035, success: true, finalWealth: 1_000_000, finalWealthReal: 500_000, maxDrawdown: -20, path: p90Path, pathReal: p90Path, worstYear: 2008, worstReturn: -30 },
   drawdownDistribution: [],
 };
 
