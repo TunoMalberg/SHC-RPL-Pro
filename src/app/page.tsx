@@ -62,14 +62,15 @@ export default function RetirementPlannerApp() {
       <ModeChooserModal />
       <header className="border-b border-neutral-200 bg-white/90 backdrop-blur-sm sticky top-0 z-50" data-design-id="app-header">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4" data-design-id="app-logo">
+          {/* Handy: darf in zwei Zeilen umbrechen statt zu überlappen */}
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 min-h-16 py-2">
+            <div className="flex items-center gap-2 sm:gap-4" data-design-id="app-logo">
               <Image
                 src="/icons/logo.png"
                 alt={t("app.title")}
                 width={48}
                 height={48}
-                className="h-10 w-auto"
+                className="h-8 sm:h-10 w-auto"
                 priority
               />
               <div className="hidden sm:block h-8 w-px bg-neutral-300" />
@@ -84,7 +85,7 @@ export default function RetirementPlannerApp() {
                 <ModeToggle />
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-[#4D4A47]" data-design-id="app-meta">
+            <div className="ml-auto flex items-center gap-2 text-xs text-[#4D4A47]" data-design-id="app-meta">
               {/* Bewertungsbasis dauerhaft sichtbar + umschaltbar (CR 6) */}
               <ValuationBadge />
               <LanguageToggle />

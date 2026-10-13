@@ -660,6 +660,12 @@ export interface SimulationResult {
    * Korridor-Entnahme; Erfolgsquote/Einordnung werden unterdrückt).
    */
   withdrawalAssumption?: 'user' | 'corridor_typical';
+  /**
+   * Gesamtbetrag/Monat (heutige Kaufkraft), mit dem dieser Lauf tatsächlich
+   * gerechnet hat — bei leerem Wunsch die typische Korridor-Entnahme.
+   * Einzelpfad, Backtest und Exporte verwenden denselben Wert.
+   */
+  effectiveMonthlyWithdrawal?: number;
   /** Vollständiger Berechnungsnachweis (CR 19). */
   calculationTrace?: CalculationTrace;
   /**
@@ -692,6 +698,16 @@ export interface HistoricalResult {
   finalWealth: number;
   maxDrawdown: number;
   path: number[];
+  /** Endvermögen in Kaufkraft des Startjahres (mit echter VPI-Inflation des Fensters). */
+  finalWealthReal: number;
+  /** Vermögenspfad in Kaufkraft des Startjahres. */
+  pathReal: number[];
+  /**
+   * Historisch tragbare Entnahme: größter Gesamtbetrag/Monat (heutige
+   * Kaufkraft, inkl. Pension — wie das Eingabefeld), mit dem dieses
+   * Startjahr gerade nicht gescheitert wäre. null = keine Entnahmephase.
+   */
+  sustainableMonthly: number | null;
   worstYear: number;
   worstReturn: number;
 }
@@ -702,6 +718,13 @@ export interface HistoricalAnalysis {
   averageFinalWealth: number;
   /** Median-Endvermögen über alle rollierenden Szenarien (für Vergleich mit MC-Median). */
   medianFinalWealth: number;
+  /** Wie oben, in heutiger Kaufkraft (je Fenster mit der echten Inflation abgezinst). */
+  medianFinalWealthReal: number;
+  averageFinalWealthReal: number;
+  /** Tragbare Entnahme im ungünstigsten Startjahr (null = keine Entnahmephase). */
+  sustainableMonthlyWorst: { startYear: number; monthly: number } | null;
+  /** Median der tragbaren Entnahme über alle Startjahre. */
+  sustainableMonthlyMedian: number | null;
   worstScenario: HistoricalResult;
   bestScenario: HistoricalResult;
   drawdownDistribution: number[];

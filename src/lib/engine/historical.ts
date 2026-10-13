@@ -153,17 +153,55 @@ export function runHistoricalBacktest(
   const costs = portfolio.buckets.map((b) => b.costs / 100);
 
   const scenarios: HistoricalResult[] = [];
+  const hasWithdrawalPhase = client.lifeExpectancy > Math.max(client.currentAge, client.retirementAge);
 
-  for (let startIdx = 0; startIdx <= historicalData.length - totalYears; startIdx++) {
-    const startYear = historicalData[startIdx].year;
-    const yearReturns = (step: number): number[] => {
+  /** Echte Marktjahre ab `startIdx`: Netto-Renditen (nach Kosten) + Inflation. */
+  const marketFrom = (startIdx: number) => ({
+    returns: (step: number): number[] => {
       const d = historicalData[startIdx + step];
       return [
         d.cashReturn / 100 - costs[0],
         d.bondReturn / 100 - costs[1],
         d.equityReturn / 100 - costs[2],
       ];
+    },
+    inflation: (step: number) => historicalData[startIdx + step].inflation / 100,
+  });
+
+  /**
+   * Historisch tragbare Entnahme eines Startjahres: größter Gesamtbetrag je
+   * Monat (heutige Kaufkraft, inkl. Pension), bei dem der Plan in diesem
+   * Zeitfenster gerade nicht scheitert — Halbierungssuche auf 1 € genau,
+   * mit genau denselben Regeln wie der Backtest selbst.
+   */
+  const sustainableFor = (startIdx: number): number | null => {
+    if (!hasWithdrawalPhase) return null;
+    const market = marketFrom(startIdx);
+    const survives = (monthly: number): boolean => {
+      const c = buildPathContext(
+        client, { ...inputs, desiredMonthlyWithdrawal: monthly }, liquidOnly, settings, liquidityEvents, 1,
+      );
+      return !simulatePath(c, 0, { market }).failed;
     };
+    if (!survives(0)) return 0;
+    let lo = 0;
+    let hi = Math.max(1_000, inputs.monthlyPension * 2, inputs.initialCapital / 100);
+    for (let n = 0; n < 16 && survives(hi); n++) {
+      lo = hi;
+      hi *= 2;
+    }
+    for (let n = 0; n < 40 && hi - lo > 1; n++) {
+      const mid = (lo + hi) / 2;
+      if (survives(mid)) lo = mid;
+      else hi = mid;
+    }
+    return Math.floor(lo);
+  };
+
+  for (let startIdx = 0; startIdx <= historicalData.length - totalYears; startIdx++) {
+    const startYear = historicalData[startIdx].year;
+    const market = marketFrom(startIdx);
+    const yearReturns = market.returns;
 
     // Schlechtestes Portfoliojahr (Allokation des jeweiligen Regimes).
     let worstYear = startYear;
@@ -177,19 +215,26 @@ export function runHistoricalBacktest(
       }
     }
 
-    const out = simulatePath(ctx, 0, {
-      collectPath: true,
-      market: {
-        returns: yearReturns,
-        inflation: (step) => historicalData[startIdx + step].inflation / 100,
-      },
-    });
+    const out = simulatePath(ctx, 0, { collectPath: true, market });
+
+    // Kaufkraft: je Jahr mit der echten österreichischen Inflation des
+    // Fensters abzinsen (gleiche Inflation, mit der Entnahmen steigen).
+    const nominalPath = out.path as number[];
+    const pathReal: number[] = [];
+    let cpi = 1;
+    for (let i = 0; i < nominalPath.length; i++) {
+      if (i > 0) cpi *= 1 + historicalData[startIdx + i - 1].inflation / 100;
+      pathReal.push(nominalPath[i] / cpi);
+    }
 
     scenarios.push({
       startYear,
       endYear: startYear + totalYears,
       success: !out.failed,
       finalWealth: Math.max(0, out.finalValue),
+      finalWealthReal: Math.max(0, out.finalValue) / cpi,
+      pathReal,
+      sustainableMonthly: sustainableFor(startIdx),
       // Reiner Markt-Drawdown (ohne Sparraten/Entnahmen) — wie Monte-Carlo.
       maxDrawdown: out.marketMaxDD,
       path: out.path as number[],
@@ -203,14 +248,15 @@ export function runHistoricalBacktest(
     (a, b) => a.finalWealth - b.finalWealth
   );
 
-  const medianFinalWealth =
-    sortedByWealth.length > 0
-      ? sortedByWealth.length % 2 === 1
-        ? sortedByWealth[Math.floor(sortedByWealth.length / 2)].finalWealth
-        : (sortedByWealth[sortedByWealth.length / 2 - 1].finalWealth +
-            sortedByWealth[sortedByWealth.length / 2].finalWealth) /
-          2
-      : 0;
+  const median = (values: number[]): number => {
+    if (values.length === 0) return 0;
+    const v = [...values].sort((a, b) => a - b);
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 === 1 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+  const medianFinalWealth = median(scenarios.map((s) => s.finalWealth));
+  const avg = (values: number[]) =>
+    values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 
   return {
     scenarios,
@@ -218,13 +264,29 @@ export function runHistoricalBacktest(
       scenarios.length > 0
         ? (successfulScenarios.length / scenarios.length) * 100
         : 0,
-    averageFinalWealth:
-      scenarios.length > 0
-        ? scenarios.reduce((s, sc) => s + sc.finalWealth, 0) / scenarios.length
-        : 0,
+    averageFinalWealth: avg(scenarios.map((s) => s.finalWealth)),
     medianFinalWealth,
+    medianFinalWealthReal: median(scenarios.map((s) => s.finalWealthReal)),
+    averageFinalWealthReal: avg(scenarios.map((s) => s.finalWealthReal)),
+    ...sustainableSummary(scenarios),
     worstScenario: sortedByWealth[0],
     bestScenario: sortedByWealth[sortedByWealth.length - 1],
     drawdownDistribution: scenarios.map((s) => s.maxDrawdown * 100),
+  };
+}
+
+/** Ungünstigstes Startjahr und Median der historisch tragbaren Entnahme. */
+function sustainableSummary(scenarios: HistoricalResult[]): Pick<
+  HistoricalAnalysis,
+  "sustainableMonthlyWorst" | "sustainableMonthlyMedian"
+> {
+  const withValue = scenarios.filter((s) => s.sustainableMonthly !== null);
+  if (withValue.length === 0) return { sustainableMonthlyWorst: null, sustainableMonthlyMedian: null };
+  const worst = withValue.reduce((a, b) => ((b.sustainableMonthly ?? 0) < (a.sustainableMonthly ?? 0) ? b : a));
+  const v = withValue.map((s) => s.sustainableMonthly as number).sort((a, b) => a - b);
+  const m = Math.floor(v.length / 2);
+  return {
+    sustainableMonthlyWorst: { startYear: worst.startYear, monthly: worst.sustainableMonthly as number },
+    sustainableMonthlyMedian: v.length % 2 === 1 ? v[m] : (v[m - 1] + v[m]) / 2,
   };
 }

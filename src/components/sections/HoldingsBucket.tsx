@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { fmtEur, fmtNum, fmtPct } from "@/lib/format";
+import { fmtEur, fmtNum, fmtPct, formatAT } from "@/lib/format";
 import type {
   Holding,
   HoldingAssetClass,
@@ -17,7 +17,8 @@ import type {
 } from "@/lib/holdings/types";
 import { isValidIsin } from "@/lib/holdings/isin";
 import { classifySecurity } from "@/lib/holdings/classify";
-import { runMonteCarloSimulation, generateWithdrawalHeatmap } from "@/lib/engine/montecarlo";
+import { generateWithdrawalHeatmap } from "@/lib/engine/montecarlo";
+import { runPlanSimulation } from "@/lib/engine/planRun";
 import type { Scenario, AssetBucket } from "@/lib/types";
 
 interface BucketStatsResp {
@@ -186,8 +187,11 @@ export function HoldingsBucket() {
       source: "manual",
     };
     // BUGFIX (AP5): liquidityEvents mitgeben — konsistent zum Hauptlauf.
-    const result = runMonteCarloSimulation(client, scenario.inputs, scenario.portfolio, settings, liquidityEvents);
-    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, scenario.inputs, scenario.portfolio, settings, liquidityEvents);
+    // Leerer Wunsch → typische Korridor-Entnahme dieses Portfolios.
+    const { result, effectiveInputs } = runPlanSimulation(
+      client, scenario.inputs, scenario.portfolio, settings, liquidityEvents,
+    );
+    result.withdrawalHeatmap = generateWithdrawalHeatmap(client, effectiveInputs, scenario.portfolio, settings, liquidityEvents);
     scenario.result = result;
     dispatch({ type: "ADD_SCENARIO", payload: scenario });
 
@@ -792,7 +796,7 @@ function BucketStatsCard({ stats }: { stats: BucketStatsResp }) {
           </table>
         </div>
         <p className="text-xs text-neutral-500">
-          Fenster: {stats.daysOfHistory.toLocaleString("de-AT")} Handelstage. Werte fließen direkt
+          Fenster: {formatAT(stats.daysOfHistory)} Handelstage. Werte fließen direkt
           in das Monte-Carlo-Szenario ein, sobald „{t("holdings.saveAsScenario.button")}" geklickt wird.
         </p>
       </CardContent>
@@ -842,7 +846,7 @@ function DrawdownAnalysisPanel({
 
   const recovered = m.drawdownRecovered === true;
   const fmtDays = (trading: number, calendar: number) =>
-    `${trading.toLocaleString("de-AT")} HT · ${calendar.toLocaleString("de-AT")} KT`;
+    `${formatAT(trading)} HT · ${formatAT(calendar)} KT`;
 
   return (
     <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-4">

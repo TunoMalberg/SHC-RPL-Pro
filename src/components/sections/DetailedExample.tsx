@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
 import { runDetailedSingleSimulation } from "@/lib/engine/montecarlo";
+import { withEffectiveWithdrawal } from "@/lib/engine/planRun";
 import type { DetailedSimTrace } from "@/lib/types";
 import {
   Select,
@@ -53,9 +54,14 @@ export function DetailedExampleSection() {
     () => scenarios.find((s) => s.id === sourceScenarioId),
     [scenarios, sourceScenarioId],
   );
-  const activeInputs = activeScenario ? activeScenario.inputs : inputs;
   const activePortfolio = activeScenario ? activeScenario.portfolio : portfolio;
   const activeResult = activeScenario?.result ?? result;
+  // Gleiche Entnahme wie der zugehörige Monte-Carlo-Lauf (bei leerem Wunsch
+  // die typische Korridor-Entnahme) — sonst zeigte der Einzelpfad 0 €.
+  const activeInputs = withEffectiveWithdrawal(
+    activeScenario ? activeScenario.inputs : inputs,
+    activeResult?.effectiveMonthlyWithdrawal,
+  );
 
   const generateTraceWithIndex = (idx: number) => {
     const trace = runDetailedSingleSimulation(

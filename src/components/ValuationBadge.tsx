@@ -25,7 +25,7 @@ export function ValuationBadge() {
     <button
       type="button"
       onClick={toggle}
-      className={`px-2 py-1 rounded-md font-medium text-xs transition-colors border ${
+      className={`whitespace-nowrap px-2 py-1 rounded-md font-medium text-xs transition-colors border ${
         isReal
           ? "bg-[#8FB687]/15 text-[#3d5c38] border-[#8FB687]/40 hover:bg-[#8FB687]/25"
           : "bg-[#FAC075]/20 text-[#5d4a1f] border-[#FAC075]/50 hover:bg-[#FAC075]/30"
