@@ -49,7 +49,8 @@ export async function fetchFxSeries(
 ): Promise<Record<string, number>> {
   if (from === "EUR") return {};
   const key = `${from}_${startDate}_${endDate}`;
-  if (seriesCache.has(key)) return seriesCache.get(key)!;
+  const cachedSeries = seriesCache.get(key);
+  if (cachedSeries) return cachedSeries;
 
   const url = `${BASE}/${startDate}..${endDate}?from=${from}&to=EUR`;
   try {
@@ -73,7 +74,8 @@ export async function fetchFxSpot(from: string, on?: string): Promise<number> {
   if (from === "EUR") return 1.0;
   const date = on ?? "latest";
   const key = `${from}_${date}`;
-  if (singleCache.has(key)) return singleCache.get(key)!;
+  const cachedSpot = singleCache.get(key);
+  if (cachedSpot !== undefined) return cachedSpot;
 
   const url = `${BASE}/${date}?from=${from}&to=EUR`;
   try {

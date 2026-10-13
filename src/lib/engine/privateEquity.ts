@@ -163,7 +163,7 @@ function computeIRR(cashflows: number[]): number {
     const mid = (lo + hi) / 2;
     let npv = 0;
     for (let t = 0; t < cashflows.length; t++) {
-      npv += cashflows[t] / Math.pow(1 + mid, t);
+      npv += cashflows[t] / (1 + mid) ** t;
     }
     if (npv > 0) lo = mid;
     else hi = mid;
@@ -243,7 +243,7 @@ function buildSchedule(
   for (let t = 0; t < fund.fundDuration; t++) {
     let v = 0;
     for (let i = 0; i <= t; i++) {
-      const factor = Math.pow(1 + irrTarget, t - i);
+      const factor = (1 + irrTarget) ** (t - i);
       v += calls[i] * factor;
       v -= distsGross[i] * factor;
     }

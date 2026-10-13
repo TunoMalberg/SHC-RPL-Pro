@@ -284,7 +284,7 @@ interface DrawOpt {
 }
 
 function drawText(page: PDFPage, text: string, x: number, y: number, opt: DrawOpt = {}) {
-  const font = opt.font!;
+  const font = opt.font;
   const size = opt.size ?? 10;
   const color = opt.color ?? C.text;
   // Replace characters pdf-lib standard fonts don't support (é, non-WinAnsi)
@@ -298,7 +298,7 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
   const lines: string[] = [];
   let current = "";
   for (const w of words) {
-    const test = current ? current + " " + w : w;
+    const test = current ? `${current} ${w}` : w;
     const width = font.widthOfTextAtSize(test, size);
     if (width > maxWidth && current) {
       lines.push(current);
@@ -321,7 +321,9 @@ function drawWrappedText(
 ): number {
   const size = opt.size ?? 10;
   const lh = opt.lineHeight ?? 1.4;
-  const lines = wrap(text, opt.font!, size, maxWidth);
+  // Alle Aufrufer übergeben eine Schrift; ohne Schrift wäre kein Umbruch möglich.
+  if (!opt.font) throw new Error("drawWrappedText: Schrift fehlt.");
+  const lines = wrap(text, opt.font, size, maxWidth);
   let cursor = y;
   for (const line of lines) {
     drawText(page, line, x, cursor, opt);
@@ -744,7 +746,7 @@ export async function generateClientPdfReport(
       { label: S.peDistGross, value: fmtEur(locale, peStats.totalDistGross) },
       { label: S.pePeakNav, value: fmtEur(locale, peStats.peakNav) },
       { label: S.peTargetIRR, value: fmtPct(locale, peStats.avgTargetIRR) },
-      { label: S.peTargetTVPI, value: peStats.avgTargetTVPI.toFixed(2) + "×" },
+      { label: S.peTargetTVPI, value: `${peStats.avgTargetTVPI.toFixed(2)}×` },
     ];
     if (peStats.successRate !== null) {
       kpis.push({ label: S.peSuccess, value: fmtPct(locale, peStats.successRate * 100) });
@@ -782,7 +784,7 @@ export async function generateClientPdfReport(
     ];
     pPe.drawRectangle({ x: M, y: headerY - 18, width: CW, height: 18, color: C.soft });
     let cx = M;
-    colsT.forEach((c) => {
+    for (const c of colsT) {
       const w = c.w * CW;
       const label = c.label.toUpperCase();
       const safeLabel = label.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "");
@@ -793,10 +795,10 @@ export async function generateClientPdfReport(
       }
       drawText(pPe, label, tx, headerY - 12, { font: body, size: 8, color: C.muted });
       cx += w;
-    });
+    }
     let rowY = headerY - 18 - 14;
     const maxRows = 6;
-    peFundsList.slice(0, maxRows).forEach((f) => {
+    for (const f of peFundsList.slice(0, maxRows)) {
       cx = M;
       const cells = [
         f.name || "—",
@@ -804,7 +806,7 @@ export async function generateClientPdfReport(
         String(f.startAge),
         `${f.fundDuration} ${locale === "de" ? "J." : "y"}`,
         fmtPct(locale, f.irr),
-        f.tvpi.toFixed(2) + "×",
+        `${f.tvpi.toFixed(2)}×`,
       ];
       cells.forEach((v, i) => {
         const c = colsT[i];
@@ -826,7 +828,7 @@ export async function generateClientPdfReport(
         thickness: 0.4,
       });
       rowY -= 18;
-    });
+    }
     if (peFundsList.length > maxRows) {
       drawText(pPe, `+ ${peFundsList.length - maxRows} ${locale === "de" ? "weitere Fonds" : "more funds"}`, M + 10, rowY - 4, {
         font: italic,
@@ -894,8 +896,8 @@ export async function generateClientPdfReport(
   drawText(p5, advisor.name || advisor.bankName, M + 16, boxY - 12, { font: bold, size: 12 });
   if (advisor.title) drawText(p5, advisor.title, M + 16, boxY - 26, { font: body, size: 9, color: C.muted });
   const cLines: string[] = [];
-  if (advisor.phone) cLines.push("☎ " + advisor.phone);
-  if (advisor.email) cLines.push("✉ " + advisor.email);
+  if (advisor.phone) cLines.push(`☎ ${advisor.phone}`);
+  if (advisor.email) cLines.push(`✉ ${advisor.email}`);
   cLines.forEach((l, i) => drawText(p5, l, M + 16, boxY - 44 - i * 12, { font: body, size: 9 }));
 
   // Disclaimer at bottom (short summary; full notice on the last page)

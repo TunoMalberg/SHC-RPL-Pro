@@ -1,19 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct, fmtNum, formatAT } from "@/lib/format";
-import { computePETimeline } from "@/lib/engine/privateEquity";
-import { computeHistoricalGrossReturns } from "@/lib/engine/historical";
 import { rankAgainstCorridor } from "@/lib/engine/corridor";
 import { computeConfigHash } from "@/lib/configHash";
 import type { CorridorScenarioKey } from "@/lib/types";
 import {
   ComposedChart,
-  AreaChart,
   Area,
   XAxis,
   YAxis,
@@ -34,6 +31,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { PeSummaryCard } from "./results/PeSummaryCard";
+import { McVsHistCard } from "./results/McVsHistCard";
+import { CalculationTraceExpander } from "./results/CalculationTraceExpander";
 
 // AT Sterbetafel 2022/23 – combined m/f survival probabilities
 const AT_LIFE_TABLE = [
@@ -97,44 +97,6 @@ export function ResultsDashboard() {
   const result = viewingScenario?.result ?? mainResult;
 
   // PE-Aggregate (deterministisch oder Median über Stochastik) ─────────────
-  const peMode = portfolio.peModelingMode ?? "realistic";
-  const peSummary = useMemo(() => {
-    const peFunds = portfolio.peFunds ?? [];
-    if (peFunds.length === 0) return null;
-    const totalYears = Math.max(1, client.lifeExpectancy - client.currentAge);
-    // AP6-Fix: KESt-Satz aus der Konfiguration statt fest verdrahtet 0.275 —
-    // sonst ignoriert die PE-Karte eine geänderte (z. B. 0 %) KESt.
-    const timeline = computePETimeline(
-      peFunds,
-      client.currentAge,
-      totalYears,
-      (portfolio.kestRate ?? 27.5) / 100,
-      peMode,
-    );
-    const totalCommitment = peFunds.reduce((s, f) => s + f.commitment, 0);
-    const totalCalled = timeline.reduce((s, e) => s + e.totalCall, 0);
-    const totalDistGross = timeline.reduce((s, e) => s + e.totalDistGross, 0);
-    const totalDistNet = timeline.reduce((s, e) => s + e.totalDistNet, 0);
-    const totalKestPaid = totalDistGross - totalDistNet;
-    const navAtLifeEnd = timeline.length > 0 ? timeline[timeline.length - 1].totalNav : 0;
-    const navPeak = timeline.reduce((m, e) => Math.max(m, e.totalNav), 0);
-    const activeFunds = peFunds.length;
-    const avgIRR = peFunds.reduce((s, f) => s + f.irr, 0) / peFunds.length;
-    const avgTVPI = peFunds.reduce((s, f) => s + f.tvpi, 0) / peFunds.length;
-    return {
-      totalCommitment,
-      totalCalled,
-      totalDistGross,
-      totalDistNet,
-      totalKestPaid,
-      navAtLifeEnd,
-      navPeak,
-      activeFunds,
-      avgIRR,
-      avgTVPI,
-      timeline,
-    };
-  }, [portfolio.peFunds, portfolio.kestRate, client.currentAge, client.lifeExpectancy, peMode]);
 
   if (!result) {
     return (
@@ -401,7 +363,7 @@ export function ResultsDashboard() {
                 const ranking = rankAgainstCorridor(requiredMonthly, corridor);
                 const reqShown = isReal
                   ? requiredMonthly
-                  : Math.round(requiredMonthly * Math.pow(1 + inputs.inflationRate / 100, corridor.yearsToRetirement));
+                  : Math.round(requiredMonthly * (1 + inputs.inflationRate / 100) ** corridor.yearsToRetirement);
                 const rankStyle =
                   ranking === "below_difficult"
                     ? "border-[#8FB687]/40 bg-[#8FB687]/10 text-[#3d5c38]"
@@ -534,430 +496,19 @@ export function ResultsDashboard() {
         </Card>
       )}
 
-      {/* Private Equity Summary – 4th bucket contribution (deterministic) */}
-      {hasPE && peSummary && (
-        <Card
-          className="border-[#8A83BE]/40 bg-gradient-to-br from-[#8A83BE]/5 to-white"
-          data-design-id="pe-summary-card"
-        >
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div>
-                <CardTitle className="text-lg flex items-center gap-2" data-design-id="pe-summary-title">
-                  <span className="inline-block w-3 h-3 rounded-full bg-[#8A83BE]" />
-                  {t("results.peCardTitle")}
-                </CardTitle>
-                <p className="text-xs text-slate-500 mt-1">{t("results.peCardSubtitle")}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`text-[10px] px-2.5 py-1 rounded-full font-semibold uppercase tracking-wide ${
-                    peMode === "full"
-                      ? "bg-[#5d568f] text-white"
-                      : peMode === "realistic"
-                        ? "bg-[#8A83BE]/30 text-[#3f3a66]"
-                        : "bg-slate-200 text-slate-600"
-                  }`}
-                  title={t(
-                    peMode === "full"
-                      ? "portfolio.peModeFullDesc"
-                      : peMode === "realistic"
-                        ? "portfolio.peModeRealisticDesc"
-                        : "portfolio.peModeSimpleDesc",
-                  )}
-                  data-design-id="pe-mode-badge"
-                >
-                  {t(
-                    peMode === "full"
-                      ? "portfolio.peModeFull"
-                      : peMode === "realistic"
-                        ? "portfolio.peModeRealistic"
-                        : "portfolio.peModeSimple",
-                  )}
-                </span>
-                <div className="text-xs px-2.5 py-1 rounded-full bg-[#8A83BE]/15 text-[#5d568f] font-semibold">
-                  {peSummary.activeFunds} {t("results.peKpiActiveFunds")}
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {/* Commitments */}
-              <div className="rounded-lg bg-white border border-[#8A83BE]/20 p-3">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {t("results.peKpiCommitment")}
-                </div>
-                <div className="text-lg font-bold text-slate-800 mt-0.5 tabular-nums">
-                  {fmtEur(peSummary.totalCommitment)}
-                </div>
-              </div>
-              {/* Called Capital */}
-              <div className="rounded-lg bg-white border border-[#8A83BE]/20 p-3">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {t("results.peKpiCalled")}
-                </div>
-                <div className="text-lg font-bold text-rose-600 mt-0.5 tabular-nums">
-                  −{fmtEur(peSummary.totalCalled)}
-                </div>
-                <div className="text-[9px] text-slate-400 mt-0.5">
-                  {peSummary.totalCommitment > 0
-                    ? fmtPct((peSummary.totalCalled / peSummary.totalCommitment) * 100) + " of commit."
-                    : ""}
-                </div>
-              </div>
-              {/* Distributions Net */}
-              <div className="rounded-lg bg-white border border-[#8A83BE]/20 p-3">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {t("results.peKpiDistNet")}
-                </div>
-                <div className="text-lg font-bold text-[#5a8a50] mt-0.5 tabular-nums">
-                  +{fmtEur(peSummary.totalDistNet)}
-                </div>
-                <div className="text-[9px] text-slate-400 mt-0.5">
-                  {t("results.peKpiDistGross")}: {fmtEur(peSummary.totalDistGross)}
-                </div>
-              </div>
-              {/* NAV at Life End */}
-              <div className="rounded-lg bg-[#8A83BE]/10 border border-[#8A83BE]/40 p-3">
-                <div className="text-[10px] font-semibold text-[#5d568f] uppercase tracking-wide">
-                  {t("results.peKpiNavLifeEnd")}
-                </div>
-                <div className="text-lg font-bold text-[#5d568f] mt-0.5 tabular-nums">
-                  {fmtEur(peSummary.navAtLifeEnd)}
-                </div>
-                <div className="text-[9px] text-slate-500 mt-0.5">
-                  {t("results.peKpiNavLifeEndHint")}
-                </div>
-              </div>
-            </div>
+      <PeSummaryCard result={result} portfolio={portfolio} client={client} />
 
-            {/* Sekundäre Kennzahlen */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {t("results.peKpiTaxesPaid")}
-                </div>
-                <div className="text-sm font-bold text-slate-700 mt-0.5 tabular-nums">
-                  {fmtEur(peSummary.totalKestPaid)}
-                </div>
-              </div>
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Σ Net Cashflow
-                </div>
-                <div
-                  className={`text-sm font-bold mt-0.5 tabular-nums ${
-                    peSummary.totalDistNet - peSummary.totalCalled >= 0 ? "text-[#5a8a50]" : "text-rose-600"
-                  }`}
-                >
-                  {peSummary.totalDistNet - peSummary.totalCalled >= 0 ? "+" : ""}
-                  {fmtEur(peSummary.totalDistNet - peSummary.totalCalled)}
-                </div>
-              </div>
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {t("results.peKpiAvgIrr")}
-                </div>
-                <div className="text-sm font-bold text-[#5a8a50] mt-0.5 tabular-nums">
-                  {fmtPct(peSummary.avgIRR)}
-                </div>
-              </div>
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {t("results.peKpiAvgTvpi")}
-                </div>
-                <div className="text-sm font-bold text-slate-700 mt-0.5 tabular-nums">
-                  {fmtNum(peSummary.avgTVPI, 2)}×
-                </div>
-              </div>
-            </div>
-
-            {/* Stochastik-Stats — nur im Modus „Vollständig" */}
-            {peMode === "full" && result.peSuccessRate !== undefined && (
-              <div
-                className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 p-3 rounded-lg bg-[#8A83BE]/8 border border-[#8A83BE]/30"
-                data-design-id="pe-stoch-stats"
-              >
-                <div>
-                  <div className="text-[10px] font-semibold text-[#5d568f] uppercase tracking-wide">
-                    {t("portfolio.peEnsembleSuccess")}
-                  </div>
-                  <div
-                    className={`text-base font-bold mt-0.5 tabular-nums ${
-                      result.peSuccessRate >= 0.9
-                        ? "text-[#5a8a50]"
-                        : result.peSuccessRate >= 0.7
-                          ? "text-[#FAC075]"
-                          : "text-rose-600"
-                    }`}
-                  >
-                    {fmtPct(result.peSuccessRate * 100)}
-                  </div>
-                  <div className="text-[9px] text-slate-500 mt-0.5">
-                    {peSummary.activeFunds} {t("results.peKpiActiveFunds")}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-semibold text-[#5d568f] uppercase tracking-wide">
-                    {t("portfolio.peEnsembleMedianIRR")}
-                  </div>
-                  <div className="text-base font-bold text-slate-800 mt-0.5 tabular-nums">
-                    {fmtPct(result.peMedianIRR ?? 0)}
-                  </div>
-                  <div className="text-[9px] text-slate-500 mt-0.5">
-                    Ziel: {fmtPct(peSummary.avgIRR)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-semibold text-[#5d568f] uppercase tracking-wide">
-                    {t("portfolio.peEnsembleMedianTVPI")}
-                  </div>
-                  <div className="text-base font-bold text-slate-800 mt-0.5 tabular-nums">
-                    {fmtNum(result.peMedianTVPI ?? 0, 2)}×
-                  </div>
-                  <div className="text-[9px] text-slate-500 mt-0.5">
-                    Ziel: {fmtNum(peSummary.avgTVPI, 2)}×
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Mini-Verlauf: PE-NAV-Kurve über Zeit */}
-            <div className="mt-4 rounded-lg bg-white border border-slate-100 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {t("results.peLegendTitle")} — {t("results.peOverlayLabel")}
-                </div>
-                <div className="text-[10px] text-slate-400">
-                  Peak NAV: <span className="font-semibold text-[#8A83BE]">{fmtEur(peSummary.navPeak)}</span>
-                </div>
-              </div>
-              <ResponsiveContainer width="100%" height={160}>
-                <ComposedChart
-                  data={peSummary.timeline.map((e) => ({
-                    age: e.age,
-                    nav: Math.round(e.totalNav),
-                    call: -Math.round(e.totalCall),
-                    distNet: Math.round(e.totalDistNet),
-                  }))}
-                  margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f4" />
-                  <XAxis dataKey="age" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `€${(Number(v) / 1000).toFixed(0)}k`} />
-                  <Tooltip
-                    formatter={(value, name) => [fmtEur(Number(value) || 0), String(name)]}
-                    labelFormatter={(l) => `${t("results.ageAxis")} ${l}`}
-                    contentStyle={{ fontSize: 11, borderRadius: 6 }}
-                  />
-                  <ReferenceLine y={0} stroke="#cbd5e1" />
-                  <Bar dataKey="call" fill="#D31220" name={t("portfolio.peChartCalls")} opacity={0.55} />
-                  <Bar dataKey="distNet" fill="#5a8a50" name={t("portfolio.peChartDistNet")} opacity={0.7} />
-                  <Line
-                    type="monotone"
-                    dataKey="nav"
-                    stroke="#8A83BE"
-                    strokeWidth={2.2}
-                    dot={false}
-                    name={t("portfolio.peChartNav")}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-              <p className="text-[10px] text-slate-400 mt-1 text-center italic">
-                {t("results.peSuccessNote")}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* MC vs Historical side-by-side comparison – Fix D (2025-11-11) */}
-      {historicalResult && (
-        <Card data-design-id="mc-vs-hist-comparison-card" className="border-[#8FB687]/40">
-          <CardHeader>
-            <CardTitle data-design-id="mc-vs-hist-title" className="text-lg">
-              {t("compare.title")}
-            </CardTitle>
-            <p className="text-sm text-slate-500 mt-1">{t("compare.subtitle")}</p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4" data-design-id="mc-vs-hist-mc">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                  {t("compare.mcLabel")}
-                </div>
-                <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <span className="text-xs text-slate-500">{t("compare.median")} {endValueSuffix}</span>
-                  <span className="text-2xl font-bold text-[#4D4A47]">
-                    {fmtEur(
-                      isReal
-                        ? result.valuation?.medianFinalWealthReal ?? result.medianFinalWealth * (deflators[endIdx] ?? 1)
-                        : result.medianFinalWealth,
-                    )}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <span className="text-xs text-slate-500">{t("compare.success")}</span>
-                  <span className={`text-lg font-bold ${successColor}`}>{fmtPct(result.successRate)}</span>
-                </div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs text-slate-500">{t("compare.scenarios")}</span>
-                  <span className="text-sm text-slate-700">{formatAT(state.settings.numSimulations)}</span>
-                </div>
-              </div>
-              <div className="rounded-lg border border-[#8FB687]/40 bg-[#8FB687]/10 p-4" data-design-id="mc-vs-hist-hist">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                  {t("compare.histLabel")}
-                </div>
-                <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <span className="text-xs text-slate-500">
-                    {t("compare.median")} {isReal ? t("valuation.suffixReal") : t("valuation.badgeNominal").toLowerCase()}
-                  </span>
-                  <span className="text-2xl font-bold text-[#4D4A47]">
-                    {fmtEur(isReal ? historicalResult.medianFinalWealthReal : historicalResult.medianFinalWealth)}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <span className="text-xs text-slate-500">{t("compare.success")}</span>
-                  <span className={`text-lg font-bold ${historicalResult.overallSuccessRate >= 90 ? "text-[#5a8a50]" : historicalResult.overallSuccessRate >= 70 ? "text-[#FAC075]" : "text-rose-600"}`}>
-                    {fmtPct(historicalResult.overallSuccessRate)}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs text-slate-500">{t("compare.scenarios")}</span>
-                  <span className="text-sm text-slate-700">{historicalResult.scenarios.length}</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-              {t("compare.note")
-                .replace("{n}", formatAT(state.settings.numSimulations))
-                .replace("{eq}", String(portfolio.buckets[2].expectedReturn))
-                .replace("{b}", String(portfolio.buckets[1].expectedReturn))
-                .replace("{c}", String(portfolio.buckets[0].expectedReturn))}
-            </p>
-
-            {/* Historical gross returns per bucket (1970–2024, geometric p.a.) */}
-            {(() => {
-              const hgr = computeHistoricalGrossReturns();
-              const rows = [
-                {
-                  key: "cash",
-                  label: portfolio.buckets[0]?.label ?? "Topf 1",
-                  assumed: portfolio.buckets[0]?.expectedReturn ?? 0,
-                  hist: hgr.cash,
-                },
-                {
-                  key: "bonds",
-                  label: portfolio.buckets[1]?.label ?? "Topf 2",
-                  assumed: portfolio.buckets[1]?.expectedReturn ?? 0,
-                  hist: hgr.bonds,
-                },
-                {
-                  key: "equities",
-                  label: portfolio.buckets[2]?.label ?? "Topf 3",
-                  assumed: portfolio.buckets[2]?.expectedReturn ?? 0,
-                  hist: hgr.equities,
-                },
-              ];
-              return (
-                <div className="mt-5 pt-4 border-t border-slate-200" data-design-id="hist-gross-returns-block">
-                  <div className="text-sm font-semibold text-slate-700 mb-1">
-                    {t("compare.histReturnsTitle")}
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed mb-3">
-                    {t("compare.histReturnsSubtitle")}
-                  </p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                          <th className="text-left py-2 pr-3 font-semibold">{t("compare.colBucket")}</th>
-                          <th className="text-right py-2 px-3 font-semibold">{t("compare.colAssumed")}</th>
-                          <th className="text-right py-2 px-3 font-semibold">{t("compare.colHistorical")}</th>
-                          <th className="text-right py-2 pl-3 font-semibold">{t("compare.colDelta")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r) => {
-                          const delta = r.assumed - r.hist;
-                          const deltaColor =
-                            Math.abs(delta) < 0.25
-                              ? "text-slate-500"
-                              : delta > 0
-                                ? "text-rose-600"
-                                : "text-[#5a8a50]";
-                          return (
-                            <tr key={r.key} className="border-b border-slate-100">
-                              <td className="py-1.5 pr-3 text-slate-700">{r.label}</td>
-                              <td className="py-1.5 px-3 text-right font-medium tabular-nums">
-                                {r.assumed.toFixed(1).replace(".", ",")} %
-                              </td>
-                              <td className="py-1.5 px-3 text-right font-medium tabular-nums">
-                                {r.hist.toFixed(1).replace(".", ",")} %
-                              </td>
-                              <td className={`py-1.5 pl-3 text-right tabular-nums font-medium ${deltaColor}`}>
-                                {delta > 0 ? "+" : ""}
-                                {delta.toFixed(1).replace(".", ",")} pp
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        <tr className="text-xs text-slate-400">
-                          <td className="py-1.5 pr-3 italic">
-                            Inflation ({hgr.startYear}–{hgr.endYear})
-                          </td>
-                          <td className="py-1.5 px-3 text-right tabular-nums">—</td>
-                          <td className="py-1.5 px-3 text-right tabular-nums">
-                            {hgr.inflation.toFixed(1).replace(".", ",")} %
-                          </td>
-                          <td className="py-1.5 pl-3 text-right tabular-nums">—</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      )}
-
-      {result.sustainableWithdrawal !== undefined && (
-        <Card className="border-[#8FB687]/40 bg-[#8FB687]/10/50" data-design-id="sustainable-withdrawal-card">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-slate-500">{t("results.sustainableMonthly")}</div>
-                <div className="text-3xl font-bold text-[#5a8a50]">{fmtEur(result.sustainableWithdrawal)}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-slate-500">{t("results.annualy")}</div>
-                <div className="text-xl font-bold text-[#5a8a50]">{fmtEur(result.sustainableWithdrawal * 12)}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {result.requiredCapital !== undefined && (
-        <Card className="border-neutral-200 bg-neutral-50/50" data-design-id="required-capital-card">
-          <CardContent className="pt-4 pb-4">
-            <div className="text-sm text-slate-500">{t("results.requiredCapital")}</div>
-            <div className="text-3xl font-bold text-[#4D4A47]">{fmtEur(result.requiredCapital)}</div>
-          </CardContent>
-        </Card>
-      )}
-
-      {result.requiredSavings !== undefined && (
-        <Card className="border-red-200 bg-red-50/50" data-design-id="required-savings-card">
-          <CardContent className="pt-4 pb-4">
-            <div className="text-sm text-slate-500">{t("results.requiredSavings")}</div>
-            <div className="text-3xl font-bold text-[#D31220]">{fmtEur(result.requiredSavings)}</div>
-          </CardContent>
-        </Card>
-      )}
+      <McVsHistCard
+        result={result}
+        historicalResult={historicalResult}
+        portfolio={portfolio}
+        numSimulations={state.settings.numSimulations}
+        isReal={isReal}
+        deflators={deflators}
+        endIdx={endIdx}
+        endValueSuffix={endValueSuffix}
+        successColor={successColor}
+      />
 
       {/* Gap Analysis – Item 4. Entfällt im Modus „was möglich ist"
           (kein Wunschbetrag → keine Lücke, CR 4). */}
@@ -1359,7 +910,7 @@ export function ResultsDashboard() {
                     x={N_SHOCK}
                     stroke="#94a3b8"
                     strokeDasharray="2 2"
-                    label={{ value: `Ende Schock-Phase`, fontSize: 9, fill: "#94a3b8", position: "top" }}
+                    label={{ value: "Ende Schock-Phase", fontSize: 9, fill: "#94a3b8", position: "top" }}
                   />
                   <Line
                     type="monotone"
@@ -1558,6 +1109,7 @@ export function ResultsDashboard() {
                 <Bar dataKey="successRate" name={t("results.successRate")} radius={[4, 4, 0, 0]}>
                   {heatmapData.map((entry, idx) => (
                     <Cell
+                      // biome-ignore lint/suspicious/noArrayIndexKey: Recharts ordnet Cells per Position den Balken zu; gerundete Entnahmebeträge können bei kleinen Wunschbeträgen doppelt vorkommen
                       key={idx}
                       fill={
                         entry.successRate >= 95
@@ -1587,7 +1139,7 @@ export function ResultsDashboard() {
               <p className="text-xs text-slate-600 leading-relaxed">
                 {t("results.fourPctExplain").replace("{rate}", fmtPct(withdrawalRate))}
                 {fourPctMonthly > 0 && (
-                  <> {t("results.fourPctExactValue").replace("{amount}", fmtEur(Math.round(fourPctMonthly)))}</>
+                  t("results.fourPctExactValue").replace("{amount}", fmtEur(Math.round(fourPctMonthly)))
                 )}
               </p>
               <div className={`text-xs font-medium mt-1 ${withdrawalRate <= 4 ? "text-[#5a8a50]" : "text-rose-600"}`}>
@@ -1653,86 +1205,7 @@ export function ResultsDashboard() {
         </CardContent>
       </Card>
 
-      {/* ── Berechnungsnachweis (CR 19): Experten-Expander + JSON-Export ── */}
-      {result.calculationTrace && (
-        <details className="rounded-xl border border-slate-200 bg-white" data-design-id="calculation-trace-expander">
-          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-600 hover:text-slate-900">
-            🧮 {t("trace.title")}
-            <span className="ml-2 text-[10px] font-normal text-slate-400">
-              {t("trace.versionLine")
-                .replace("{version}", result.calculationTrace.configVersion)
-                .replace("{date}", new Date(result.calculationTrace.stichtag).toLocaleDateString("de-AT"))}
-            </span>
-          </summary>
-          <div className="px-4 pb-4 space-y-3 text-xs text-slate-600">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-lg bg-slate-50 p-3 space-y-1">
-                <div className="font-semibold text-slate-700">{t("trace.assumptions")}</div>
-                {result.calculationTrace.assumptions.buckets.map((b) => (
-                  <div key={b.name} className="flex justify-between tabular-nums">
-                    <span>{b.label} ({b.allocationPct}%)</span>
-                    <span>
-                      {fmtPct(b.expectedReturnNominalPct)} {t("trace.nominalShort")} / {fmtPct(b.expectedReturnRealPct)} {t("trace.realShort")}, σ {fmtPct(b.volatilityPct)}
-                    </span>
-                  </div>
-                ))}
-                <div className="flex justify-between">
-                  <span>{t("trace.inflation")}</span>
-                  <span>{fmtPct(result.calculationTrace.assumptions.inflationRatePct)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>KESt</span>
-                  <span>{fmtPct(result.calculationTrace.assumptions.kestRatePct)}</span>
-                </div>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3 space-y-1">
-                <div className="font-semibold text-slate-700">{t("trace.derivation")}</div>
-                <div className="flex justify-between">
-                  <span>desiredMonthlyIncome</span>
-                  <span>{result.calculationTrace.derivation.desiredMonthlyIncome !== null ? fmtEur(result.calculationTrace.derivation.desiredMonthlyIncome) : "— (null)"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>externalMonthlyIncome</span>
-                  <span>{fmtEur(result.calculationTrace.derivation.externalMonthlyIncome)}</span>
-                </div>
-                <div className="flex justify-between font-semibold">
-                  <span>requiredMonthlyWithdrawal</span>
-                  <span>{result.calculationTrace.derivation.requiredMonthlyWithdrawal !== null ? fmtEur(result.calculationTrace.derivation.requiredMonthlyWithdrawal) : "— (null)"}</span>
-                </div>
-                <p className="text-[10px] text-slate-400 leading-relaxed">{result.calculationTrace.derivation.formula}</p>
-                <div className="font-semibold text-slate-700 pt-1">{t("trace.corridorMethod")}</div>
-                <p className="text-[10px] text-slate-400 leading-relaxed">{result.calculationTrace.corridor.method}</p>
-                <p className="text-[10px] text-slate-400">
-                  {t("trace.simLine")
-                    .replace("{sims}", fmtNum(result.calculationTrace.corridor.technical.maxSimulations))
-                    .replace("{iters}", String(result.calculationTrace.corridor.technical.iterations))
-                    .replace("{seed}", String(result.calculationTrace.simulation.seed ?? "auto"))}
-                </p>
-                <p className="text-[10px] text-slate-400">{result.calculationTrace.rounding.corridorRounding}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const blob = new Blob(
-                  [JSON.stringify(result.calculationTrace, null, 2)],
-                  { type: "application/json" },
-                );
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `calculationTrace_${new Date(result.calculationTrace?.stichtag ?? Date.now()).toISOString().slice(0, 10)}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="text-xs font-semibold px-3 py-1.5 rounded-md bg-[#20201E] text-white hover:bg-[#3a3935] transition-colors"
-              data-design-id="trace-download-button"
-            >
-              ⬇ {t("trace.download")}
-            </button>
-          </div>
-        </details>
-      )}
+      <CalculationTraceExpander result={result} />
     </div>
   );
 }

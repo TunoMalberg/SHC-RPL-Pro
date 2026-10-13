@@ -596,10 +596,10 @@ export function DetailedExampleSection() {
                           {hasPE && (
                             <>
                               <td className={`py-1.5 px-2 text-right tabular-nums ${(row.peCall ?? 0) > 0 ? "text-rose-600 bg-[#8A83BE]/5" : "text-slate-300"}`}>
-                                {(row.peCall ?? 0) > 0 ? "−" + fmtEur(row.peCall ?? 0) : "—"}
+                                {(row.peCall ?? 0) > 0 ? `−${fmtEur(row.peCall ?? 0)}` : "—"}
                               </td>
                               <td className={`py-1.5 px-2 text-right tabular-nums ${(row.peDistNet ?? 0) > 0 ? "text-[#5a8a50] bg-[#8A83BE]/5" : "text-slate-300"}`}>
-                                {(row.peDistNet ?? 0) > 0 ? "+" + fmtEur(row.peDistNet ?? 0) : "—"}
+                                {(row.peDistNet ?? 0) > 0 ? `+${fmtEur(row.peDistNet ?? 0)}` : "—"}
                               </td>
                               <td className={`py-1.5 px-2 text-right tabular-nums font-medium ${(row.peNav ?? 0) > 0 ? "text-[#8A83BE] bg-[#8A83BE]/5" : "text-slate-300"}`}>
                                 {(row.peNav ?? 0) > 0 ? fmtEur(row.peNav ?? 0) : "—"}

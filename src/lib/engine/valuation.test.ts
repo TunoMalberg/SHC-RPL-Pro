@@ -41,7 +41,7 @@ describe("buildDeflators", () => {
     const d = buildDeflators(2.5, 40, 1);
     expect(d.length).toBe(41);
     expect(d[0]).toBe(1);
-    expect(d[40]).toBeCloseTo(Math.pow(1.025, -40), 12);
+    expect(d[40]).toBeCloseTo(1.025 ** -40, 12);
   });
 
   test("monatliche Schritte konsistent mit jährlichen", () => {
@@ -85,7 +85,7 @@ describe("deflateSeries / inflateToYear / deflateFromYear", () => {
 
   test("inflateToYear ↔ deflateFromYear invers", () => {
     const nominal = inflateToYear(3000, 2.5, 20);
-    expect(nominal).toBeCloseTo(3000 * Math.pow(1.025, 20), 8);
+    expect(nominal).toBeCloseTo(3000 * 1.025 ** 20, 8);
     expect(deflateFromYear(nominal, 2.5, 20)).toBeCloseTo(3000, 8);
   });
 });

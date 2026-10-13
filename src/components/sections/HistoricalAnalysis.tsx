@@ -351,9 +351,9 @@ export function HistoricalAnalysisSection() {
               />
               <ReferenceLine y={0} stroke="#D31220" strokeWidth={2} />
               <Bar dataKey="finalWealth" name={t("hist.finalWealth")} radius={[2, 2, 0, 0]}>
-                {scenarioBarData.map((entry, idx) => (
+                {scenarioBarData.map((entry) => (
                   <Cell
-                    key={idx}
+                    key={entry.startYear}
                     fill={entry.success ? "#8FB687" : "#D31220"}
                   />
                 ))}
@@ -402,8 +402,8 @@ export function HistoricalAnalysisSection() {
               <ReferenceLine y={0} stroke="#475569" strokeWidth={1.5} />
               <Tooltip content={<StressTooltip />} cursor={{ fill: "rgba(211,18,32,0.06)" }} />
               <Bar dataKey="maxDrawdown" name={t("hist.stress.lossLabel")} radius={[0, 0, 3, 3]}>
-                {stressData.map((d, idx) => (
-                  <Cell key={`stress-${idx}`} fill={barColor(d.severity)} />
+                {stressData.map((d) => (
+                  <Cell key={`stress-${d.startYear}`} fill={barColor(d.severity)} />
                 ))}
               </Bar>
             </BarChart>

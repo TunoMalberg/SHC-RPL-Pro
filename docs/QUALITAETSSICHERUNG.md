@@ -159,3 +159,18 @@ nie Eingaben, Ergebnisse oder Kundendaten. Höchstens 10 Meldungen je Seite.
 **Rechenzeit-Grenzen** (`src/lib/engine/performance.test.ts`): schlagen an,
 wenn eine Änderung die Simulation spürbar verlangsamt (z. B. Standardfall
 10.000 Pfade über 3 s; lokal 0,35 s).
+
+## Wartbarkeit (Paket 4)
+
+- **Stilprüfung ohne Hinweise:** alle 148 Stilhinweise behoben (ohne
+  Verhaltensänderung, Referenzfälle unverändert). Ausnahmen nur mit
+  begründetem Kommentar im Code; in Testdateien sind „!"-Annahmen erlaubt.
+  Neue Hinweise lassen den Prüflauf jetzt scheitern.
+- **Rechnen im Hintergrund:** „Simulation starten" rechnet in einem Web Worker
+  (`src/lib/engine/simulationJob.ts`, `simulation.worker.ts`). Die Oberfläche
+  bleibt während der Rechnung bedienbar. Kann der Browser keinen Worker
+  starten, läuft dieselbe Rechnung im Vordergrund — Ergebnis identisch.
+  Sicherheitsrichtlinie: `worker-src 'self'`.
+- **Große Dateien aufgeteilt:** Übersetzungen (`src/lib/translations/de.ts`,
+  `en.ts`), PowerPoint-Export (`src/lib/export/powerpoint/`), Private Equity
+  (`PEProgramCard`, `PEFundRow`), Ergebnisseite (`sections/results/`).

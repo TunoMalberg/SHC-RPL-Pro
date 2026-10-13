@@ -298,7 +298,7 @@ export function buildPathContext(
     cholesky: choleskyDecomposition(portfolio.correlationMatrix),
     kestRate,
     depositTaxRate: (portfolio.depositTaxRate ?? 25) / 100,
-    inflationPerStep: Math.pow(1 + inputs.inflationRate / 100, 1 / stepsPerYear) - 1,
+    inflationPerStep: (1 + inputs.inflationRate / 100) ** (1 / stepsPerYear) - 1,
     savingsPerStep: inputs.monthlySavings * timeStepMonths,
     withdrawalPerStep: desiredMonthly * timeStepMonths,
     pensionPerStep: inputs.monthlyPension * timeStepMonths,
@@ -593,7 +593,7 @@ export function simulatePath(
       const adjustedSavings = inputs.useRealValues
         ? ctx.savingsPerStep * cumulativeInflation
         : ctx.savingsPerStep *
-          Math.pow(1 + inputs.annualSavingsIncrease / 100 / stepsPerYear, step);
+          (1 + inputs.annualSavingsIncrease / 100 / stepsPerYear) ** step;
       // Nach vorgezogenem Wechsel fließt die Sparrate in die Entnahme-Gewichte.
       const saveWeights = step < ctx.switchStep ? ctx.accWeights : ctx.wdWeights;
       for (let i = 0; i < 3; i++) bucketValues[i] += saveWeights[i] * adjustedSavings;

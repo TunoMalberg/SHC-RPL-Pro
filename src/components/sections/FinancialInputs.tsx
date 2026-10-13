@@ -265,7 +265,7 @@ export function FinancialInputsSection() {
                   </p>
                   {inputs.inflateWithdrawalToRetirement && hasWish && (() => {
                     const accYears = Math.max(0, client.retirementAge - client.currentAge);
-                    const factor = Math.pow(1 + (inputs.inflationRate || 0) / 100, accYears);
+                    const factor = (1 + (inputs.inflationRate || 0) / 100) ** accYears;
                     const yearly = (inputs.desiredMonthlyWithdrawal ?? 0) * 12 * factor;
                     const monthly = (inputs.desiredMonthlyWithdrawal ?? 0) * factor;
                     return (
@@ -489,7 +489,7 @@ function LiquidityEventGroup({
                 <th className="py-2 px-3 text-left text-xs font-semibold text-slate-500">{t("liquidity.age")}</th>
                 <th className="py-2 px-3 text-left text-xs font-semibold text-slate-500">{t("liquidity.desc")}</th>
                 <th className="py-2 px-3 text-right text-xs font-semibold text-slate-500">{t("liquidity.amount")}</th>
-                <th className="py-2 px-3 text-center text-xs font-semibold text-slate-500 w-10"></th>
+                <th className="py-2 px-3 text-center text-xs font-semibold text-slate-500 w-10" />
               </tr>
             </thead>
             <tbody>

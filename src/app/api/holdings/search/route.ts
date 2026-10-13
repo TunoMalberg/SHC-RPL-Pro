@@ -121,11 +121,14 @@ export async function GET(req: NextRequest) {
   }
 
   const results: SearchResult[] = (json.quotes ?? [])
-    .filter((q) => !!q.symbol && !!q.quoteType)
+    .filter(
+      (q): q is YahooQuote & { symbol: string; quoteType: string } =>
+        !!q.symbol && !!q.quoteType,
+    )
     .map((q) => ({
-      symbol: q.symbol!,
-      name: q.longname ?? q.shortname ?? q.symbol!,
-      quoteType: q.quoteType!,
+      symbol: q.symbol,
+      name: q.longname ?? q.shortname ?? q.symbol,
+      quoteType: q.quoteType,
       exchange: q.exchDisp ?? q.exchange ?? "",
       sector: q.sectorDisp ?? q.sector,
       industry: q.industryDisp ?? q.industry,

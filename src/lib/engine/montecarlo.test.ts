@@ -158,7 +158,7 @@ describe("runMonteCarloSimulation — duale Bewertung (CR 6)", () => {
     // Enddeflator = (1+i)^(−Jahre)
     const years = baseClient.lifeExpectancy - baseClient.currentAge;
     expect(v.deflators[v.deflators.length - 1]).toBeCloseTo(
-      Math.pow(1 + baseInputs.inflationRate / 100, -years), 10,
+      (1 + baseInputs.inflationRate / 100) ** -years, 10,
     );
     // Reale Skalare exakt aus nominalen abgeleitet.
     expect(v.medianFinalWealthReal).toBeCloseTo(

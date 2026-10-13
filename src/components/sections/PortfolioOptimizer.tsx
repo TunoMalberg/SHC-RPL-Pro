@@ -468,7 +468,7 @@ export function PortfolioOptimizerSection() {
                       </th>
                       <th className="text-right py-2 px-2 font-semibold text-slate-600">{t("opt.col.dd")}</th>
                       <th className="text-right py-2 px-2 font-semibold text-slate-600">{t("opt.col.median")}</th>
-                      <th className="text-right py-2 px-2 font-semibold text-slate-600"></th>
+                      <th className="text-right py-2 px-2 font-semibold text-slate-600" />
                     </tr>
                   </thead>
                   <tbody>
@@ -552,7 +552,7 @@ export function PortfolioOptimizerSection() {
                         −{(result.baseline.maxDrawdown * 100).toFixed(1)}%
                       </td>
                       <td className="py-2 px-2 text-right tabular-nums">{fmtEur(result.baseline.medianFinalWealth)}</td>
-                      <td></td>
+                      <td />
                     </tr>
 
                     {/* ── Section header: Flop 5 ─────────────────────── */}

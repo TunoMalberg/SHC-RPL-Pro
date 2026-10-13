@@ -77,7 +77,7 @@ export function ScenarioComparisonSection() {
   if (scenarios.length > 0) {
     const totalYears = Math.max(1, client.lifeExpectancy - client.currentAge);
     const maxLen = Math.max(
-      ...scenarios.filter((s) => s.result).map((s) => s.result!.medianPath.length),
+      ...scenarios.flatMap((s) => (s.result ? [s.result.medianPath.length] : [])),
     );
     const stepsPerYear = Math.max(1, Math.round((maxLen - 1) / totalYears));
     for (let y = 0; y <= totalYears; y++) {

@@ -64,7 +64,7 @@ function projectNoInvest(
       const annualSavings = inputs.monthlySavings * 12;
       wealth += inputs.useRealValues
         ? annualSavings * cumulativeInflation
-        : annualSavings * Math.pow(1 + inputs.annualSavingsIncrease / 100, y);
+        : annualSavings * (1 + inputs.annualSavingsIncrease / 100) ** y;
     } else {
       const annualWithdrawal = inflate
         ? desiredMonthly * 12 * cumulativeInflation
@@ -155,7 +155,7 @@ export function runNoInvestProjection(
 
   // Reale Serie: Deflationierung mit der angenommenen Inflationsrate.
   const pathReal = outcome.pathNominal.map(
-    (v, y) => v / Math.pow(1 + infl / 100, y),
+    (v, y) => v / (1 + infl / 100) ** y,
   );
 
   const sustainableMonthly = findBaselineSustainableWithdrawal(

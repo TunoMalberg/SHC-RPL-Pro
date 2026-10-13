@@ -849,7 +849,7 @@ export interface AdvisorProfile {
 
 /**
  * UI-Bedienmodus.
- * - 'classic' : Reduzierte Oberfläche für Standardberatung (10 Tabs, ohne
+ * - 'classic' : Reduzierte Oberfläche für Standardberatung (11 Reiter, ohne
  *   Bestandsportfolio, ohne Korrelationsmatrix, ohne 4. Topf, ohne
  *   Rebalancing-Eingaben). Dafür mehr Inline-Erklärungen.
  * - 'pro'     : Voller Funktionsumfang (11 Tabs, alle Profi-Eingaben,
