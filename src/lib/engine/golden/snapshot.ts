@@ -113,6 +113,8 @@ export function computeSnapshot(c: ReferenceCase): Snapshot {
       averageFinalWealth: hist.averageFinalWealth,
       medianFinalWealth: hist.medianFinalWealth,
       medianFinalWealthReal: hist.medianFinalWealthReal,
+      sustainableMonthlyWorst: hist.sustainableMonthlyWorst,
+      sustainableMonthlyMedian: hist.sustainableMonthlyMedian,
       worst: hist.worstScenario
         ? { startYear: hist.worstScenario.startYear, finalWealth: hist.worstScenario.finalWealth }
         : null,

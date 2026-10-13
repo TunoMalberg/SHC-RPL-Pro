@@ -702,6 +702,12 @@ export interface HistoricalResult {
   finalWealthReal: number;
   /** Vermögenspfad in Kaufkraft des Startjahres. */
   pathReal: number[];
+  /**
+   * Historisch tragbare Entnahme: größter Gesamtbetrag/Monat (heutige
+   * Kaufkraft, inkl. Pension — wie das Eingabefeld), mit dem dieses
+   * Startjahr gerade nicht gescheitert wäre. null = keine Entnahmephase.
+   */
+  sustainableMonthly: number | null;
   worstYear: number;
   worstReturn: number;
 }
@@ -715,6 +721,10 @@ export interface HistoricalAnalysis {
   /** Wie oben, in heutiger Kaufkraft (je Fenster mit der echten Inflation abgezinst). */
   medianFinalWealthReal: number;
   averageFinalWealthReal: number;
+  /** Tragbare Entnahme im ungünstigsten Startjahr (null = keine Entnahmephase). */
+  sustainableMonthlyWorst: { startYear: number; monthly: number } | null;
+  /** Median der tragbaren Entnahme über alle Startjahre. */
+  sustainableMonthlyMedian: number | null;
   worstScenario: HistoricalResult;
   bestScenario: HistoricalResult;
   drawdownDistribution: number[];

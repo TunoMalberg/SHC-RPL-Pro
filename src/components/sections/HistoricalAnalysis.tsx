@@ -23,7 +23,7 @@ import { getLocalizedCrisis } from "@/lib/engine/historicalCrises";
 
 export function HistoricalAnalysisSection() {
   const { state } = useAppState();
-  const { historicalResult, client, valuationMode } = state;
+  const { historicalResult, client, valuationMode, result } = state;
   const { t, locale } = useI18n();
 
   if (!historicalResult) {
@@ -191,6 +191,55 @@ export function HistoricalAnalysisSection() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Historisch tragbare Entnahme — was die echte Vergangenheit erlaubt hätte */}
+      {historicalResult.sustainableMonthlyWorst && historicalResult.sustainableMonthlyMedian !== null && (() => {
+        const worst = historicalResult.sustainableMonthlyWorst;
+        const planMonthly = result?.effectiveMonthlyWithdrawal;
+        const planAbove = planMonthly !== undefined && planMonthly > worst.monthly;
+        return (
+          <Card data-design-id="hist-sustainable-card">
+            <CardHeader>
+              <CardTitle className="text-lg">{t("hist.sustainable.title")}</CardTitle>
+              <p className="text-sm text-slate-500 mt-1">{t("hist.sustainable.desc")}</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="rounded-lg border border-slate-200 p-4 text-center" data-design-id="hist-sustainable-worst">
+                  <div className="text-2xl font-bold text-[#4D4A47]">
+                    {fmtEur(worst.monthly)} <span className="text-sm font-normal text-slate-500">{t("hist.sustainable.perMonth")}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {t("hist.sustainable.worst").replace("{year}", String(worst.startYear))}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-4 text-center" data-design-id="hist-sustainable-median">
+                  <div className="text-2xl font-bold text-[#4D4A47]">
+                    {fmtEur(historicalResult.sustainableMonthlyMedian)} <span className="text-sm font-normal text-slate-500">{t("hist.sustainable.perMonth")}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">{t("hist.sustainable.median")}</div>
+                </div>
+                {planMonthly !== undefined && (
+                  <div
+                    className={`rounded-lg border p-4 text-center ${planAbove ? "border-rose-200 bg-rose-50" : "border-[#8FB687]/40 bg-[#8FB687]/10"}`}
+                    data-design-id="hist-sustainable-plan"
+                  >
+                    <div className="text-2xl font-bold text-[#4D4A47]">
+                      {fmtEur(planMonthly)} <span className="text-sm font-normal text-slate-500">{t("hist.sustainable.perMonth")}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">{t("hist.sustainable.plan")}</div>
+                  </div>
+                )}
+              </div>
+              {planMonthly !== undefined && (
+                <p className="text-xs text-slate-500 mt-3">
+                  {planAbove ? t("hist.sustainable.planAbove") : t("hist.sustainable.planBelow")}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Path chart per starting cohort — same visualisation as HTML client report */}
       {pathLen > 0 && (
@@ -391,6 +440,7 @@ export function HistoricalAnalysisSection() {
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">{t("hist.end")}</th>
                   <th className="text-center py-2 px-3 font-semibold text-slate-600">{t("hist.result")}</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.finalWealth")}</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.sustainableCol")}</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.maxDD")}</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.worstYear")}</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">{t("hist.worstReturn")}</th>
@@ -407,6 +457,7 @@ export function HistoricalAnalysisSection() {
                       </Badge>
                     </td>
                     <td className="py-1.5 px-3 text-right font-medium">{fmtEur(wealthOf(s))}</td>
+                    <td className="py-1.5 px-3 text-right">{s.sustainableMonthly !== null ? fmtEur(s.sustainableMonthly) : "–"}</td>
                     <td className="py-1.5 px-3 text-right text-rose-600">{fmtPct(-s.maxDrawdown * 100)}</td>
                     <td className="py-1.5 px-3 text-right">{s.worstYear}</td>
                     <td className="py-1.5 px-3 text-right text-rose-600">{fmtPct(s.worstReturn)}</td>
