@@ -16,23 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import {
-  runMonteCarloSimulation,
-  findSustainableWithdrawal,
-  findRequiredCapital,
-  findRequiredSavingsRate,
-  generateWithdrawalHeatmap,
-} from "@/lib/engine/montecarlo";
-import { runHistoricalBacktest } from "@/lib/engine/historical";
-import { computeCorridorWithdrawals } from "@/lib/engine/corridor";
-import { isPossibleMode, runPlanSimulation, withEffectiveWithdrawal } from "@/lib/engine/planRun";
-import { buildCalculationTrace } from "@/lib/engine/trace";
-// MiFID-Presets + Allokations-Helper leben jetzt zentral in comparison.ts
-// (geteilt mit der Vergleichsansicht — keine Doppeldefinition).
-import { MIFID_PRESETS, MIFID_ORDER, withMifidAllocation } from "@/lib/engine/comparison";
+import { runSimulationInBackground } from "@/lib/simulationClient";
+import type { SimulationProgress } from "@/lib/engine/simulationJob";
+import { MIFID_PRESETS } from "@/lib/engine/comparison";
 import type { MifidProfile, Scenario, SimulationMode } from "@/lib/types";
 import { fmtEur, formatAT } from "@/lib/format";
-import { computeConfigHash } from "@/lib/configHash";
 import { validatePlanInputs } from "@/lib/validation";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
@@ -45,6 +33,10 @@ export function SimulationPanel() {
   const [progressPct, setProgressPct] = useState(0);
   const [progressStep, setProgressStep] = useState("");
   const [progressDone, setProgressDone] = useState("");
+  const profileLabel = useCallback(
+    (profile: MifidProfile) => t(`portfolio.mifid${profile.charAt(0).toUpperCase() + profile.slice(1)}`),
+    [t],
+  );
 
   const runSimulation = useCallback(async () => {
     // Audit H-5: Validierung VOR dem Start. Hard-Errors blockieren,
@@ -72,81 +64,48 @@ export function SimulationPanel() {
     setProgressPct(5);
     setProgressStep(t("sim.progressStep1"));
 
-    await new Promise((r) => setTimeout(r, 50));
+    // Fortschritts-Schlüssel aus der Hintergrundrechnung → Anzeigetext.
+    const stepText = (p: SimulationProgress): string => {
+      switch (p.step) {
+        case "corridor": return t("sim.progressCorridor");
+        case "main": return t("sim.progressStep1");
+        case "sustainable": return t("sim.progressStep2");
+        case "requiredCapital": return t("sim.progressStep3");
+        case "requiredSavings": return t("sim.progressStep4");
+        case "heatmap": return t("sim.progressStep5");
+        case "historical": return t("sim.progressStep6");
+        case "multirun": {
+          const profile = p.profile ?? "balanced";
+          const allocs = MIFID_PRESETS[profile];
+          return `${t("sim.multirunStep")} ${p.index}/4: ${profileLabel(profile)} (${allocs[0]}/${allocs[1]}/${allocs[2]})`;
+        }
+      }
+    };
 
     try {
-      /* ─────────────────────────────────────────────────────────────────
-         Modus „Szenariovergleich" — echter Multi-Run über alle vier
-         MiFID-Risikoprofile. Erzeugt für jedes Profil ein vollwertiges
-         Simulationsergebnis (Median + p10/p25/p75/p90) und legt sie als
-         Szenarien an. Springt am Ende automatisch in den Tab „Szenarien".
-         ─────────────────────────────────────────────────────────────── */
-      if (settings.mode === "scenario_comparison") {
-        const newScenarios: Scenario[] = [];
-        // Leerer Wunsch: alle Profile mit derselben typischen Entnahme des
-        // aktuellen Portfolios vergleichen (sonst liefen sie mit 0 €).
-        const runInputs = isPossibleMode(inputs)
-          ? withEffectiveWithdrawal(
-              inputs,
-              computeCorridorWithdrawals(client, inputs, portfolio, settings, liquidityEvents)
-                .scenarios.typical.totalMonthly,
-            )
-          : inputs;
-        for (let i = 0; i < MIFID_ORDER.length; i++) {
-          const profile = MIFID_ORDER[i];
-          const profileLabel = t(`portfolio.mifid${profile.charAt(0).toUpperCase() + profile.slice(1)}`);
-          const allocs = MIFID_PRESETS[profile];
-          setProgressStep(
-            `${t("sim.multirunStep")} ${i + 1}/4: ${profileLabel} (${allocs[0]}/${allocs[1]}/${allocs[2]})`,
-          );
-          setProgressPct(10 + i * 22);
-          await new Promise((r) => setTimeout(r, 30));
+      // Rechnung im Hintergrund (Web Worker) — die Oberfläche bleibt bedienbar.
+      const job = await runSimulationInBackground(
+        { client, inputs, portfolio, settings, liquidityEvents },
+        (p) => {
+          setProgressPct(p.pct);
+          setProgressStep(stepText(p));
+        },
+      );
 
-          const variantPortfolio = withMifidAllocation(portfolio, profile);
-          const variantResult = runMonteCarloSimulation(
-            client, runInputs, variantPortfolio, settings, liquidityEvents,
-          );
-          variantResult.withdrawalAssumption = isPossibleMode(inputs) ? "corridor_typical" : "user";
-          variantResult.withdrawalHeatmap = generateWithdrawalHeatmap(
-            client, runInputs, variantPortfolio, settings, liquidityEvents,
-          );
-
-          newScenarios.push({
-            id: `multirun-${profile}-${Date.now()}-${i}`,
-            name: profileLabel,
-            inputs: { ...inputs },
-            portfolio: { ...variantPortfolio, buckets: [...variantPortfolio.buckets] as typeof variantPortfolio.buckets },
-            result: variantResult,
-            source: "multirun",
-          });
-        }
-
-        // Hauptergebnis = das aktuell ausgewählte Profil (sonst „Ausgewogen"),
-        // damit die übrigen Tabs (Ergebnisse, Historie) sauber befüllt sind.
-        const activeProfile: MifidProfile = portfolio.mifidProfile ?? "balanced";
-        const mainScenario =
-          newScenarios.find((s) => s.portfolio.mifidProfile === activeProfile) ?? newScenarios[1];
-        if (mainScenario?.result) {
-          // AP6: Fingerabdruck des Arbeitsstands — der Multirun basiert auf
-          // dem MiFID-Variantenportfolio, daher Hash auf den Arbeitsstand
-          // (Änderungen danach sollen den Stale-Hinweis auslösen).
-          mainScenario.result.configHash = computeConfigHash(client, inputs, portfolio, liquidityEvents);
-          dispatch({ type: "SET_RESULT", payload: mainScenario.result });
-        }
-
-        setProgressStep(t("sim.progressStep6"));
-        setProgressPct(92);
-        await new Promise((r) => setTimeout(r, 20));
-        const histRes = runHistoricalBacktest(
-          client,
-          runInputs,
-          mainScenario?.portfolio ?? portfolio,
-          liquidityEvents,
-        );
-        dispatch({ type: "SET_HISTORICAL", payload: histRes });
-
+      if (job.kind === "multirun") {
+        // MiFID-Szenariovergleich: je Profil ein gespeichertes Szenario.
+        const stamp = Date.now();
+        const newScenarios: Scenario[] = job.variants.map((v, i) => ({
+          id: `multirun-${v.profile}-${stamp}-${i}`,
+          name: profileLabel(v.profile),
+          inputs: { ...inputs },
+          portfolio: { ...v.portfolio, buckets: [...v.portfolio.buckets] as typeof v.portfolio.buckets },
+          result: v.result,
+          source: "multirun",
+        }));
+        dispatch({ type: "SET_RESULT", payload: job.variants[job.mainIndex].result });
+        dispatch({ type: "SET_HISTORICAL", payload: job.historical });
         dispatch({ type: "REPLACE_MULTIRUN_SCENARIOS", payload: newScenarios });
-
         setProgressPct(100);
         setProgressStep("");
         setProgressDone(t("sim.multirunDone").replace("{n}", String(newScenarios.length)));
@@ -154,97 +113,19 @@ export function SimulationPanel() {
         return;
       }
 
-      // ── Planungskorridor (CR 9/10): mögliche Monatsentnahme je
-      //    Marktentwicklung (P25/P50/P75) via Bisektion. ─────────────────
-      setProgressStep(t("sim.progressCorridor"));
-      await new Promise((r) => setTimeout(r, 20));
-      const corridor = computeCorridorWithdrawals(
-        client, inputs, portfolio, settings, liquidityEvents,
-      );
-      setProgressPct(30);
-      await new Promise((r) => setTimeout(r, 20));
-
-      // Modus „berechnen, was möglich ist" (CR 4): Ohne Wunschbetrag läuft
-      // der Haupt-MC mit der typischen Korridor-Entnahme; das Ergebnis wird
-      // entsprechend markiert (keine Einordnung, keine Erfolgsquote).
-      const possibleMode = isPossibleMode(inputs);
-      const { result, effectiveInputs } = runPlanSimulation(
-        client, inputs, portfolio, settings, liquidityEvents, { corridor },
-      );
-      result.corridor = corridor;
-      setProgressPct(40);
-
-      if (settings.mode === "sustainable_withdrawal") {
-        setProgressStep(t("sim.progressStep2"));
-        await new Promise((r) => setTimeout(r, 20));
-        result.sustainableWithdrawal = findSustainableWithdrawal(
-          client, inputs, portfolio, settings, 95, liquidityEvents
-        );
-        setProgressPct(55);
-      }
-
-      if (settings.mode === "required_capital") {
-        setProgressStep(t("sim.progressStep3"));
-        await new Promise((r) => setTimeout(r, 20));
-        result.requiredCapital = findRequiredCapital(
-          client, effectiveInputs, portfolio, settings, 95, liquidityEvents
-        );
-        setProgressPct(55);
-      }
-
-      if (settings.mode === "required_savings") {
-        setProgressStep(t("sim.progressStep4"));
-        await new Promise((r) => setTimeout(r, 20));
-        result.requiredSavings = findRequiredSavingsRate(
-          client, effectiveInputs, portfolio, settings, 95, liquidityEvents
-        );
-        setProgressPct(55);
-      }
-
-      setProgressStep(t("sim.progressStep5"));
-      setProgressPct(65);
-      await new Promise((r) => setTimeout(r, 20));
-      result.withdrawalHeatmap = generateWithdrawalHeatmap(
-        client, effectiveInputs, portfolio, settings, liquidityEvents
-      );
-      setProgressPct(80);
-
-      // ── calculationTrace (CR 19): vollständiger Berechnungsnachweis. ──
-      const trace = buildCalculationTrace(
-        client, effectiveInputs, portfolio, settings, liquidityEvents, result, corridor,
-      );
-      if (possibleMode) {
-        // Herleitung spiegelt die ERFASSTEN Eingaben (kein Wunschbetrag);
-        // die Cashflow-Serie basiert auf der typischen Korridor-Entnahme.
-        trace.derivation.desiredMonthlyIncome = null;
-        trace.derivation.requiredMonthlyWithdrawal = null;
-        trace.derivation.formula +=
-          " — Lauf im Modus 'berechnen, was möglich ist': Cashflow-Serie basiert auf der typischen Korridor-Entnahme.";
-        trace.ranking = null;
-      }
-      result.calculationTrace = trace;
-      // AP6: Fingerabdruck der Eingaben — Abweichung löst den Stale-Hinweis
-      // in Ergebnis-/Vergleichsansicht aus („bitte neu berechnen").
-      result.configHash = computeConfigHash(client, inputs, portfolio, liquidityEvents);
-
-      dispatch({ type: "SET_RESULT", payload: result });
-
-      setProgressStep(t("sim.progressStep6"));
-      await new Promise((r) => setTimeout(r, 20));
-      // Gleiche Entnahme wie die Hauptsimulation (auch bei leerem Wunsch).
-      const historicalResult = runHistoricalBacktest(client, effectiveInputs, portfolio, liquidityEvents);
-      dispatch({ type: "SET_HISTORICAL", payload: historicalResult });
-
+      dispatch({ type: "SET_RESULT", payload: job.result });
+      dispatch({ type: "SET_HISTORICAL", payload: job.historical });
       setProgressPct(100);
       setProgressStep("");
       setProgressDone(t("sim.progressDone"));
       dispatch({ type: "SET_TAB", payload: "results" });
     } catch (err) {
+      logger.error("Simulation fehlgeschlagen", { scope: "SimulationPanel" }, err);
       setProgressStep(`${t("sim.progressError")}: ${err instanceof Error ? err.message : t("sim.unknownError")}`);
     } finally {
       setRunning(false);
     }
-  }, [client, inputs, portfolio, settings, liquidityEvents, dispatch, t]);
+  }, [client, inputs, portfolio, settings, liquidityEvents, dispatch, t, profileLabel]);
 
   return (
     <div className="space-y-6" data-design-id="simulation-panel-section">

@@ -85,7 +85,7 @@ describe("runNoInvestProjection — 0 % nominal, deterministisch", () => {
     // Deflationierung exakt: real = nominal × (1+i)^(−Jahre).
     const years = r.pathNominal.length - 1;
     expect(r.finalWealthReal).toBeCloseTo(
-      r.finalWealthNominal * Math.pow(1 + inputs.inflationRate / 100, -years),
+      r.finalWealthNominal * (1 + inputs.inflationRate / 100) ** -years,
       6,
     );
   });

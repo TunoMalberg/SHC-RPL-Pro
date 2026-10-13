@@ -60,9 +60,9 @@ const fmtEurFull = atFormatter({
 function nice(x: number): number {
   if (x <= 0) return 1;
   const exp = Math.floor(Math.log10(x));
-  const f = x / Math.pow(10, exp);
+  const f = x / 10 ** exp;
   const n = f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10;
-  return n * Math.pow(10, exp);
+  return n * 10 ** exp;
 }
 
 let _chartCounter = 0;
@@ -114,7 +114,7 @@ export function renderMonteCarloFanSvg(
       const idx = lo.length - 1 - i;
       return `L${sx(idx).toFixed(1)},${sy(v).toFixed(1)}`;
     }).join(" ");
-    return up + " " + down + " Z";
+    return `${up} ${down} Z`;
   };
 
   const xTicks: number[] = [];
@@ -352,15 +352,17 @@ export function renderScenariosComparisonSvg(
   width = 760,
   height = 360,
 ): string {
-  const withResult = scenarios.filter((s) => s.result);
+  const withResult = scenarios.filter(
+    (s): s is Scenario & { result: SimulationResult } => !!s.result,
+  );
   if (withResult.length === 0) return "";
 
   const m = { l: 64, r: 24, t: 16, b: 56 };
   const W = width - m.l - m.r;
   const H = height - m.t - m.b;
 
-  const maxLen = Math.max(...withResult.map((s) => s.result!.medianPath.length));
-  const maxY = Math.max(1, ...withResult.flatMap((s) => s.result!.medianPath));
+  const maxLen = Math.max(...withResult.map((s) => s.result.medianPath.length));
+  const maxY = Math.max(1, ...withResult.flatMap((s) => s.result.medianPath));
   const tickY = nice(maxY / 4);
   const yMax = Math.ceil(maxY / tickY) * tickY;
 
@@ -379,7 +381,7 @@ export function renderScenariosComparisonSvg(
   const seriesData: Array<{ name: string; color: string; values: number[] }> = [];
   const pathsSvg = withResult.map((s, idx) => {
     const color = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
-    const vals = s.result!.medianPath;
+    const vals = s.result.medianPath;
     seriesData.push({ name: s.name, color, values: vals.map((v) => Math.round(v)) });
     const d = vals.map((v, i) => `${i === 0 ? "M" : "L"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(" ");
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="scenario-line" data-name="${String(s.name).replace(/"/g, "&quot;")}"/>`;
@@ -465,7 +467,7 @@ export function renderDetailedPathSvg(
       const idx = lo.length - 1 - i;
       return `L${sx(idx).toFixed(1)},${sy(v).toFixed(1)}`;
     }).join(" ");
-    return up + " " + down + " Z";
+    return `${up} ${down} Z`;
   };
   const floor = new Array(n).fill(0);
 
@@ -559,13 +561,17 @@ export function renderPrivateEquitySvg(
   const ages = timeline.map((e) => e.age);
   const n = timeline.length;
 
-  const hasBand = !!(navP25 && navP75 && navP25.length === n && navP75.length === n);
+  const band =
+    navP25 && navP75 && navP25.length === n && navP75.length === n
+      ? { p25: navP25, p75: navP75 }
+      : null;
+  const hasBand = !!band;
 
   /* NAV (top scale, positive only) */
   const navMaxRaw = Math.max(
     1,
     ...navs,
-    ...(hasBand ? navP75! : []),
+    ...(band ? band.p75 : []),
   );
   const navTick = nice(navMaxRaw / 4);
   const navMax = Math.ceil(navMaxRaw / navTick) * navTick;
@@ -585,19 +591,19 @@ export function renderPrivateEquitySvg(
   const syBar = (v: number) => barY0 - (v / barMax) * (barH / 2);
 
   /* NAV band path (only if available) */
-  const bandPath = hasBand
+  const bandPath = band
     ? (() => {
-        const up = navP75!
+        const up = band.p75
           .map((v, i) => `${i === 0 ? "M" : "L"}${sx(i).toFixed(1)},${syNav(v).toFixed(1)}`)
           .join(" ");
-        const down = [...navP25!]
+        const down = [...band.p25]
           .reverse()
           .map((v, i) => {
-            const idx = navP25!.length - 1 - i;
+            const idx = band.p25.length - 1 - i;
             return `L${sx(idx).toFixed(1)},${syNav(v).toFixed(1)}`;
           })
           .join(" ");
-        return up + " " + down + " Z";
+        return `${up} ${down} Z`;
       })()
     : "";
 
@@ -606,7 +612,7 @@ export function renderPrivateEquitySvg(
     .map((v, i) => `${i === 0 ? "M" : "L"}${sx(i).toFixed(1)},${syNav(v).toFixed(1)}`)
     .join(" ");
   const navAreaDown = `L${sx(n - 1).toFixed(1)},${syNav(0).toFixed(1)} L${sx(0).toFixed(1)},${syNav(0).toFixed(1)} Z`;
-  const navAreaPath = navAreaUp + " " + navAreaDown;
+  const navAreaPath = `${navAreaUp} ${navAreaDown}`;
   const navLine = navs
     .map((v, i) => `${i === 0 ? "M" : "L"}${sx(i).toFixed(1)},${syNav(v).toFixed(1)}`)
     .join(" ");

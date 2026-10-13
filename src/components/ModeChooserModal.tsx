@@ -22,6 +22,7 @@ export function ModeChooserModal() {
     <div
       className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
       data-design-id="mode-chooser-overlay"
+      // biome-ignore lint/a11y/useSemanticElements: eigenes Overlay (Hintergrund + zentrierte Karte); <dialog> würde Layout und Fokusverhalten ändern, aria-modal bleibt gesetzt
       role="dialog"
       aria-modal="true"
     >

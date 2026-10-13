@@ -92,7 +92,7 @@ describe("createLvRuntime", () => {
       for (let y = 0; y <= 20; y++) v = st.advanceYear(y, z()).lvValue;
       sum += v;
     }
-    const expected = 95_000 * Math.pow(1.06 * (1 - 0.00075), 20);
+    const expected = 95_000 * (1.06 * (1 - 0.00075)) ** 20;
     expect(sum / N).toBeGreaterThan(expected * 0.95);
     expect(sum / N).toBeLessThan(expected * 1.05);
   });
@@ -128,7 +128,9 @@ describe("createLvRuntime", () => {
       const mean = (a: number[]) => a.reduce((s, v) => s + v, 0) / a.length;
       const mx = mean(xs);
       const my = mean(ys);
-      let cov = 0, vx = 0, vy = 0;
+      let cov = 0;
+      let vx = 0;
+      let vy = 0;
       for (let i = 0; i < xs.length; i++) {
         cov += (xs[i] - mx) * (ys[i] - my);
         vx += (xs[i] - mx) ** 2;

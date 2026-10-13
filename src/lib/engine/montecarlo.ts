@@ -176,7 +176,7 @@ export function runMonteCarloSimulation(
     const stepIdx = Math.min(y * stepsPerYear, totalSteps);
     annualPortfolioValues.push(percentilePaths.p50[Math.round(stepIdx)]);
     if (y >= accumulationYears) {
-      const inflation = Math.pow(1 + inputs.inflationRate / 100, y);
+      const inflation = (1 + inputs.inflationRate / 100) ** y;
       annualWithdrawals.push(
         inflateWithdrawals
           ? desiredMonthly * 12 * inflation

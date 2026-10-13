@@ -76,7 +76,7 @@ describe("computeCorridorWithdrawals", () => {
     expect(corridor.retirementYear).toBe(client.birthYear + client.retirementAge);
     const sc = corridor.scenarios.typical;
     expect(sc.totalMonthlyNominalAtRetirement).toBeCloseTo(
-      Math.round(sc.totalMonthly * Math.pow(1 + inputs.inflationRate / 100, years)),
+      Math.round(sc.totalMonthly * (1 + inputs.inflationRate / 100) ** years),
       0,
     );
     expect(sc.totalMonthlyNominalAtRetirement).toBeGreaterThan(sc.totalMonthly);

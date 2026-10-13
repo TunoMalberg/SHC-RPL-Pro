@@ -38,7 +38,7 @@ export function buildDeflators(
   totalSteps: number,
   stepsPerYear: number,
 ): number[] {
-  const perStep = Math.pow(1 + inflationPct / 100, 1 / stepsPerYear);
+  const perStep = (1 + inflationPct / 100) ** (1 / stepsPerYear);
   const deflators = new Array<number>(totalSteps + 1);
   let cum = 1;
   deflators[0] = 1;
@@ -83,7 +83,7 @@ export function inflateToYear(
   inflationPct: number,
   years: number,
 ): number {
-  return realValue * Math.pow(1 + inflationPct / 100, years);
+  return realValue * (1 + inflationPct / 100) ** years;
 }
 
 /** Nominalwert in `years` Jahren → heutige Kaufkraft. */
@@ -92,5 +92,5 @@ export function deflateFromYear(
   inflationPct: number,
   years: number,
 ): number {
-  return nominalValue / Math.pow(1 + inflationPct / 100, years);
+  return nominalValue / (1 + inflationPct / 100) ** years;
 }

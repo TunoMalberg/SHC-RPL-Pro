@@ -53,14 +53,13 @@ export function PortfolioBuilderSection() {
     portfolio.buckets[1].allocation,
     portfolio.buckets[2].allocation,
   ];
-  const activeAllocations: [number, number, number] = editingWithdrawal
-    ? [...wd!.allocations]
-    : accAllocations;
+  const activeAllocations: [number, number, number] =
+    editingWithdrawal && wd ? [...wd.allocations] : accAllocations;
 
   // Aktive Rebalancing-Parameter (Anspar- vs. Entnahmephase).
-  const activeCashYears = editingWithdrawal ? wd!.cashYearsTarget : portfolio.cashYearsTarget;
-  const activeRebalFreq = editingWithdrawal ? wd!.rebalancingFrequency : portfolio.rebalancingFrequency;
-  const activeRebalThreshold = editingWithdrawal ? wd!.rebalancingThreshold : portfolio.rebalancingThreshold;
+  const activeCashYears = editingWithdrawal && wd ? wd.cashYearsTarget : portfolio.cashYearsTarget;
+  const activeRebalFreq = editingWithdrawal && wd ? wd.rebalancingFrequency : portfolio.rebalancingFrequency;
+  const activeRebalThreshold = editingWithdrawal && wd ? wd.rebalancingThreshold : portfolio.rebalancingThreshold;
 
   const patchWithdrawal = (patch: Partial<WithdrawalPhaseOverride>) => {
     if (!wd) return;
@@ -309,7 +308,7 @@ export function PortfolioBuilderSection() {
             </div>
           </div>
 
-          {twoPhase && (
+          {wd && (
             <>
               {/* Segmentierter Phasen-Umschalter */}
               <div
@@ -358,7 +357,7 @@ export function PortfolioBuilderSection() {
               <div className="space-y-2" data-design-id="phase-comparison">
                 {([
                   { label: t("portfolio.phaseAccumulation"), allocs: accAllocations, active: editPhase === "accumulation" },
-                  { label: t("portfolio.phaseWithdrawal"), allocs: [...wd!.allocations] as [number, number, number], active: editPhase === "withdrawal" },
+                  { label: t("portfolio.phaseWithdrawal"), allocs: [...wd.allocations] as [number, number, number], active: editPhase === "withdrawal" },
                 ]).map((row) => (
                   <div key={row.label} className={`rounded-lg p-2 transition-all ${row.active ? "bg-white ring-1 ring-slate-200" : "opacity-70"}`}>
                     <div className="flex items-center justify-between mb-1">
@@ -369,7 +368,7 @@ export function PortfolioBuilderSection() {
                     </div>
                     <div className="flex h-3 rounded overflow-hidden">
                       {row.allocs.map((a, i) => (
-                        <div key={i} className={BUCKET_COLORS[i].fill} style={{ width: `${a}%` }} />
+                        <div key={BUCKET_COLORS[i].fill} className={BUCKET_COLORS[i].fill} style={{ width: `${a}%` }} />
                       ))}
                     </div>
                   </div>
@@ -456,7 +455,7 @@ export function PortfolioBuilderSection() {
                 <div className="mt-2 flex gap-1">
                   {MIFID_PRESETS[profile].map((alloc, i) => (
                     <div
-                      key={i}
+                      key={BUCKET_COLORS[i].fill}
                       className={`h-1.5 rounded-full ${["bg-[#8FB687]","bg-[#87BBE6]","bg-[#D31220]"][i]}`}
                       style={{ width: `${alloc}%`, flex: "none" }}
                     />
@@ -625,7 +624,7 @@ export function PortfolioBuilderSection() {
               <table className="w-full text-sm">
                 <thead>
                   <tr>
-                    <th className="text-left py-2 pr-3 text-slate-500 font-medium"></th>
+                    <th className="text-left py-2 pr-3 text-slate-500 font-medium" />
                     <th className="py-2 px-2 text-center text-[#5a8a50] font-medium">{bucketLabel(0)}</th>
                     <th className="py-2 px-2 text-center text-[#4D4A47] font-medium">{bucketLabel(1)}</th>
                     <th className="py-2 px-2 text-center text-[#D31220] font-medium">{bucketLabel(2)}</th>

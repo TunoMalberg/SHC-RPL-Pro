@@ -41,6 +41,8 @@ export function middleware(request: NextRequest) {
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "connect-src 'self'",
+    // Hintergrundrechnung (Web Worker, Paket 4) — nur eigene Skripte.
+    "worker-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

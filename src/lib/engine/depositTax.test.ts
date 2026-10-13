@@ -72,7 +72,7 @@ describe("Cash-Zins-KESt (AP7)", () => {
     const p = cashOnlyPortfolio(2, 25);
     const res = runMonteCarloSimulation(client, inputs, p, settings, []);
     const years = client.lifeExpectancy - client.currentAge;
-    const expected = 100_000 * Math.pow(1 + effRate(2) * 0.75, years);
+    const expected = 100_000 * (1 + effRate(2) * 0.75) ** years;
     expect(res.medianFinalWealth).toBeCloseTo(expected, -1);
   });
 
@@ -81,7 +81,7 @@ describe("Cash-Zins-KESt (AP7)", () => {
     p.kestRate = 27.5; // aktiv, darf aber ohne Wertpapiergewinne nie greifen
     const res = runMonteCarloSimulation(client, inputs, p, settings, []);
     const years = client.lifeExpectancy - client.currentAge;
-    const expected = 100_000 * Math.pow(1 + effRate(2), years);
+    const expected = 100_000 * (1 + effRate(2)) ** years;
     expect(res.medianFinalWealth).toBeCloseTo(expected, -1);
   });
 
@@ -89,7 +89,7 @@ describe("Cash-Zins-KESt (AP7)", () => {
     const p = cashOnlyPortfolio(-1, 25);
     const res = runMonteCarloSimulation(client, inputs, p, settings, []);
     const years = client.lifeExpectancy - client.currentAge;
-    const expected = 100_000 * Math.pow(1 + effRate(-1), years);
+    const expected = 100_000 * (1 + effRate(-1)) ** years;
     expect(res.medianFinalWealth).toBeCloseTo(expected, -1);
   });
 

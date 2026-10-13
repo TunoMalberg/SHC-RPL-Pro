@@ -16,6 +16,12 @@ export function trackErrors(page: Page): string[] {
   ];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("console", (msg) => {
+    // Hintergrundrechnung (Paket 4) muss im Worker laufen — der Ausweichweg
+    // im Vordergrund gilt im Test als Fehler (z. B. Sicherheitsrichtlinie).
+    if (msg.type() === "warning" && /Web Worker/.test(msg.text())) {
+      errors.push(`worker: ${msg.text()}`);
+      return;
+    }
     if (msg.type() !== "error") return;
     const text = msg.text();
     if (ignore.some((r) => r.test(text))) return;

@@ -679,7 +679,7 @@ export async function generateClientHtmlReport(
         <div class="mifid-card">
           <div class="mifid-row">
             <div class="mifid-tag ${profile ? `tag-${profile}` : "tag-none"}">
-              ${profile ? esc(profileName!) : (opts.locale === "de" ? "Noch nicht zugewiesen" : "Not yet assigned")}
+              ${profile ? esc(profileName ?? "") : (opts.locale === "de" ? "Noch nicht zugewiesen" : "Not yet assigned")}
             </div>
             ${allocStr ? `
               <div class="mifid-alloc" title="${esc(S.mifidAllocation)}">
@@ -847,7 +847,9 @@ export async function generateClientHtmlReport(
   /* ───────── Saved scenarios block ───────── */
   let scenariosBlock = "";
   const scenarioList = opts.scenarios ?? [];
-  const scenariosWithResult = scenarioList.filter((s) => s.result);
+  const scenariosWithResult = scenarioList.filter(
+    (s): s is Scenario & { result: SimulationResult } => !!s.result,
+  );
   if (opts.includeSavedScenarios !== false && scenariosWithResult.length > 0) {
     const scenSvg = renderScenariosComparisonSvg(scenariosWithResult, client, S.axisAge, 760, 360);
     scenariosBlock = `
@@ -869,7 +871,7 @@ export async function generateClientHtmlReport(
             <tbody>${scenariosWithResult.map((s, idx) => {
               const colors = ["#D31220","#87BBE6","#8FB687","#FAC075","#8A83BE","#DA4D3E"];
               const c = colors[idx % colors.length];
-              const r = s.result!;
+              const r = s.result;
               return `<tr style="border-top:1px solid var(--border)">
                 <td style="padding:10px 12px;font-weight:600;color:${c}">${esc(s.name)}</td>
                 <td style="padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmtEur(opts.locale, s.inputs.initialCapital)}</td>

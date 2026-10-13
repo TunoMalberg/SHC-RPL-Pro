@@ -58,7 +58,7 @@ function fxOnDate(fxSeries: Record<string, number>, date: string, fallback: numb
   // Frankfurter has weekday rates only; forward-fill.
   if (fxSeries[date]) return fxSeries[date];
   // Walk backwards up to 10 days
-  const d = new Date(date + "T00:00:00Z");
+  const d = new Date(`${date}T00:00:00Z`);
   for (let i = 0; i < 10; i++) {
     d.setUTCDate(d.getUTCDate() - 1);
     const k = d.toISOString().slice(0, 10);

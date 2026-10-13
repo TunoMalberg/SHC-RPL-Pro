@@ -300,7 +300,9 @@ export function optimizePortfolio(
   // Finalize Baseline-Referenz aus dem (jetzt garantiert vorhandenen) Eintrag.
   const baseline = evaluatedKey.get(
     `${baselineAlloc.cash}-${baselineAlloc.bonds}-${baselineAlloc.equities}-${baselineAlloc.pe}`,
-  )!;
+  );
+  // Unerreichbar: Phase 0 bewertet die Baseline immer und legt sie ab.
+  if (!baseline) throw new Error("Optimizer: Baseline-Bewertung fehlt.");
 
   options.onProgress?.(1, "done");
 

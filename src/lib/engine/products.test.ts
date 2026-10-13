@@ -113,10 +113,10 @@ describe("computeProductTimeline — LV", () => {
     const policy = lv({ amount: 100_000, expectedReturnPct: 5, purchaseAge: 45, lockYears: 15 });
     const tl = computeProductTimeline([], [policy], 45, 40);
     const growth = 1.05 * (1 - 0.00075);
-    const expected = 95_000 * Math.pow(growth, 15);
+    const expected = 95_000 * growth ** 15;
     expect(tl[15].payouts).toBeCloseTo(expected, 2);
     expect(tl[15].lvValue).toBe(0);
-    expect(tl[14].lvValue).toBeCloseTo(95_000 * Math.pow(growth, 14), 2);
+    expect(tl[14].lvValue).toBeCloseTo(95_000 * growth ** 14, 2);
   });
 
   test("gesetzliche Bindefrist: 10 Jahre ab Kaufalter 50, sonst 15", () => {
@@ -176,7 +176,7 @@ describe("MC-Integration — Steuer-Neutralität & Sperre", () => {
     // Produktwert wird am JAHRESANFANG aktualisiert — der letzte
     // Jahres-Block liegt bei Jahr n−1 → (n−1) Kosten-Anwendungen.
     const years = client.lifeExpectancy - client.currentAge; // 15
-    const lvGrowth = Math.pow(1 - 0.00075, years - 1);
+    const lvGrowth = (1 - 0.00075) ** (years - 1);
     expect(res.medianFinalWealth).toBeCloseTo(100_000 + 190_000 * lvGrowth, 0);
   });
 
@@ -201,7 +201,7 @@ describe("MC-Integration — Steuer-Neutralität & Sperre", () => {
     // kein Fehlschlag (Konvention „PE immer in der Erfolgsquote").
     expect(res.successRate).toBeGreaterThan(99);
     // Endvermögen ≈ LV-Wert (liquide erschöpft) — LV wurde nie angetastet.
-    const lvVal = 85_500 * Math.pow(1 - 0.00075, 26);
+    const lvVal = 85_500 * (1 - 0.00075) ** 26;
     expect(res.medianFinalWealth).toBeGreaterThan(lvVal * 0.98);
     expect(res.medianFinalWealth).toBeLessThan(lvVal * 1.02);
   });

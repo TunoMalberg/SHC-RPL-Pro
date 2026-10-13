@@ -104,7 +104,7 @@ export function computeHistoricalGrossReturns(
   }
   const geo = (rates: number[]): number => {
     const product = rates.reduce((acc, r) => acc * (1 + r / 100), 1);
-    return (Math.pow(product, 1 / rates.length) - 1) * 100;
+    return (product ** (1 / rates.length) - 1) * 100;
   };
   return {
     cash: geo(data.map((d) => d.cashReturn)),

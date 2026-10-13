@@ -361,6 +361,7 @@ export function HoldingsBucket() {
               {importWarnings.length > 0 && (
                 <ul className="mt-2 text-xs list-disc list-inside space-y-0.5">
                   {importWarnings.slice(0, 8).map((w, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: reine Textliste ohne ID, Texte können sich wiederholen; wird nur einmal angezeigt, nie umsortiert
                     <li key={i}>{w}</li>
                   ))}
                   {importWarnings.length > 8 && (
@@ -411,7 +412,7 @@ export function HoldingsBucket() {
                     <th className="px-2 py-2">{t("holdings.col.assetClass")}</th>
                     <th className="px-2 py-2 text-right">{t("holdings.col.mv")}</th>
                     <th className="px-2 py-2">Status</th>
-                    <th className="px-2 py-2"></th>
+                    <th className="px-2 py-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -758,7 +759,7 @@ function BucketStatsCard({ stats }: { stats: BucketStatsResp }) {
           <table className="text-sm border-collapse">
             <thead>
               <tr>
-                <th></th>
+                <th />
                 {stats.buckets.map((b) => (
                   <th key={b.bucket} className="px-3 py-1 text-xs text-neutral-500 font-normal">
                     {labels[b.bucket]}
@@ -768,13 +769,13 @@ function BucketStatsCard({ stats }: { stats: BucketStatsResp }) {
             </thead>
             <tbody>
               {stats.correlationMatrix.map((row, i) => (
-                <tr key={i}>
+                <tr key={stats.buckets[i].bucket}>
                   <th className="px-3 py-1 text-xs text-neutral-500 font-normal text-right">
                     {labels[stats.buckets[i].bucket]}
                   </th>
                   {row.map((v, j) => (
                     <td
-                      key={j}
+                      key={stats.buckets[j].bucket}
                       className="px-3 py-1 text-right font-mono"
                       style={{
                         backgroundColor:
@@ -1083,8 +1084,8 @@ function BacktestResults({ result }: { result: HoldingsBacktestResult }) {
                 </tr>
               </thead>
               <tbody>
-                {result.topHoldings.map((h, i) => (
-                  <tr key={i} className="border-t">
+                {result.topHoldings.map((h) => (
+                  <tr key={`${h.isin ?? ""}-${h.name}-${h.marketValueEUR}`} className="border-t">
                     <td className="py-1.5">
                       <div className="font-medium">{h.name}</div>
                       {h.isin && <div className="text-xs text-neutral-500 font-mono">{h.isin}</div>}
@@ -1107,9 +1108,9 @@ function BacktestResults({ result }: { result: HoldingsBacktestResult }) {
               <div className="text-sm text-green-800">✅ Keine kritischen Klumpen erkannt.</div>
             ) : (
               <ul className="space-y-2">
-                {result.concentrationFlags.map((f, i) => (
+                {result.concentrationFlags.map((f) => (
                   <li
-                    key={i}
+                    key={`${f.type}-${f.level}-${f.label}-${f.weight}`}
                     className={`text-sm rounded-md p-2 ${
                       f.level === "critical"
                         ? "bg-red-50 border border-red-200 text-red-900"
@@ -1153,8 +1154,8 @@ function BacktestResults({ result }: { result: HoldingsBacktestResult }) {
                 </tr>
               </thead>
               <tbody>
-                {result.stressTests.map((s, i) => (
-                  <tr key={i} className="border-t">
+                {result.stressTests.map((s) => (
+                  <tr key={s.scenario} className="border-t">
                     <td className="py-1.5">
                       <div className="font-medium">{s.scenarioLabel}</div>
                       <div className="text-xs text-neutral-500">{s.description}</div>
@@ -1179,6 +1180,7 @@ function BacktestResults({ result }: { result: HoldingsBacktestResult }) {
             <div className="text-xs font-semibold text-amber-900 uppercase mb-1">Hinweise</div>
             <ul className="text-sm text-amber-900 list-disc list-inside space-y-0.5">
               {result.warnings.map((w, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: reine Textliste ohne ID, Texte können sich wiederholen; wird nur einmal angezeigt, nie umsortiert
                 <li key={i}>{w}</li>
               ))}
             </ul>
@@ -1222,8 +1224,8 @@ function IndexChart({ path }: { path: { date: string; value: number }[] }) {
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Backtest-Indexverlauf">
         <rect x={pad.l} y={pad.t} width={innerW} height={innerH} fill="#FAFAFA" />
-        {labels.map((v, i) => (
-          <g key={i}>
+        {labels.map((v) => (
+          <g key={v}>
             <line
               x1={pad.l}
               x2={pad.l + innerW}
@@ -1237,8 +1239,8 @@ function IndexChart({ path }: { path: { date: string; value: number }[] }) {
             </text>
           </g>
         ))}
-        {yearMarks.map((m, i) => (
-          <text key={i} x={m.x} y={H - 6} fontSize="10" fill="#666" textAnchor="middle">
+        {yearMarks.map((m) => (
+          <text key={m.label} x={m.x} y={H - 6} fontSize="10" fill="#666" textAnchor="middle">
             {m.label}
           </text>
         ))}
@@ -1265,8 +1267,8 @@ function AllocationCard({
           <div className="text-sm text-neutral-500">—</div>
         ) : (
           <ul className="space-y-1">
-            {data.slice(0, 8).map((d, i) => (
-              <li key={i} className="text-sm">
+            {data.slice(0, 8).map((d) => (
+              <li key={d.key} className="text-sm">
                 <div className="flex justify-between">
                   <span className="truncate pr-2">{d.label}</span>
                   <span className="font-mono">{fmtPct(d.weight * 100, 1)}</span>

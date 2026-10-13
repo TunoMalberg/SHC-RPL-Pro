@@ -50,13 +50,13 @@ export function buildCalculationTrace(
   for (let y = 0; y < totalYears; y++) {
     const age = client.currentAge + y;
     ages.push(age);
-    const cumInflation = Math.pow(1 + inputs.inflationRate / 100, y + 1);
+    const cumInflation = (1 + inputs.inflationRate / 100) ** (y + 1);
     if (y < accumulationYears) {
       const annualSavings = inputs.monthlySavings * 12;
       savingsNominal.push(
         inputs.useRealValues
           ? annualSavings * cumInflation
-          : annualSavings * Math.pow(1 + inputs.annualSavingsIncrease / 100, y),
+          : annualSavings * (1 + inputs.annualSavingsIncrease / 100) ** y,
       );
       grossWithdrawalsNominal.push(0);
       pensionNominal.push(0);

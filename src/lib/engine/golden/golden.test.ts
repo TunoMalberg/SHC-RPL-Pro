@@ -36,7 +36,7 @@ describe("Referenzfälle (eingefrorene Ergebnisse)", () => {
       const diffs = diffSnapshots(golden[c.id], snap);
       if (diffs.length > 0) {
         throw new Error(
-          `${diffs.length} Abweichung(en) in „${c.id}“:\n  ` + diffs.slice(0, 15).join("\n  "),
+          `${diffs.length} Abweichung(en) in „${c.id}“:\n  ${diffs.slice(0, 15).join("\n  ")}`,
         );
       }
     }, 60_000);

@@ -48,9 +48,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Step 1 — ISIN resolution (only for holdings without explicit yahoo ticker)
-  const isinsToResolve = body.holdings
-    .filter((h) => h.isin && !h.ticker)
-    .map((h) => h.isin!.toUpperCase());
+  const isinsToResolve = body.holdings.flatMap((h) =>
+    h.isin && !h.ticker ? [h.isin.toUpperCase()] : [],
+  );
   const figiMap = await resolveIsins(isinsToResolve);
 
   // Step 2 — Build resolved holding clones with yahoo symbols

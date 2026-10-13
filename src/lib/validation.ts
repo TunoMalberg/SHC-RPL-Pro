@@ -249,8 +249,7 @@ export function validatePortfolio(p: PortfolioConfig): ValidationResult {
   }
 
   // ── Produkt-Töpfe WBA/LV (AP8) ────────────────────────────────────
-  for (let i = 0; i < (p.wohnbauanleihen?.length ?? 0); i++) {
-    const w = p.wohnbauanleihen![i];
+  for (const [i, w] of (p.wohnbauanleihen ?? []).entries()) {
     if (!Number.isFinite(w.amount) || w.amount < 0) {
       fail(r, {
         path: `portfolio.wohnbauanleihen[${i}].amount`,
@@ -273,8 +272,7 @@ export function validatePortfolio(p: PortfolioConfig): ValidationResult {
       });
     }
   }
-  for (let i = 0; i < (p.lebensversicherungen?.length ?? 0); i++) {
-    const l = p.lebensversicherungen![i];
+  for (const [i, l] of (p.lebensversicherungen ?? []).entries()) {
     if (!Number.isFinite(l.amount) || l.amount < 0) {
       fail(r, {
         path: `portfolio.lebensversicherungen[${i}].amount`,

@@ -243,7 +243,7 @@ export function ComparisonView() {
                   ? v.corridor.scenarios.typical.fromWealthMonthlyNominalAtRetirement
                   : Math.round(
                       v.sustainableMonthlyReal *
-                        Math.pow(1 + inputs.inflationRate / 100, Math.max(0, client.retirementAge - client.currentAge)),
+                        (1 + inputs.inflationRate / 100) ** Math.max(0, client.retirementAge - client.currentAge),
                     );
               return (
                 <Card key={v.kind} className={`${accent.border}`} data-design-id={`variant-card-${v.kind}`}>
