@@ -51,6 +51,22 @@ test.describe("Beratungsablauf", () => {
     expect(errors).toEqual([]);
   });
 
+  test("Pro: Wohnbauanleihe und Lebensversicherung erscheinen im Einzelpfad-Diagramm", async ({ page }) => {
+    const errors = trackErrors(page);
+    await openApp(page, "pro");
+    await openTab(page, "portfolio");
+    await page.locator('[data-design-id="add-wba-button"]').click();
+    await page.locator('[data-design-id="add-lv-button"]').click();
+    await runSimulation(page);
+    await openTab(page, "detailed");
+    await page.locator('[data-design-id="generate-trace-button"]').click();
+    const chart = page.locator('[data-design-id="detailed-chart-card"]');
+    await expect(chart.locator(".recharts-legend-item", { hasText: "Wohnbauanleihen" })).toBeVisible();
+    await expect(chart.locator(".recharts-legend-item", { hasText: "Fondsgebundene Lebensversicherungen" })).toBeVisible();
+    await expect(page.locator('[data-design-id="detailed-illiquid-note"]')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
   test("Ohne Simulation zeigen Ergebnis-Reiter einen Hinweis statt leerer Seite", async ({ page }) => {
     await openApp(page, "classic");
     await openTab(page, "results");

@@ -36,6 +36,9 @@ const COLORS = {
   total: "#20201E",
   rebalance: "#FAC075",
   pe: "#8A83BE",
+  // Produkt-Töpfe — gleiche Farben wie im Bereich Produkt-Töpfe (ProductBuckets).
+  wba: "#3a7cb8",
+  lv: "#5a8a50",
 };
 
 export function DetailedExampleSection() {
@@ -104,10 +107,22 @@ export function DetailedExampleSection() {
   const bondsLabel = bucketName(1, "detailed.bonds");
   const equitiesLabel = bucketName(2, "detailed.equities");
   const peLabel = t("detailed.peChartLabel");
+  const wbaLabel = t("products.wbaTitle");
+  const lvLabel = t("products.lvTitle");
 
   // Hat dieses Trace überhaupt PE-Daten? (peNav ist undefined wenn keine Fonds)
   const hasPE = useMemo(
     () => !!detailedTrace?.rows.some((r) => r.peNav !== undefined && r.peNav > 0),
+    [detailedTrace],
+  );
+  // Produkt-Töpfe (Wohnbauanleihe, fondsgebundene LV) — eigenes, nicht
+  // entnehmbares Vermögen außerhalb der drei liquiden Töpfe.
+  const hasWba = useMemo(
+    () => !!detailedTrace?.rows.some((r) => (r.wbaValue ?? 0) > 0),
+    [detailedTrace],
+  );
+  const hasLv = useMemo(
+    () => !!detailedTrace?.rows.some((r) => (r.lvValue ?? 0) > 0),
     [detailedTrace],
   );
 
@@ -120,10 +135,12 @@ export function DetailedExampleSection() {
       [bondsLabel]: Math.round(r.endBonds),
       [equitiesLabel]: Math.round(r.endEquities),
       [peLabel]: Math.round(r.peNav ?? 0),
+      [wbaLabel]: Math.round(r.wbaValue ?? 0),
+      [lvLabel]: Math.round(r.lvValue ?? 0),
       [t("detailed.total")]: Math.round(r.endTotal),
       liquidityEvent: r.liquidityEvent || 0,
     }));
-  }, [detailedTrace, cashLabel, bondsLabel, equitiesLabel, peLabel, t]);
+  }, [detailedTrace, cashLabel, bondsLabel, equitiesLabel, peLabel, wbaLabel, lvLabel, t]);
 
   const liquidityEventYears = useMemo(() => {
     if (!detailedTrace) return [];
@@ -251,7 +268,7 @@ export function DetailedExampleSection() {
                 className="bg-[#D31220] hover:bg-[#a80e19]"
                 data-design-id="generate-trace-button"
               >
-                🔍 {t("detailed.generate")}
+                {t("detailed.generate")}
               </Button>
               {hasWorstBest && (
                 <>
@@ -395,24 +412,51 @@ export function DetailedExampleSection() {
                       fillOpacity={0.75}
                     />
                   )}
+                  {hasWba && (
+                    <Area
+                      type="monotone"
+                      dataKey={wbaLabel}
+                      stackId="1"
+                      fill={COLORS.wba}
+                      stroke={COLORS.wba}
+                      strokeDasharray="4 3"
+                      fillOpacity={0.55}
+                    />
+                  )}
+                  {hasLv && (
+                    <Area
+                      type="monotone"
+                      dataKey={lvLabel}
+                      stackId="1"
+                      fill={COLORS.lv}
+                      stroke={COLORS.lv}
+                      strokeDasharray="4 3"
+                      fillOpacity={0.55}
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
               <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 justify-center flex-wrap">
                 <span className="flex items-center gap-1">
                   <span className="w-3 h-0.5 bg-[#D31220] inline-block" style={{ borderTop: "2px dashed #D31220" }} />
-                  Pensionsbeginn
+                  {t("detailed.legendRetirement")}
                 </span>
                 <span className="flex items-center gap-1">
                   <span className="w-3 h-0.5 inline-block" style={{ borderTop: "2px dashed #FAC075" }} />
-                  Umschichtung
+                  {t("detailed.legendRebalance")}
                 </span>
                 {liquidityEventYears.length > 0 && (
                   <span className="flex items-center gap-1">
                     <span className="w-3 h-0.5 inline-block" style={{ borderTop: "2px dashed #8A83BE" }} />
-                    Liquiditätsereignis
+                    {t("detailed.legendLiquidityEvent")}
                   </span>
                 )}
               </div>
+              {(hasPE || hasWba || hasLv) && (
+                <p className="mt-2 text-center text-xs text-slate-500" data-design-id="detailed-illiquid-note">
+                  {t("detailed.illiquidNote")}
+                </p>
+              )}
             </CardContent>
           </Card>
 

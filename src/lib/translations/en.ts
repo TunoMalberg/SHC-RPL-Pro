@@ -397,6 +397,10 @@ export const en: Record<string, string> = {
   "detailed.colPEDistNet": "PE Distr. (net)",
   "detailed.colPENav": "PE NAV",
   "detailed.peChartLabel": "Private Equity (NAV)",
+  "detailed.illiquidNote": "Private equity, housing bonds and life insurance are separate assets outside the three buckets — not available for withdrawals, stacked on top (products dashed).",
+  "detailed.legendRetirement": "Retirement start",
+  "detailed.legendRebalance": "Rebalancing",
+  "detailed.legendLiquidityEvent": "Liquidity event",
   "detailed.legendPE":
     "PE — capital calls drain cash; net distributions flow into cash; NAV is illiquid and part of total wealth.",
   "results.peBandLabel": "PE NAV p25–p75 (stochastic band)",
