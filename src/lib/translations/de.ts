@@ -399,6 +399,10 @@ export const de: Record<string, string> = {
   "detailed.colPEDistNet": "PE-Distr. (netto)",
   "detailed.colPENav": "PE-NAV",
   "detailed.peChartLabel": "Private Equity (NAV)",
+  "detailed.illiquidNote": "Private Equity, Wohnbauanleihe und Lebensversicherung sind eigenes Vermögen außerhalb der drei Töpfe — nicht entnehmbar, oben gestapelt (Produkte gestrichelt).",
+  "detailed.legendRetirement": "Pensionsbeginn",
+  "detailed.legendRebalance": "Umschichtung",
+  "detailed.legendLiquidityEvent": "Liquiditätsereignis",
   "detailed.legendPE":
     "PE — Capital Calls drainen Cash; Netto-Distributions fliessen in Cash; NAV ist illiquide und Teil des Gesamtvermögens.",
   "results.peBandLabel": "PE-NAV p25–p75 (stochastisches Band)",
