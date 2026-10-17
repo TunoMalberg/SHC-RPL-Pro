@@ -134,6 +134,21 @@ export const REFERENCE_CASES: ReferenceCase[] = [
     liquidityEvents: [],
   },
   {
+    // Schulungsfall 10/2026: Abrufe übersteigen die Liquidität — eingezahltes
+    // Kapital bleibt investiert, Ausschüttungen füllen die Liquidität wieder auf.
+    id: "pe-liquiditaet",
+    title: "Private Equity: Kapitalabrufe größer als die Liquidität (pensioniert)",
+    client: { ...baseClient(), birthYear: 1961, currentAge: 65, retirementAge: 65 },
+    inputs: { ...baseInputs(), initialCapital: 2_400_000, monthlySavings: 0, desiredMonthlyWithdrawal: 10_100, monthlyPension: 0, pensionStartAge: 65 },
+    portfolio: withPortfolio((p) => {
+      p.buckets = p.buckets.map((b, i) => ({ ...b, allocation: i === 2 ? 100 : 0 })) as typeof p.buckets;
+      p.peFunds = [{ ...makeDefaultPEFund(65, 0), id: "pe-1", commitment: 3_300_000 }];
+      p.peModelingMode = "realistic";
+    }),
+    settings: baseSettings(),
+    liquidityEvents: [],
+  },
+  {
     id: "pe-stochastisch",
     title: "Private Equity: Modus „Vollständig“ (Stochastik)",
     client: baseClient(),
