@@ -8,10 +8,12 @@
  * Jahresrenditen und Inflationsraten (`MarketScenario`).
  *
  * Reihenfolge je Schritt (unverändert gegenüber dem Produktivstand):
- *   1. Renditen; Zinsen der Liquidität sofort mit KESt Bankeinlagen besteuert
- *   2. Private Equity (Bestand), einmal pro Jahr am Jahresanfang
- *   3. Rollierendes PE-Programm, einmal pro Jahr
- *   4. Produkt-Töpfe (Wohnbauanleihe, LV), einmal pro Jahr
+ *   1. Private Equity (Bestand), einmal pro Jahr am Jahresanfang
+ *   2. Rollierendes PE-Programm, einmal pro Jahr
+ *   3. Produkt-Töpfe (Wohnbauanleihe, LV), einmal pro Jahr
+ *      (1–3 vor der Marktrendite: Käufe am Jahresanfang verdienen keine
+ *      Rendite des laufenden Jahres mehr im Depot)
+ *   4. Renditen; Zinsen der Liquidität sofort mit KESt Bankeinlagen besteuert
  *   5. Allokationswechsel auf das Entnahme-Portfolio (einmalig)
  *   6. Sparrate bzw. Entnahme abzüglich Pension (Liquidität zuerst) —
  *      Erfolg nur, wenn die drei Töpfe (inkl. der in diesem Jahr aus PE,
@@ -494,38 +496,10 @@ export function simulatePath(
         }
       : null;
 
-    // ── 1. Renditen; Zinsen der Liquidität sofort besteuert ─────────
-    const returns = market
-      ? market.returns(step)
-      : generateCorrelatedReturns(rng, ctx.cholesky, ctx.means, ctx.vols);
-    const cashInterest = bucketValues[0] * returns[0];
-    const cashTaxPaid = Math.max(0, cashInterest) * ctx.depositTaxRate;
-    if (d) {
-      d.returns = returns;
-      d.returnAmounts = [cashInterest, bucketValues[1] * returns[1], bucketValues[2] * returns[2]];
-      d.cashTax = cashTaxPaid;
-    }
-    bucketValues[0] += cashInterest - cashTaxPaid;
-    bucketValues[1] *= 1 + returns[1];
-    bucketValues[2] *= 1 + returns[2];
-    // Netto-Zins verschiebt den Höchststand signiert (wie eine Einzahlung)
-    // → die Höchststand-KESt erfasst nur noch Wertpapiergewinne.
-    highWatermark = Math.max(0, highWatermark + cashInterest - cashTaxPaid);
-    if (lvState) {
-      equityShockSum += shockFromReturn(returns[2], ctx.means[2], ctx.vols[2]);
-      equityShockSteps++;
-    }
-
-    // Reiner Marktindex (ohne Zahlungsströme) für den Markt-Drawdown.
-    const mktWeights = step < ctx.switchStep ? ctx.accWeights : ctx.wdWeights;
-    const marketStepReturn = mktWeights.reduce((s, w, i) => s + w * returns[i], 0);
-    marketIndex *= 1 + marketStepReturn;
-    if (marketIndex > marketPeak) marketPeak = marketIndex;
-    const ddNow = marketPeak > 0 ? (marketPeak - marketIndex) / marketPeak : 0;
-    if (ddNow > marketMaxDD) marketMaxDD = ddNow;
-
-    cumulativeInflation *= 1 + (market ? market.inflation(step) : ctx.inflationPerStep);
-
+    // Reihenfolge (Fix 10/2026): Zahlungen am Jahresanfang (PE-Abrufe und
+    // -Ausschüttungen, PE-Programm, Produkt-Käufe/-Kupons/-Auszahlungen)
+    // werden VOR der Marktrendite des Schritts gebucht. Vorher lief z. B. ein
+    // Anleihekauf erst nach einem Jahr Aktienrendite auf dem Kaufbetrag.
     // ── 2. Private Equity (Bestand), jährlich am Jahresanfang ───────
     if (ctx.hasPE && yearStart) {
       const peEntry = peTimeline[yIdx];
@@ -629,6 +603,38 @@ export function simulatePath(
         }
       }
     }
+
+    // ── 1. Renditen; Zinsen der Liquidität sofort besteuert ─────────
+    const returns = market
+      ? market.returns(step)
+      : generateCorrelatedReturns(rng, ctx.cholesky, ctx.means, ctx.vols);
+    const cashInterest = bucketValues[0] * returns[0];
+    const cashTaxPaid = Math.max(0, cashInterest) * ctx.depositTaxRate;
+    if (d) {
+      d.returns = returns;
+      d.returnAmounts = [cashInterest, bucketValues[1] * returns[1], bucketValues[2] * returns[2]];
+      d.cashTax = cashTaxPaid;
+    }
+    bucketValues[0] += cashInterest - cashTaxPaid;
+    bucketValues[1] *= 1 + returns[1];
+    bucketValues[2] *= 1 + returns[2];
+    // Netto-Zins verschiebt den Höchststand signiert (wie eine Einzahlung)
+    // → die Höchststand-KESt erfasst nur noch Wertpapiergewinne.
+    highWatermark = Math.max(0, highWatermark + cashInterest - cashTaxPaid);
+    if (lvState) {
+      equityShockSum += shockFromReturn(returns[2], ctx.means[2], ctx.vols[2]);
+      equityShockSteps++;
+    }
+
+    // Reiner Marktindex (ohne Zahlungsströme) für den Markt-Drawdown.
+    const mktWeights = step < ctx.switchStep ? ctx.accWeights : ctx.wdWeights;
+    const marketStepReturn = mktWeights.reduce((s, w, i) => s + w * returns[i], 0);
+    marketIndex *= 1 + marketStepReturn;
+    if (marketIndex > marketPeak) marketPeak = marketIndex;
+    const ddNow = marketPeak > 0 ? (marketPeak - marketIndex) / marketPeak : 0;
+    if (ddNow > marketMaxDD) marketMaxDD = ddNow;
+
+    cumulativeInflation *= 1 + (market ? market.inflation(step) : ctx.inflationPerStep);
 
     // ── 5. Allokationswechsel (einmalig; nicht bei Direktstart) ─────
     if (ctx.wd && !switchedToWithdrawal && step >= ctx.switchStep && ctx.switchStep > 0) {
