@@ -643,6 +643,30 @@ function createDetailedTraceSheet(
     "Umsch.Δ Barg.", "Umsch.Δ Anl.", "Umsch.Δ Akt.",
     "Ende Gesamt",
   ];
+  // Vermögen außerhalb der drei Töpfe (nur wenn im Plan vorhanden):
+  // Private Equity sowie Wohnbauanleihe/fondsgebundene LV mit Zahlungsverlauf.
+  const hasPE = trace.rows.some((r) => (r.peNav ?? 0) > 0 || (r.peCall ?? 0) > 0);
+  const hasWba = trace.rows.some((r) => (r.wbaValue ?? 0) > 0);
+  const hasLv = trace.rows.some((r) => (r.lvValue ?? 0) > 0);
+  const extraCols: { header: string; value: (r: (typeof trace.rows)[number]) => number; sign?: 1 | -1 }[] = [
+    ...(hasPE
+      ? [
+          { header: "PE-Calls", value: (r: (typeof trace.rows)[number]) => r.peCall ?? 0, sign: -1 as const },
+          { header: "PE-Distr. (netto)", value: (r: (typeof trace.rows)[number]) => r.peDistNet ?? 0, sign: 1 as const },
+          { header: "PE-NAV", value: (r: (typeof trace.rows)[number]) => r.peNav ?? 0 },
+        ]
+      : []),
+    ...(hasWba || hasLv
+      ? [{ header: "Kauf Produkte", value: (r: (typeof trace.rows)[number]) => r.productPurchase ?? 0, sign: -1 as const }]
+      : []),
+    ...(hasWba ? [{ header: "WBA-Zinsen", value: (r: (typeof trace.rows)[number]) => r.productCoupon ?? 0, sign: 1 as const }] : []),
+    ...(hasWba || hasLv
+      ? [{ header: "Tilgung/Auszahlung", value: (r: (typeof trace.rows)[number]) => r.productPayout ?? 0, sign: 1 as const }]
+      : []),
+    ...(hasWba ? [{ header: "WBA-Wert", value: (r: (typeof trace.rows)[number]) => r.wbaValue ?? 0 }] : []),
+    ...(hasLv ? [{ header: "FLV-Wert", value: (r: (typeof trace.rows)[number]) => r.lvValue ?? 0 }] : []),
+  ];
+  headers.push(...extraCols.map((c) => c.header));
 
   for (let c = 0; c < headers.length; c++) {
     ws.getCell(row, c + 1).value = headers[c];
@@ -740,6 +764,21 @@ function createDetailedTraceSheet(
     ws.getCell(row, 18).value = Math.round(r.endTotal);
     ws.getCell(row, 18).numFmt = NUM_FMT_EUR;
     ws.getCell(row, 18).font = { bold: true, name: "Calibri", size: 9 };
+
+    for (const [k, col] of extraCols.entries()) {
+      const v = col.value(r);
+      const cell = ws.getCell(row, 19 + k);
+      if (v === 0) {
+        cell.value = "";
+        continue;
+      }
+      cell.value = Math.round(col.sign === -1 ? -v : v);
+      cell.numFmt = NUM_FMT_EUR;
+      cell.font = {
+        name: "Calibri", size: 9,
+        color: { argb: col.sign === -1 ? "FFC62828" : col.sign === 1 ? "FF2E7D32" : "FF444444" },
+      };
+    }
   }
 
   row += 2;

@@ -126,6 +126,12 @@ export function DetailedExampleSection() {
     [detailedTrace],
   );
 
+  // Jahre, in denen die Entnahme nicht voll aus Liquidität bezahlt werden konnte.
+  const hasUnpaid = useMemo(
+    () => !!detailedTrace?.rows.some((r) => (r.unpaidWithdrawal ?? 0) > 0),
+    [detailedTrace],
+  );
+
   const chartData = useMemo(() => {
     if (!detailedTrace) return [];
     return detailedTrace.rows.map((r) => ({
@@ -519,6 +525,36 @@ export function DetailedExampleSection() {
                           </th>
                         </>
                       )}
+                      {(hasWba || hasLv) && (
+                        <>
+                          <th className="py-2 px-2 text-right font-semibold bg-[#3a7cb8]/25" style={{ color: "#e3eef8" }}>
+                            {t("detailed.colProductPurchase")}
+                          </th>
+                          {hasWba && (
+                            <th className="py-2 px-2 text-right font-semibold bg-[#3a7cb8]/25" style={{ color: "#e3eef8" }}>
+                              {t("detailed.colWbaCoupon")}
+                            </th>
+                          )}
+                          <th className="py-2 px-2 text-right font-semibold bg-[#3a7cb8]/25" style={{ color: "#e3eef8" }}>
+                            {t("detailed.colProductPayout")}
+                          </th>
+                          {hasWba && (
+                            <th className="py-2 px-2 text-right font-semibold bg-[#3a7cb8]/25" style={{ color: "#e3eef8" }}>
+                              {t("detailed.colWbaValue")}
+                            </th>
+                          )}
+                          {hasLv && (
+                            <th className="py-2 px-2 text-right font-semibold bg-[#5a8a50]/25" style={{ color: "#e3eef8" }}>
+                              {t("detailed.colLvValue")}
+                            </th>
+                          )}
+                        </>
+                      )}
+                      {hasUnpaid && (
+                        <th className="py-2 px-2 text-right font-semibold bg-rose-600/30" style={{ color: "#fde2e2" }}>
+                          {t("detailed.colUnpaid")}
+                        </th>
+                      )}
                       <th className="py-2 px-2 text-right font-semibold">{t("detailed.colEndTotal")}</th>
                     </tr>
                   </thead>
@@ -650,6 +686,36 @@ export function DetailedExampleSection() {
                               </td>
                             </>
                           )}
+                          {(hasWba || hasLv) && (
+                            <>
+                              <td className={`py-1.5 px-2 text-right tabular-nums ${(row.productPurchase ?? 0) > 0 ? "text-rose-600 bg-[#3a7cb8]/5" : "text-slate-300"}`}>
+                                {(row.productPurchase ?? 0) > 0 ? `−${fmtEur(row.productPurchase ?? 0)}` : "—"}
+                              </td>
+                              {hasWba && (
+                                <td className={`py-1.5 px-2 text-right tabular-nums ${(row.productCoupon ?? 0) > 0 ? "text-[#5a8a50] bg-[#3a7cb8]/5" : "text-slate-300"}`}>
+                                  {(row.productCoupon ?? 0) > 0 ? `+${fmtEur(row.productCoupon ?? 0)}` : "—"}
+                                </td>
+                              )}
+                              <td className={`py-1.5 px-2 text-right tabular-nums ${(row.productPayout ?? 0) > 0 ? "text-[#5a8a50] bg-[#3a7cb8]/5" : "text-slate-300"}`}>
+                                {(row.productPayout ?? 0) > 0 ? `+${fmtEur(row.productPayout ?? 0)}` : "—"}
+                              </td>
+                              {hasWba && (
+                                <td className={`py-1.5 px-2 text-right tabular-nums font-medium ${(row.wbaValue ?? 0) > 0 ? "text-[#3a7cb8] bg-[#3a7cb8]/5" : "text-slate-300"}`}>
+                                  {(row.wbaValue ?? 0) > 0 ? fmtEur(row.wbaValue ?? 0) : "—"}
+                                </td>
+                              )}
+                              {hasLv && (
+                                <td className={`py-1.5 px-2 text-right tabular-nums font-medium ${(row.lvValue ?? 0) > 0 ? "text-[#5a8a50] bg-[#5a8a50]/5" : "text-slate-300"}`}>
+                                  {(row.lvValue ?? 0) > 0 ? fmtEur(row.lvValue ?? 0) : "—"}
+                                </td>
+                              )}
+                            </>
+                          )}
+                          {hasUnpaid && (
+                            <td className={`py-1.5 px-2 text-right tabular-nums ${(row.unpaidWithdrawal ?? 0) > 0 ? "font-semibold text-rose-700 bg-rose-50" : "text-slate-300"}`}>
+                              {(row.unpaidWithdrawal ?? 0) > 0 ? `−${fmtEur(row.unpaidWithdrawal ?? 0)}` : "—"}
+                            </td>
+                          )}
                           <td className="py-1.5 px-2 text-right font-bold text-slate-900 tabular-nums">
                             {fmtEur(row.endTotal)}
                           </td>
@@ -689,6 +755,24 @@ export function DetailedExampleSection() {
                     <p>
                       <span className="inline-block w-3 h-3 rounded-sm bg-[#8A83BE] mr-2" />
                       <strong>{peLabel}</strong> — {t("detailed.legendPE").split(" — ")[1]}
+                    </p>
+                  )}
+                  {hasUnpaid && (
+                    <p>
+                      <span className="inline-block w-3 h-3 rounded-sm bg-rose-600 mr-2" />
+                      <strong>{t("detailed.colUnpaid")}</strong> — {t("detailed.legendUnpaid")}
+                    </p>
+                  )}
+                  {hasWba && (
+                    <p>
+                      <span className="inline-block w-3 h-3 rounded-sm bg-[#3a7cb8] mr-2" />
+                      <strong>{wbaLabel}</strong> — {t("detailed.legendWba")}
+                    </p>
+                  )}
+                  {hasLv && (
+                    <p>
+                      <span className="inline-block w-3 h-3 rounded-sm bg-[#5a8a50] mr-2" />
+                      <strong>{lvLabel}</strong> — {t("detailed.legendLv")}
                     </p>
                   )}
                 </div>

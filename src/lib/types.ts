@@ -666,6 +666,12 @@ export interface SimulationResult {
    * Einzelpfad, Backtest und Exporte verwenden denselben Wert.
    */
   effectiveMonthlyWithdrawal?: number;
+  /**
+   * Liquiditätslücke: Pfade, in denen eine Entnahme (oder ein zugesagter
+   * PE-Programm-Abruf) mindestens einmal nicht voll aus Liquidität bezahlt
+   * werden konnte. null = in keinem Pfad.
+   */
+  liquidityGap?: LiquidityGapSummary | null;
   /** Vollständiger Berechnungsnachweis (CR 19). */
   calculationTrace?: CalculationTrace;
   /**
@@ -769,6 +775,8 @@ export interface DetailedYearRow {
   withdrawalFromCash: number;
   withdrawalFromBonds: number;
   withdrawalFromEquities: number;
+  /** Nicht gedeckter Betrag dieses Jahres (fehlende Liquidität), optional. */
+  unpaidWithdrawal?: number;
   endCash: number;
   endBonds: number;
   endEquities: number;
@@ -914,4 +922,19 @@ export interface AppState {
    * Banner), ohne den Arbeitsstand zu verändern. null = aktueller Lauf.
    */
   viewingScenarioId: string | null;
+}
+
+/** Kennzahlen zur Liquiditätslücke über alle Monte-Carlo-Pfade. */
+export interface LiquidityGapSummary {
+  /** Anteil der Pfade mit mindestens einem nicht voll gedeckten Jahr (%). */
+  probabilityPct: number;
+  /** Davon: Anteil aller Pfade, in denen zu diesem Zeitpunkt noch gebundenes
+   *  Vermögen (PE, Wohnbauanleihe, LV) vorhanden war (%). */
+  withLockedAssetsPct: number;
+  /** Typisches (Median-)Alter beim ersten nicht gedeckten Jahr. */
+  medianFirstAge: number;
+  /** Typische (Median-)Summe der nicht gedeckten Beträge, heutige Kaufkraft. */
+  medianUnpaidReal: number;
+  /** Typisches gebundenes Vermögen zu Beginn der Lücke, heutige Kaufkraft (nur Pfade mit gebundenem Vermögen). */
+  medianLockedValue: number;
 }

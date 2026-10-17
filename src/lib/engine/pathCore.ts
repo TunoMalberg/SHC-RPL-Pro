@@ -13,7 +13,9 @@
  *   3. Rollierendes PE-Programm, einmal pro Jahr
  *   4. Produkt-Töpfe (Wohnbauanleihe, LV), einmal pro Jahr
  *   5. Allokationswechsel auf das Entnahme-Portfolio (einmalig)
- *   6. Sparrate bzw. Entnahme abzüglich Pension (Liquidität zuerst)
+ *   6. Sparrate bzw. Entnahme abzüglich Pension (Liquidität zuerst) —
+ *      Erfolg nur, wenn die drei Töpfe (inkl. der in diesem Jahr aus PE,
+ *      WBA und LV zugeflossenen Beträge) die Entnahme decken
  *   7. Liquiditätsereignisse
  *   8. Umschichtung (Zielgewichte bzw. Liquiditätspuffer in der Entnahmephase)
  *   9. KESt Wertpapiere nach dem Höchststand-Prinzip
@@ -51,14 +53,21 @@ import {
 import {
   computeProductTimeline,
   createLvRuntime,
+  createWbaRuntime,
   hasProductHoldings,
   shockFromReturn,
   type LvRuntime,
   type ProductYearEntry,
+  type WbaRuntime,
 } from "./products";
 import { PE_STOCHASTIC_ENSEMBLE_SIZE } from "../defaults";
 
 // ── Gemeinsame Bausteine ────────────────────────────────────────────
+
+/** Summe der drei liquiden Töpfe (Liquidität, Anleihen, Aktien). */
+function liquidTotal(bucketValues: number[]): number {
+  return Math.max(0, bucketValues[0] + bucketValues[1] + bucketValues[2]);
+}
 
 /**
  * Wendet Zahlungen an, die nicht aus dem Markt kommen (PE-Abrufe und
@@ -193,6 +202,7 @@ export interface PathContext {
   productTimeline: ProductYearEntry[];
   hasProducts: boolean;
   lvRuntime: LvRuntime;
+  wbaRuntime: WbaRuntime;
 }
 
 /**
@@ -316,6 +326,7 @@ export function buildPathContext(
       : null,
     productTimeline,
     hasProducts: hasProductHoldings(productTimeline),
+    wbaRuntime: createWbaRuntime(portfolio.wohnbauanleihen ?? [], client.currentAge, totalYears),
     lvRuntime: createLvRuntime(
       portfolio.lebensversicherungen ?? [],
       client.currentAge,
@@ -353,6 +364,8 @@ export interface StepDetail {
   pension: number;
   hasPension: boolean;
   withdrawalFrom: [number, number, number];
+  /** Nicht gedeckter Betrag (Entnahme bzw. PE-Programm-Abruf ohne Liquidität). */
+  unpaid: number;
   liquidityEvent: number;
   liquidityEventLabel: string;
   rebalanced: boolean;
@@ -386,6 +399,12 @@ export interface PathOutcome {
   peProgNavYears: number[] | null;
   /** Produktwert je Jahr (nur mit Produkt-Töpfen). */
   productValueYears: number[] | null;
+  /** Erster Schritt mit Liquiditätslücke (−1 = keine). */
+  gapFirstStep: number;
+  /** Summe der nicht gedeckten Beträge in heutiger Kaufkraft. */
+  gapUnpaidReal: number;
+  /** Gebundenes Vermögen (PE, WBA, LV) beim ersten Lücken-Schritt, heutige Kaufkraft. */
+  gapLockedValue: number;
 }
 
 /**
@@ -410,6 +429,13 @@ export function simulatePath(
       : ctx.peTimelineDefault;
   const peState = ctx.peRuntime ? ctx.peRuntime.newPathState(sim) : null;
   const lvState = ctx.lvRuntime.active ? ctx.lvRuntime.newPathState(sim) : null;
+  const wbaState = ctx.wbaRuntime.active ? ctx.wbaRuntime.newPathState() : null;
+  // Anteil der PE-Bestandsfonds, der nach (teilweise) nicht bezahlten
+  // Kapitalabrufen noch gehalten wird (1 = alle Abrufe bezahlt).
+  let peScale = 1;
+  let gapFirstStep = -1;
+  let gapUnpaidReal = 0;
+  let gapLockedValue = 0;
 
   let bucketValues = ctx.startWeights.map((w) => w * inputs.initialCapital);
   let switchedToWithdrawal = false;
@@ -457,6 +483,7 @@ export function simulatePath(
           pension: 0,
           hasPension: false,
           withdrawalFrom: [0, 0, 0],
+          unpaid: 0,
           liquidityEvent: 0,
           liquidityEventLabel: "",
           rebalanced: false,
@@ -503,22 +530,25 @@ export function simulatePath(
     if (ctx.hasPE && yearStart) {
       const peEntry = peTimeline[yIdx];
       if (peEntry) {
-        highWatermark = applyExternalCashflows(
-          bucketValues,
-          peEntry.totalCall,
-          peEntry.totalDistNet,
-          highWatermark,
-        );
-        peNavCurrent = peEntry.totalNav;
+        // Kapitalabruf nur so weit bezahlbar, wie Liquidität da ist; ein nicht
+        // bezahlter Teil verkleinert die Beteiligung (NAV und künftige
+        // Ausschüttungen zählen nur noch anteilig).
+        const due = peScale === 1 ? peEntry.totalCall : peEntry.totalCall * peScale;
+        const paid = Math.min(due, liquidTotal(bucketValues));
+        if (due > 0 && paid < due) peScale *= paid / due;
+        const distNet = peScale === 1 ? peEntry.totalDistNet : peEntry.totalDistNet * peScale;
+        highWatermark = applyExternalCashflows(bucketValues, paid, distNet, highWatermark);
+        peNavCurrent = peScale === 1 ? peEntry.totalNav : peEntry.totalNav * peScale;
         if (d) {
-          d.peCall = peEntry.totalCall;
-          d.peDistGross = peEntry.totalDistGross;
-          d.peDistNet = peEntry.totalDistNet;
+          d.peCall = paid;
+          d.peDistGross = peScale === 1 ? peEntry.totalDistGross : peEntry.totalDistGross * peScale;
+          d.peDistNet = distNet;
         }
       }
     }
 
     // ── 3. Rollierendes PE-Programm, jährlich ───────────────────────
+    let programUnpaid = 0;
     if (peState && ctx.peRuntime && ctx.remainingWithdrawals && yearStart) {
       const liquidNow = bucketValues[0] + bucketValues[1] + bucketValues[2];
       const staticPeNavAtPeak = ctx.hasPE
@@ -535,11 +565,14 @@ export function simulatePath(
         remainingWithdrawalsNominal: remainingNow,
         isWithdrawalPhase: !isAccumulation,
       });
-      highWatermark = applyExternalCashflows(bucketValues, prog.call, prog.distNet, highWatermark);
+      // Abrufe des Programms: ein ungedeckter Rest gilt als Liquiditätslücke.
+      const progPaid = Math.min(prog.call, liquidTotal(bucketValues));
+      programUnpaid = prog.call - progPaid;
+      highWatermark = applyExternalCashflows(bucketValues, progPaid, prog.distNet, highWatermark);
       peProgNavCurrent = prog.nav;
       peProgNavYears?.push(peNavCurrent + peProgNavCurrent);
       if (d) {
-        d.peCall += prog.call;
+        d.peCall += progPaid;
         d.peDistGross += prog.distGross;
         d.peDistNet += prog.distNet;
         d.peCommitted = prog.committed;
@@ -547,6 +580,19 @@ export function simulatePath(
       }
     }
     if (d) d.peNav = peNavCurrent + peProgNavCurrent;
+    if (programUnpaid > 0.005) {
+      // Zugesagter Programm-Abruf ohne Liquidität: Plan nicht tragfähig.
+      if (!failed) {
+        failed = true;
+        failureStep = step;
+      }
+      if (d) d.unpaid += programUnpaid;
+      gapUnpaidReal += programUnpaid / cumulativeInflation;
+      if (gapFirstStep < 0) {
+        gapFirstStep = step;
+        gapLockedValue = (peNavCurrent + peProgNavCurrent + productValueCurrent) / cumulativeInflation;
+      }
+    }
 
     // ── 4. Produkt-Töpfe (WBA/LV), jährlich ─────────────────────────
     if (ctx.hasProducts && yearStart) {
@@ -556,21 +602,29 @@ export function simulatePath(
         const zEq = equityShockSteps > 0 ? equityShockSum / Math.sqrt(equityShockSteps) : 0;
         equityShockSum = 0;
         equityShockSteps = 0;
-        const lv = lvState ? lvState.advanceYear(yIdx, zEq) : { lvValue: 0, lvPayout: 0 };
-        const payout = prodEntry.wbaPayouts + lv.lvPayout;
+        // Käufe nur in Höhe der vorhandenen Liquidität; gekauft (und später
+        // verzinst, ausgezahlt, bewertet) wird nur der bezahlte Anteil.
+        const purchasePaid = Math.min(prodEntry.purchases, liquidTotal(bucketValues));
+        const fundedShare =
+          prodEntry.purchases > 0 && purchasePaid < prodEntry.purchases
+            ? purchasePaid / prodEntry.purchases
+            : 1;
+        const lv = lvState ? lvState.advanceYear(yIdx, zEq, fundedShare) : { lvValue: 0, lvPayout: 0 };
+        const wba = wbaState ? wbaState.advanceYear(yIdx, fundedShare) : { coupons: 0, payouts: 0, value: 0 };
+        const payout = wba.payouts + lv.lvPayout;
         highWatermark = applyExternalCashflows(
           bucketValues,
-          prodEntry.purchases,
-          prodEntry.coupons + payout,
+          purchasePaid,
+          wba.coupons + payout,
           highWatermark,
         );
-        productValueCurrent = prodEntry.wbaValue + lv.lvValue;
+        productValueCurrent = wba.value + lv.lvValue;
         productValueYears?.push(productValueCurrent);
         if (d) {
-          d.productPurchase = prodEntry.purchases;
-          d.productCoupon = prodEntry.coupons;
+          d.productPurchase = purchasePaid;
+          d.productCoupon = wba.coupons;
           d.productPayout = payout;
-          d.wbaValue = prodEntry.wbaValue;
+          d.wbaValue = wba.value;
           d.lvValue = lv.lvValue;
         }
       }
@@ -612,13 +666,22 @@ export function simulatePath(
       const netWithdrawal = Math.max(0, adjustedWithdrawal - adjustedPension);
       const totalPortfolio = bucketValues.reduce((a, b) => a + b, 0);
 
-      // Erfolgskriterium inkl. PE-NAV und Produkt-Töpfen (illiquide, aber
-      // Vermögen — Vorgabe „PE immer in der Erfolgsquote").
-      const totalWithIlliquid =
-        totalPortfolio + peNavCurrent + peProgNavCurrent + productValueCurrent;
-      if (totalWithIlliquid <= netWithdrawal && !failed) {
+      // Erfolgskriterium (Vorgabe 10/2026): Für die Entnahme zählt nur
+      // Liquidität — die drei Töpfe einschließlich dessen, was in diesem Jahr
+      // tatsächlich aus PE, Wohnbauanleihe oder LV zugeflossen ist (Schritte
+      // 2–4). Gebundene Werte (PE-NAV, Anleihe, Polizze) retten kein Jahr.
+      if (netWithdrawal > 0 && totalPortfolio <= netWithdrawal && !failed) {
         failed = true;
         failureStep = step;
+      }
+      const shortfall = Math.max(0, netWithdrawal - totalPortfolio);
+      if (d) d.unpaid += shortfall;
+      if (shortfall > 0.005) {
+        gapUnpaidReal += shortfall / cumulativeInflation;
+        if (gapFirstStep < 0) {
+          gapFirstStep = step;
+          gapLockedValue = (peNavCurrent + peProgNavCurrent + productValueCurrent) / cumulativeInflation;
+        }
       }
 
       if (totalPortfolio > 0) {
@@ -758,5 +821,8 @@ export function simulatePath(
     marketMaxDD,
     peProgNavYears,
     productValueYears,
+    gapFirstStep,
+    gapUnpaidReal,
+    gapLockedValue,
   };
 }

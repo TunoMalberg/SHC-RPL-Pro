@@ -174,3 +174,25 @@ wenn eine Änderung die Simulation spürbar verlangsamt (z. B. Standardfall
 - **Große Dateien aufgeteilt:** Übersetzungen (`src/lib/translations/de.ts`,
   `en.ts`), PowerPoint-Export (`src/lib/export/powerpoint/`), Private Equity
   (`PEProgramCard`, `PEFundRow`), Ergebnisseite (`sections/results/`).
+
+## Liquidität und Erfolgskriterium (fachliche Entscheidung 17.10.2026)
+
+- **Entnahmen nur aus Liquidität:** Für die Entnahme eines Jahres zählt, was
+  in den drei liquiden Töpfen liegt, einschließlich dessen, was im selben
+  Jahr tatsächlich aus Private Equity (Ausschüttungen), Wohnbauanleihe
+  (Zinsen, Tilgung) oder Lebensversicherung (Auszahlung) zufließt.
+  Gebundene Werte (PE-NAV, Anleihe, Polizze) retten kein Jahr mehr; sie
+  zählen weiter zum Endvermögen. Ersetzt die frühere Konvention „PE immer in
+  der Erfolgsquote".
+- **Liquiditätslücke sichtbar:** Ergebnisseite zeigt eine Warnkarte, wenn
+  Entnahmen ausfallen, obwohl noch gebundenes Vermögen vorhanden ist
+  (Wahrscheinlichkeit, typisches Alter, nicht gedeckte Summe). Einzelpfad mit
+  Spalte „Nicht gedeckt".
+- **Käufe nur aus vorhandener Liquidität:** Wohnbauanleihe/LV-Käufe und
+  PE-Kapitalabrufe werden nur so weit ausgeführt, wie Liquidität da ist;
+  Zinsen, Auszahlungen, Werte und PE-NAV zählen anteilig. Ein nicht
+  gedeckter Abruf des PE-Programms gilt als Liquiditätslücke. Eingabe-Hinweis,
+  wenn heutige Produktkäufe das Anfangskapital übersteigen.
+- Referenzfälle unverändert (dort rettete gebundenes Vermögen nie ein Jahr).
+  Beispiel 60 J., 600.000 €, davon 300.000 € in einer FLV mit Auszahlung
+  erst mit 75: Erfolgsquote 53,9 % → 34,3 %.
