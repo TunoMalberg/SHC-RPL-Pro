@@ -432,9 +432,14 @@ export function simulatePath(
   const peState = ctx.peRuntime ? ctx.peRuntime.newPathState(sim) : null;
   const lvState = ctx.lvRuntime.active ? ctx.lvRuntime.newPathState(sim) : null;
   const wbaState = ctx.wbaRuntime.active ? ctx.wbaRuntime.newPathState() : null;
-  // Anteil der PE-Bestandsfonds, der nach (teilweise) nicht bezahlten
-  // Kapitalabrufen noch gehalten wird (1 = alle Abrufe bezahlt).
-  let peScale = 1;
+  // PE-Bestand bei fehlender Liquidität: Nicht bezahlte Abrufe lassen den
+  // offenen Rest der Zusage verfallen (künftige Abrufe nur noch anteilig,
+  // peActive). Bereits eingezahltes Kapital bleibt investiert: NAV und
+  // Ausschüttungen zählen im Verhältnis eingezahlt/geplant (peNavScale).
+  let peActive = 1;
+  let pePlannedPaidIn = 0;
+  let peActualPaidIn = 0;
+  let peNavScale = 1;
   let gapFirstStep = -1;
   let gapUnpaidReal = 0;
   let gapLockedValue = 0;
@@ -504,18 +509,21 @@ export function simulatePath(
     if (ctx.hasPE && yearStart) {
       const peEntry = peTimeline[yIdx];
       if (peEntry) {
-        // Kapitalabruf nur so weit bezahlbar, wie Liquidität da ist; ein nicht
-        // bezahlter Teil verkleinert die Beteiligung (NAV und künftige
-        // Ausschüttungen zählen nur noch anteilig).
-        const due = peScale === 1 ? peEntry.totalCall : peEntry.totalCall * peScale;
+        // Kapitalabruf nur so weit bezahlbar, wie Liquidität da ist. Der nicht
+        // bezahlte Teil der Zusage verfällt (künftige Abrufe anteilig); das
+        // bereits eingezahlte Kapital bleibt investiert.
+        const due = peActive === 1 ? peEntry.totalCall : peEntry.totalCall * peActive;
         const paid = Math.min(due, liquidTotal(bucketValues));
-        if (due > 0 && paid < due) peScale *= paid / due;
-        const distNet = peScale === 1 ? peEntry.totalDistNet : peEntry.totalDistNet * peScale;
+        if (due > 0 && paid < due) peActive *= paid / due;
+        pePlannedPaidIn += peEntry.totalCall;
+        peActualPaidIn += paid;
+        if (peActualPaidIn < pePlannedPaidIn) peNavScale = peActualPaidIn / pePlannedPaidIn;
+        const distNet = peNavScale === 1 ? peEntry.totalDistNet : peEntry.totalDistNet * peNavScale;
         highWatermark = applyExternalCashflows(bucketValues, paid, distNet, highWatermark);
-        peNavCurrent = peScale === 1 ? peEntry.totalNav : peEntry.totalNav * peScale;
+        peNavCurrent = peNavScale === 1 ? peEntry.totalNav : peEntry.totalNav * peNavScale;
         if (d) {
           d.peCall = paid;
-          d.peDistGross = peScale === 1 ? peEntry.totalDistGross : peEntry.totalDistGross * peScale;
+          d.peDistGross = peNavScale === 1 ? peEntry.totalDistGross : peEntry.totalDistGross * peNavScale;
           d.peDistNet = distNet;
         }
       }
