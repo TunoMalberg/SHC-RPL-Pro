@@ -69,6 +69,26 @@ describe("Liquiditätslücke", () => {
   });
 });
 
+describe("Reihenfolge am Jahresanfang", () => {
+  test("100 % in eine Wohnbauanleihe: Kauf vor der Marktrendite, kein Aktienbestand", () => {
+    const allIn = { ...defaultInputs, initialCapital: 250_000, monthlySavings: 0, desiredMonthlyWithdrawal: 3_000 };
+    const portfolio = {
+      ...defaultPortfolio,
+      wohnbauanleihen: [{ id: "w", name: "WBA", purchaseAge: defaultClient.currentAge, amount: 250_000, couponPct: 3, termYears: 11 }],
+    };
+    const trace = runDetailedSingleSimulation(defaultClient, allIn, portfolio, settings, 0, []);
+    const first = trace.rows[0];
+    expect(first.productPurchase).toBe(250_000);
+    // Keine Rendite auf das bereits investierte Geld im Kaufjahr
+    expect(first.returnEquities).toBe(0);
+    expect(first.returnBonds).toBe(0);
+    expect(first.endTotal).toBeCloseTo(0, 6);
+    // Ab dem Folgejahr: nur Zinsen (7.500 €) werden laut Aufteilung angelegt
+    expect(trace.rows[1].productCoupon).toBe(7_500);
+    expect(trace.rows[1].startTotal).toBeCloseTo(0, 6);
+  });
+});
+
 describe("Kauf größer als Liquidität", () => {
   // 30.000 € Kapital, Wohnbauanleihe über 50.000 € heute → nur 60 % kaufbar.
   const smallInputs = { ...defaultInputs, initialCapital: 30_000, monthlySavings: 0, desiredMonthlyWithdrawal: 1_000 };
