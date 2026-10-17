@@ -51,6 +51,10 @@ export function runMonteCarloSimulation(
   const marketDrawdowns: number[] = [];
   let successCount = 0;
   const failureYears: number[] = [];
+  // Liquiditätslücke je Pfad (erstes Alter, nicht gedeckte Summe, gebundenes Vermögen).
+  const gapAges: number[] = [];
+  const gapUnpaid: number[] = [];
+  const gapLocked: number[] = [];
 
   for (let sim = 0; sim < settings.numSimulations; sim++) {
     const out = simulatePath(ctx, sim, { collectPath: true });
@@ -58,6 +62,11 @@ export function runMonteCarloSimulation(
     allFinalValues.push(finalValue);
     allPaths.push(out.path as number[]);
     marketDrawdowns.push(out.marketMaxDD);
+    if (out.gapFirstStep >= 0) {
+      gapAges.push(client.currentAge + out.gapFirstStep / stepsPerYear);
+      gapUnpaid.push(out.gapUnpaidReal);
+      if (out.gapLockedValue > 0.5) gapLocked.push(out.gapLockedValue);
+    }
     if (out.peProgNavYears && peProgNavMatrix) peProgNavMatrix.push(out.peProgNavYears);
     if (out.productValueYears && productValueMatrix) productValueMatrix.push(out.productValueYears);
 
@@ -266,6 +275,16 @@ export function runMonteCarloSimulation(
         : Math.max(0, inputs.desiredMonthlyWithdrawal - inputs.monthlyPension),
     withdrawalAssumption: "user",
     effectiveMonthlyWithdrawal: desiredMonthly,
+    liquidityGap:
+      gapAges.length > 0
+        ? {
+            probabilityPct: (gapAges.length / settings.numSimulations) * 100,
+            withLockedAssetsPct: (gapLocked.length / settings.numSimulations) * 100,
+            medianFirstAge: percentile([...gapAges].sort((a, b) => a - b), 50),
+            medianUnpaidReal: percentile([...gapUnpaid].sort((a, b) => a - b), 50),
+            medianLockedValue: percentile([...gapLocked].sort((a, b) => a - b), 50),
+          }
+        : null,
   };
 }
 
@@ -480,6 +499,7 @@ export function runDetailedSingleSimulation(
           withdrawalFromCash: d.withdrawalFrom[0],
           withdrawalFromBonds: d.withdrawalFrom[1],
           withdrawalFromEquities: d.withdrawalFrom[2],
+          unpaidWithdrawal: d.unpaid > 0.005 ? d.unpaid : undefined,
           endCash: d.end[0],
           endBonds: d.end[1],
           endEquities: d.end[2],

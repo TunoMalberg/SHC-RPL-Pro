@@ -180,7 +180,7 @@ describe("MC-Integration — Steuer-Neutralität & Sperre", () => {
     expect(res.medianFinalWealth).toBeCloseTo(100_000 + 190_000 * lvGrowth, 0);
   });
 
-  test("gesperrter Produktwert rettet das Erfolgskriterium, wird aber nie entnommen", () => {
+  test("gesperrter Produktwert rettet das Erfolgskriterium NICHT, wird nie entnommen, zählt zum Endvermögen", () => {
     const client = { ...baseClient, currentAge: 64, retirementAge: 65, lifeExpectancy: 90 };
     const inputs: FinancialInputs = {
       ...baseInputs,
@@ -196,10 +196,13 @@ describe("MC-Integration — Steuer-Neutralität & Sperre", () => {
       lv({ amount: 90_000, expectedReturnPct: 0, purchaseAge: 64, lockYears: 15, payoutAge: 99 }),
     ];
     const res = runMonteCarloSimulation(client, inputs, portfolio, { ...baseSettings, numSimulations: 10 }, []);
-    // Liquide bleiben 10k; Entnahme 12k/J → liquide sind nach ~1 Jahr weg,
-    // aber LV-Wert (~85k) hält das Gesamtvermögen über der Entnahme →
-    // kein Fehlschlag (Konvention „PE immer in der Erfolgsquote").
-    expect(res.successRate).toBeGreaterThan(99);
+    // Liquide bleiben 10k; Entnahme 12k/J → liquide sind im ersten
+    // Entnahmejahr weg. Seit 10/2026 zählt für das Erfolgskriterium nur
+    // Liquidität (inkl. Zuflüssen des Jahres) — die gesperrte LV (~85k)
+    // rettet das Jahr nicht → alle Pfade gescheitert, Lücke mit gebundenem
+    // Vermögen in 100 % der Pfade.
+    expect(res.successRate).toBe(0);
+    expect(res.liquidityGap?.withLockedAssetsPct).toBe(100);
     // Endvermögen ≈ LV-Wert (liquide erschöpft) — LV wurde nie angetastet.
     const lvVal = 85_500 * (1 - 0.00075) ** 26;
     expect(res.medianFinalWealth).toBeGreaterThan(lvVal * 0.98);

@@ -126,6 +126,12 @@ export function DetailedExampleSection() {
     [detailedTrace],
   );
 
+  // Jahre, in denen die Entnahme nicht voll aus Liquidität bezahlt werden konnte.
+  const hasUnpaid = useMemo(
+    () => !!detailedTrace?.rows.some((r) => (r.unpaidWithdrawal ?? 0) > 0),
+    [detailedTrace],
+  );
+
   const chartData = useMemo(() => {
     if (!detailedTrace) return [];
     return detailedTrace.rows.map((r) => ({
@@ -544,6 +550,11 @@ export function DetailedExampleSection() {
                           )}
                         </>
                       )}
+                      {hasUnpaid && (
+                        <th className="py-2 px-2 text-right font-semibold bg-rose-600/30" style={{ color: "#fde2e2" }}>
+                          {t("detailed.colUnpaid")}
+                        </th>
+                      )}
                       <th className="py-2 px-2 text-right font-semibold">{t("detailed.colEndTotal")}</th>
                     </tr>
                   </thead>
@@ -700,6 +711,11 @@ export function DetailedExampleSection() {
                               )}
                             </>
                           )}
+                          {hasUnpaid && (
+                            <td className={`py-1.5 px-2 text-right tabular-nums ${(row.unpaidWithdrawal ?? 0) > 0 ? "font-semibold text-rose-700 bg-rose-50" : "text-slate-300"}`}>
+                              {(row.unpaidWithdrawal ?? 0) > 0 ? `−${fmtEur(row.unpaidWithdrawal ?? 0)}` : "—"}
+                            </td>
+                          )}
                           <td className="py-1.5 px-2 text-right font-bold text-slate-900 tabular-nums">
                             {fmtEur(row.endTotal)}
                           </td>
@@ -739,6 +755,12 @@ export function DetailedExampleSection() {
                     <p>
                       <span className="inline-block w-3 h-3 rounded-sm bg-[#8A83BE] mr-2" />
                       <strong>{peLabel}</strong> — {t("detailed.legendPE").split(" — ")[1]}
+                    </p>
+                  )}
+                  {hasUnpaid && (
+                    <p>
+                      <span className="inline-block w-3 h-3 rounded-sm bg-rose-600 mr-2" />
+                      <strong>{t("detailed.colUnpaid")}</strong> — {t("detailed.legendUnpaid")}
                     </p>
                   )}
                   {hasWba && (

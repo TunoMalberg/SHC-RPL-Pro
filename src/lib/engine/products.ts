@@ -23,8 +23,11 @@
  *    Erwartungspfad (σ ignoriert) für Käufe, WBA und Vorschau/Tests.
  *
  * Liquiditätssperre strukturell: Der Entnahme-Waterfall der Engine greift
- * nur auf die drei liquiden Töpfe zu; Produktwerte zählen (wie PE-NAV) im
- * Erfolgskriterium und Endvermögen, sind aber nie Entnahmequelle.
+ * nur auf die drei liquiden Töpfe zu; Produktwerte zählen (wie PE-NAV) zum
+ * Endvermögen, sind aber nie Entnahmequelle. Für das Erfolgskriterium zählen
+ * nur die tatsächlichen Zuflüsse eines Jahres (Kupons, Tilgung, Auszahlung).
+ * Käufe werden nur in Höhe der vorhandenen Liquidität ausgeführt
+ * (createWbaRuntime / LV fundedShare).
  *
  * Steuer-Neutralität (kritische Invariante): Käufe senken den
  * High-Watermark 1:1, steuerfreie Zuflüsse heben ihn 1:1 (identische
@@ -155,6 +158,80 @@ export function hasProductHoldings(entries: ProductYearEntry[]): boolean {
   );
 }
 
+// ── Wohnbauanleihen je Pfad (anteilig bezahlte Käufe) ───────────────
+
+/** Ergebnis eines WBA-Jahresschritts eines Pfads. */
+export interface WbaYearResult {
+  /** Steuerfreie Kupons dieses Jahres (→ Cash). */
+  coupons: number;
+  /** Steuerfreie Tilgungen dieses Jahres (→ Cash). */
+  payouts: number;
+  /** Nominale ausstehender Anleihen am Jahresende. */
+  value: number;
+}
+
+export interface WbaPathState {
+  /**
+   * Genau einmal pro Simulationsjahr aufrufen (aufsteigend).
+   * @param fundedShare Anteil der in diesem Jahr gekauften Anleihen, der aus
+   *                    vorhandener Liquidität bezahlt wurde (0–1). Kupons,
+   *                    Tilgung und Wert dieser Anleihen zählen nur anteilig.
+   */
+  advanceYear(yearIdx: number, fundedShare?: number): WbaYearResult;
+}
+
+/**
+ * Wohnbauanleihen je Pfad. Rechenregeln wie computeProductTimeline (Kupon ab
+ * dem Folgejahr bis zur Fälligkeit, Tilgung zu par, Wert = Nominale bis vor
+ * die Tilgung); zusätzlich wird je Anleihe festgehalten, welcher Anteil des
+ * Kaufs tatsächlich bezahlt werden konnte. Vollständig bezahlt ⇒ Ergebnis
+ * identisch mit der deterministischen Timeline.
+ */
+export function createWbaRuntime(bonds: WBAHolding[], currentAge: number, totalYears: number) {
+  const plans = bonds
+    .filter((b) => b.amount > 0)
+    .map((b) => {
+      const y0 = Math.max(0, Math.round(b.purchaseAge - currentAge));
+      return {
+        y0,
+        maturity: y0 + Math.max(1, Math.round(b.termYears)),
+        amount: b.amount,
+        coupon: (b.amount * b.couponPct) / 100,
+      };
+    })
+    .filter((p) => p.y0 <= totalYears);
+  return {
+    active: plans.length > 0,
+    newPathState(): WbaPathState {
+      const share = plans.map(() => 1);
+      return {
+        advanceYear(yearIdx: number, fundedShare = 1): WbaYearResult {
+          let coupons = 0;
+          let payouts = 0;
+          let value = 0;
+          for (let i = 0; i < plans.length; i++) {
+            const p = plans[i];
+            if (yearIdx === p.y0) share[i] = fundedShare;
+            const s = share[i];
+            if (yearIdx > p.y0 && yearIdx <= Math.min(p.maturity, totalYears)) {
+              coupons += s === 1 ? p.coupon : p.coupon * s;
+            }
+            if (yearIdx === p.maturity && p.maturity <= totalYears) {
+              payouts += s === 1 ? p.amount : p.amount * s;
+            }
+            if (yearIdx >= p.y0 && yearIdx < Math.min(p.maturity, totalYears + 1)) {
+              value += s === 1 ? p.amount : p.amount * s;
+            }
+          }
+          return { coupons, payouts, value };
+        },
+      };
+    },
+  };
+}
+
+export type WbaRuntime = ReturnType<typeof createWbaRuntime>;
+
 // ── Stochastische LV (Mantel über der VV) ───────────────────────────
 
 /** Ergebnis eines LV-Jahresschritts eines Pfads. */
@@ -170,8 +247,11 @@ export interface LvPathState {
    * Genau einmal pro Simulationsjahr aufrufen (Jahres-Offset aufsteigend).
    * @param zEquityYear standardisierter Aktienschock des Jahres (für den
    *                    Gleichlauf mit dem Aktien-Topf; 0 = neutral)
+   * @param fundedShare Anteil der in diesem Jahr gekauften Polizzen, der aus
+   *                    vorhandener Liquidität tatsächlich bezahlt wurde (0–1).
+   *                    Nur dieser Anteil wird investiert (Standard 1).
    */
-  advanceYear(yearIdx: number, zEquityYear: number): LvYearResult;
+  advanceYear(yearIdx: number, zEquityYear: number, fundedShare?: number): LvYearResult;
 }
 
 export interface LvRuntime {
@@ -230,7 +310,7 @@ export function createLvRuntime(
       const values = plans.map(() => 0);
       const done = plans.map(() => false);
       return {
-        advanceYear(yearIdx: number, zEquityYear: number): LvYearResult {
+        advanceYear(yearIdx: number, zEquityYear: number, fundedShare = 1): LvYearResult {
           // Ein idiosynkratischer Schock je Polizze und Jahr — immer gezogen
           // (auch vor dem Kauf), damit der Strom vom Kaufzeitpunkt
           // unabhängig und reproduzierbar bleibt.
@@ -241,7 +321,8 @@ export function createLvRuntime(
             const eps = rng.nextGaussian();
             if (done[i] || yearIdx < plan.purchaseYear) continue;
             if (yearIdx === plan.purchaseYear) {
-              values[i] = plan.investedBase;
+              // Nur der tatsächlich bezahlte Teil des Erlags wird investiert.
+              values[i] = fundedShare === 1 ? plan.investedBase : plan.investedBase * fundedShare;
             } else {
               const z =
                 plan.rho * zEquityYear +

@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { PeSummaryCard } from "./results/PeSummaryCard";
+import { LiquidityGapCard } from "./results/LiquidityGapCard";
 import { McVsHistCard } from "./results/McVsHistCard";
 import { CalculationTraceExpander } from "./results/CalculationTraceExpander";
 
@@ -467,6 +468,8 @@ export function ResultsDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <LiquidityGapCard result={result} />
 
       {/* Customer language interpretation – Item 9 */}
       {possibleMode ? (

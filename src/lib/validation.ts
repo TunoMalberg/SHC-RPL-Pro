@@ -445,5 +445,18 @@ export function validatePlanInputs(
     for (const e of part.errors) merged.errors.push(e);
     if (!part.ok) merged.ok = false;
   }
+
+  // Produkte, die heute gekauft werden, müssen aus dem Anfangskapital bezahlt
+  // werden; die Rechnung kauft nur den bezahlbaren Teil (Vorgabe 10/2026).
+  const buyNow = [...(portfolio.wohnbauanleihen ?? []), ...(portfolio.lebensversicherungen ?? [])]
+    .filter((x) => x.amount > 0 && x.purchaseAge <= client.currentAge)
+    .reduce((s, x) => s + x.amount, 0);
+  if (buyNow > inputs.initialCapital) {
+    fail(merged, {
+      path: "portfolio.products",
+      message: `Heute gekaufte Wohnbauanleihen/Lebensversicherungen (${Math.round(buyNow).toLocaleString("de-DE")} €) übersteigen das Anfangskapital (${Math.round(inputs.initialCapital).toLocaleString("de-DE")} €). Gerechnet wird nur mit dem Teil, der aus vorhandener Liquidität bezahlt werden kann.`,
+      severity: "warn",
+    });
+  }
   return merged;
 }
