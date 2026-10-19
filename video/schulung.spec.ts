@@ -225,13 +225,12 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
   const cellPct = async (i: number) => Number((await bestRowEl.locator("td").nth(i).innerText()).replace(/[^\d]/g, ""));
   const kpiCards = page.locator('[data-design-id="opt-kpis"] > *');
   const best = await kpiCards.nth(2).innerText();
-  const baseline = await kpiCards.nth(3).innerText();
   const firstPct = (s: string) => Number((s.match(/([\d.,]+)\s*%/)?.[1] ?? "0").replace(",", "."));
   const [cashPct, bondsPct, eqPct] = [await cellPct(1), await cellPct(2), await cellPct(3)];
   await narrator.say(
     fill(D.optimierungErgebnis, {
       cash: pct(cashPct), bonds: pct(bondsPct), equities: pct(eqPct),
-      baseline: pct(firstPct(baseline)), best: pct(firstPct(best)),
+      baseline: pct(erfolgHeute), best: pct(firstPct(best)),
     }),
     async () => {
       await scrollToEl(page, page.locator('[data-design-id="opt-ranked-table-card"]'));
@@ -251,7 +250,8 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
   await runSimulation(page);
   const erfolgOpt = await readNumber(page, '[data-design-id="kpi-success-rate"]');
   const korrTypOpt = await readNumber(page, '[data-design-id="corridor-typical"] .text-2xl');
-  await narrator.say(fill(D.ergebnisOptimiert, { erfolg: pct(erfolgOpt), korridorTypisch: eur(korrTypOpt) }), async () => {
+  const korrSchwerOpt = await readNumber(page, '[data-design-id="corridor-difficult"] .text-2xl');
+  await narrator.say(fill(D.ergebnisOptimiert, { erfolg: pct(erfolgOpt), korridorTypisch: eur(korrTypOpt), korridorSchwierig: eur(korrSchwerOpt) }), async () => {
     await highlight(page, kpi);
     await page.waitForTimeout(1500);
     await unhighlight(kpi);

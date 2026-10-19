@@ -15,7 +15,7 @@
 export const DREHBUCH = {
   intro: [
     "Willkommen zur Schulung Ruhestandsplaner PRO der Schelhammer Capital Bank.",
-    "In den nächsten zehn Minuten begleiten wir einen Kundenfall von der ersten Eingabe bis zum Kundenbericht. Sie sehen dabei, wie Sie mit der App nachvollziehbar zeigen, welches Portfolio zum Ruhestand Ihres Kunden passt, und welchen Vorteil die Optimierung bringt.",
+    "In den nächsten acht Minuten begleiten wir einen Kundenfall von der ersten Eingabe bis zum Kundenbericht. Sie sehen dabei, wie Sie mit der App nachvollziehbar zeigen, welches Portfolio zum Ruhestand Ihres Kunden passt, und welchen Vorteil die Optimierung bringt.",
   ],
 
   kundeIntro:
@@ -61,16 +61,16 @@ export const DREHBUCH = {
     "Als Ziel wählen wir: Erfolgsquote maximieren. Private Equity schalten wir für diese Beratung aus. Es wird in der Optimierung vereinfacht ohne Kursschwankung gerechnet und würde das Ergebnis zu günstig darstellen.",
   optimierungLaeuft: "Die Suche dauert nur wenige Sekunden.",
   optimierungErgebnis:
-    "Das Ergebnis: Die beste Aufteilung liegt bei {cash} Prozent Liquidität, {bonds} Prozent Anleihen und {equities} Prozent Aktien. Die Erfolgsquote steigt damit von {baseline} auf {best} Prozent.",
+    "Das Ergebnis: Die beste Aufteilung liegt bei {cash} Prozent Liquidität, {bonds} Prozent Anleihen und {equities} Prozent Aktien. In der Optimierung erreicht diese Aufteilung eine Erfolgsquote von {best} Prozent, gegenüber {baseline} Prozent für das heutige Portfolio.",
   optimierungEinordnung:
     "Wichtig für Ihr Gespräch: Gegenüber dem heutigen, sehr vorsichtigen Portfolio ist der Fortschritt groß. Gegenüber einem guten Standardprofil ist er klein. Die Optimierung bestätigt also vor allem die Richtung. Mehr Sparbuch bedeutet hier nicht mehr Sicherheit, denn ohne Ertrag zehrt die Inflation den Ruhestand auf.",
   optimierungUebernehmen:
     "Mit Übernehmen wird die Aufteilung ins Portfolio geschrieben. Danach rechnen wir die volle Simulation neu.",
 
   ergebnisOptimiert:
-    "Mit dem optimierten Portfolio liegt die Erfolgsquote jetzt bei {erfolg} Prozent. Der Planungskorridor steigt bei typischer Marktentwicklung auf {korridorTypisch} Euro im Monat.",
+    "Mit dem optimierten Portfolio liegt die Erfolgsquote jetzt bei {erfolg} Prozent. Der Planungskorridor steigt bei typischer Marktentwicklung auf {korridorTypisch} Euro im Monat, bei schwieriger Entwicklung auf {korridorSchwierig} Euro.",
   ergebnisGespraech:
-    "Für das Gespräch heißt das: Das Portfolio sollte stärker auf Ertrag ausgerichtet werden. Und der Korridor zeigt ehrlich, welcher Entnahmewunsch realistisch ist. Hier können Sie mit Herrn Berger über eine etwas niedrigere Entnahme oder eine längere Sparphase sprechen.",
+    "Für das Gespräch heißt das: Das Portfolio sollte stärker auf Ertrag ausgerichtet werden. Bei typischer Marktentwicklung ist der Wunsch damit erreichbar, bei schwieriger noch nicht. Wenn Herr Berger mehr Sicherheit möchte, zeigt der Korridor, um wie viel die Entnahme sinken oder die Sparphase länger sein müsste.",
 
   szenarioOptimiert:
     "Auch diesen Stand speichern wir. Die Szenario-Übersicht zeigt beide Varianten nebeneinander, mit Erfolgsquote, Endvermögen und Bandbreite.",

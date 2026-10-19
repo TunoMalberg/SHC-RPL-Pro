@@ -55,6 +55,9 @@ jobs:
       - name: Schnitt (Ton, Untertitel, MP4)
         run: node scripts/video/assemble.mjs
 
+      - name: Bilderübersicht (zur Kontrolle)
+        run: ffmpeg -y -i video-output/Schulungsvideo_Ruhestandsplaner_PRO.mp4 -vf "fps=1/15,scale=480:-1,tile=4x8" -frames:v 1 video-output/bilderuebersicht.png
+
       - name: Video sichern
         if: always()
         uses: actions/upload-artifact@v4
@@ -63,6 +66,7 @@ jobs:
           path: |
             video-output/Schulungsvideo_Ruhestandsplaner_PRO.mp4
             video-output/untertitel.srt
+            video-output/bilderuebersicht.png
             video-output/Sprechertext.txt
             video-output/timeline.json
             video-output/test-results/
