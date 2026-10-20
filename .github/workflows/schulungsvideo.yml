@@ -65,6 +65,7 @@ jobs:
           name: schulungsvideo
           path: |
             video-output/Schulungsvideo_Ruhestandsplaner_PRO.mp4
+            video-output/Schulungsvideo_Ruhestandsplaner_PRO_Intranet.mp4
             video-output/untertitel.srt
             video-output/bilderuebersicht.png
             video-output/Sprechertext.txt

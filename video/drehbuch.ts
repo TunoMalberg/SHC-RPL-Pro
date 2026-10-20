@@ -67,6 +67,8 @@ export const DREHBUCH = {
   optimierungUebernehmen:
     "Mit Übernehmen wird die Aufteilung ins Portfolio geschrieben. Danach rechnen wir die volle Simulation neu.",
 
+  neuRechnen:
+    "Mit der neuen Aufteilung rechnen wir die Simulation noch einmal, wieder mit zehntausend Marktverläufen und demselben Startwert. So bleibt der Vergleich mit dem heutigen Portfolio fair.",
   ergebnisOptimiert:
     "Mit dem optimierten Portfolio liegt die Erfolgsquote jetzt bei {erfolg} Prozent. Der Planungskorridor steigt bei typischer Marktentwicklung auf {korridorTypisch} Euro im Monat, bei schwieriger Entwicklung auf {korridorSchwierig} Euro.",
   ergebnisGespraech:

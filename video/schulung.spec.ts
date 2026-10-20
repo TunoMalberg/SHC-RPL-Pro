@@ -83,9 +83,10 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 1 Kunde ────────────────────────────────────────────────────────
   narrator.chapter = K[1];
-  await chapter(page, K[1]);
-  await openTab(page, "profile");
-  await narrator.say(D.kundeIntro);
+  await narrator.say(D.kundeIntro, async () => {
+    await chapter(page, K[1]);
+    await openTab(page, "profile");
+  });
   await narrator.say(D.kundeFelder, async () => {
     await typeInto(page, page.locator("#name"), "Thomas Berger");
     await typeInto(page, page.locator("#currentAge"), "48");
@@ -95,9 +96,9 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 2 Eingaben ─────────────────────────────────────────────────────
   narrator.chapter = K[2];
-  await chapter(page, K[2]);
-  await openTab(page, "inputs");
   await narrator.say(D.eingabenIntro, async () => {
+    await chapter(page, K[2]);
+    await openTab(page, "inputs");
     await typeInto(page, page.locator("#initialCapital"), "500000");
     await typeInto(page, page.locator("#monthlySavings"), "2000");
   });
@@ -114,10 +115,10 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 3 Heutiges Portfolio ───────────────────────────────────────────
   narrator.chapter = K[3];
-  await chapter(page, K[3]);
-  await openTab(page, "portfolio");
   const mifid = page.locator('[data-design-id="mifid-selector-card"]');
   await narrator.say(D.portfolioIntro, async () => {
+    await chapter(page, K[3]);
+    await openTab(page, "portfolio");
     await scrollToEl(page, mifid);
     await clickOn(page, mifid.locator("button", { hasText: "Konservativ" }).first());
   });
@@ -138,9 +139,9 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 4 Simulation ───────────────────────────────────────────────────
   narrator.chapter = K[4];
-  await chapter(page, K[4]);
-  await openTab(page, "simulation");
   await narrator.say(D.simulationIntro, async () => {
+    await chapter(page, K[4]);
+    await openTab(page, "simulation");
     await typeInto(page, page.locator("#seed"), "2026");
   });
   await narrator.say(D.simulationLaeuft, async () => {
@@ -171,8 +172,8 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
   });
 
   // Szenario „Heute" speichern
-  await openTab(page, "scenarios");
   await narrator.say(D.szenarioHeute, async () => {
+    await openTab(page, "scenarios");
     await typeInto(page, page.locator("#scenarioName"), "Heute (40/45/15)");
     await clickOn(page, page.locator('[data-design-id="add-scenario-button"]'));
     await expect(page.locator('[data-design-id="scenario-card-0"]')).toBeVisible({ timeout: 120_000 });
@@ -180,9 +181,9 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 6 Vergleich ────────────────────────────────────────────────────
   narrator.chapter = K[6];
-  await chapter(page, K[6]);
-  await openTab(page, "compare");
   await narrator.say(D.vergleichIntro, async () => {
+    await chapter(page, K[6]);
+    await openTab(page, "compare");
     await pointTo(page, page.locator('[data-design-id="comparison-target-select"]'));
     await clickOn(page, page.locator('[data-design-id="run-comparison-button"]'));
     await expect(page.locator('[data-design-id="comparison-variants"]')).toBeVisible({ timeout: 180_000 });
@@ -203,9 +204,10 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 7 Optimierung ──────────────────────────────────────────────────
   narrator.chapter = K[7];
-  await chapter(page, K[7]);
-  await openTab(page, "optimizer");
-  await narrator.say(D.optimierungIntro);
+  await narrator.say(D.optimierungIntro, async () => {
+    await chapter(page, K[7]);
+    await openTab(page, "optimizer");
+  });
   await narrator.say(D.optimierungEinstellen, async () => {
     await clickOn(page, page.locator('[data-design-id="opt-objective-field"] button[role="combobox"]'));
     await clickOn(page, page.getByRole("option", { name: "Erfolgsquote maximieren" }));
@@ -245,9 +247,11 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 8 Ergebnis optimiert ───────────────────────────────────────────
   narrator.chapter = K[8];
-  await chapter(page, K[8]);
-  await openTab(page, "simulation");
-  await runSimulation(page);
+  await narrator.say(D.neuRechnen, async () => {
+    await chapter(page, K[8]);
+    await openTab(page, "simulation");
+    await runSimulation(page);
+  });
   const erfolgOpt = await readNumber(page, '[data-design-id="kpi-success-rate"]');
   const korrTypOpt = await readNumber(page, '[data-design-id="corridor-typical"] .text-2xl');
   const korrSchwerOpt = await readNumber(page, '[data-design-id="corridor-difficult"] .text-2xl');
@@ -260,8 +264,8 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
   });
   await narrator.say(D.ergebnisGespraech);
   await unhighlight(corridor);
-  await openTab(page, "scenarios");
   await narrator.say(D.szenarioOptimiert, async () => {
+    await openTab(page, "scenarios");
     await typeInto(page, page.locator("#scenarioName"), "Optimiert");
     await clickOn(page, page.locator('[data-design-id="add-scenario-button"]'));
     await expect(page.locator('[data-design-id="scenario-card-1"]')).toBeVisible({ timeout: 120_000 });
@@ -272,17 +276,17 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 9 Einzelpfad & Historie ────────────────────────────────────────
   narrator.chapter = K[9];
-  await chapter(page, K[9]);
-  await openTab(page, "detailed");
   await narrator.say(D.einzelpfad, async () => {
+    await chapter(page, K[9]);
+    await openTab(page, "detailed");
     await clickOn(page, page.locator('[data-design-id="generate-worst-button"]'));
     await expect(page.locator('[data-design-id="detailed-chart-card"]')).toBeVisible({ timeout: 60_000 });
     await scrollToEl(page, page.locator('[data-design-id="detailed-chart-card"]'));
     await page.waitForTimeout(2500);
     await scrollToEl(page, page.locator('[data-design-id="detailed-table-card"]'));
   });
-  await openTab(page, "historical");
   await narrator.say(D.historie, async () => {
+    await openTab(page, "historical");
     const sus = page.locator('[data-design-id="hist-sustainable-card"]');
     await scrollToEl(page, sus);
     await highlight(page, sus);
@@ -291,9 +295,9 @@ test("Schulungsvideo Ruhestandsplaner PRO", async ({ browser }) => {
 
   // ── 10 Kundenbericht ───────────────────────────────────────────────
   narrator.chapter = K[10];
-  await chapter(page, K[10]);
-  await openTab(page, "clientview");
   await narrator.say(D.kundenansicht, async () => {
+    await chapter(page, K[10]);
+    await openTab(page, "clientview");
     await typeInto(page, page.locator("#adv-name"), "Maria Muster");
     await page.mouse.wheel(0, 700);
     await page.waitForTimeout(1200);

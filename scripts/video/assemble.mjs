@@ -60,8 +60,14 @@ writeFileSync(srtPath, srt);
 // ── Ton + Bild zusammenführen ────────────────────────────────────────
 const args = ["-y", "-i", timeline.video];
 for (const c of clips) args.push("-i", c.file);
-const delays = clips.map((c, i) => `[${i + 1}:a]adelay=${Math.round(c.start)}|${Math.round(c.start)}[a${i}]`);
-const mix = `${clips.map((_, i) => `[a${i}]`).join("")}amix=inputs=${clips.length}:normalize=0:dropout_transition=0,loudnorm=I=-16:TP=-1.5:LRA=11[aout]`;
+// Kurzes Ein-/Ausblenden je Sprechteil verhindert Knackser an den Schnittstellen.
+// Feste Lautstärke + Begrenzer statt loudnorm: loudnorm regelt nach jeder
+// Pause nach und drückt dadurch den Satzanfang weg (hörbar als Unterbrechung).
+const delays = clips.map((c, i) => {
+  const d = Math.max(0.1, c.duration / 1000);
+  return `[${i + 1}:a]afade=t=in:d=0.03,afade=t=out:st=${(d - 0.06).toFixed(3)}:d=0.06,adelay=${Math.round(c.start)}|${Math.round(c.start)}[a${i}]`;
+});
+const mix = `${clips.map((_, i) => `[a${i}]`).join("")}amix=inputs=${clips.length}:normalize=0:dropout_transition=0,volume=1.25,alimiter=limit=0.95:level=disabled[aout]`;
 const style = "FontName=DejaVu Sans,FontSize=13,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H99000000,BorderStyle=4,Outline=0,Shadow=0,MarginV=16";
 const subs = `[0:v]subtitles=${srtPath.replace(/\\/g, "/").replace(/:/g, "\\:")}:force_style='${style}'[vout]`;
 args.push(
@@ -73,6 +79,19 @@ args.push(
   join(OUT, "Schulungsvideo_Ruhestandsplaner_PRO.mp4"),
 );
 execFileSync("ffmpeg", args, { stdio: "inherit" });
+
+// Kompakte Fassung fürs Intranet: 720p, H.264 (Main), AAC mono — spielt in
+// jedem Browser/SharePoint/Stream und ist deutlich kleiner.
+const full = join(OUT, "Schulungsvideo_Ruhestandsplaner_PRO.mp4");
+const intranet = join(OUT, "Schulungsvideo_Ruhestandsplaner_PRO_Intranet.mp4");
+execFileSync("ffmpeg", [
+  "-y", "-i", full,
+  "-vf", "scale=1280:-2:flags=lanczos",
+  "-c:v", "libx264", "-profile:v", "main", "-level", "3.1", "-preset", "slow", "-crf", "28", "-pix_fmt", "yuv420p", "-r", "25",
+  "-c:a", "aac", "-b:a", "96k", "-ac", "1",
+  "-movflags", "+faststart",
+  intranet,
+], { stdio: "inherit" });
 
 // Drehbuch als Textdatei (zum Nachlesen / Übersetzen)
 const script = clips.map((c) => `[${ts(c.start).slice(0, 8)}] ${c.chapter}\n${c.text}\n`).join("\n");
