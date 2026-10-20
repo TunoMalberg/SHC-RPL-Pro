@@ -118,6 +118,13 @@ export interface OptimizerOptions {
   /** Erlaubte PE-Stufen in Phase 1 (Default [0, 10, 20]). */
   peStepsCoarse?: number[];
   /**
+   * Private Equity in die Suche einbeziehen (Default true). false = nur die
+   * drei liquiden Töpfe werden optimiert (PE-Zielquote bleibt 0 %).
+   * Hintergrund: PE wird im Modus „realistisch" ohne Kursschwankung
+   * gerechnet und würde die Suche sonst stark bevorzugen.
+   */
+  includePE?: boolean;
+  /**
    * Optionaler Progress-Callback (0..1). Wird ungefähr 10× während des Laufs
    * aufgerufen. Nicht für genaue Fortschrittsanzeige gedacht — nur für UX.
    */
@@ -196,7 +203,8 @@ export function optimizePortfolio(
   const refinementTopN = options.refinementTopN ?? 3;
   const reEvalTopN = options.reEvalTopN ?? 10;
   const seed = options.randomSeed ?? settings.randomSeed ?? 42;
-  const peStepsCoarse = options.peStepsCoarse ?? [0, 10, 20];
+  const includePE = options.includePE !== false;
+  const peStepsCoarse = includePE ? (options.peStepsCoarse ?? [0, 10, 20]) : [0];
 
   const evaluatedKey = new Map<string, AllocationResult>();
   const all: AllocationResult[] = [];
@@ -266,14 +274,16 @@ export function optimizePortfolio(
       ? [...topCandidates, baselineEval]
       : topCandidates;
 
-  const finerPeSteps = uniqueSorted([
-    0, 5, 10, 15, 20, 25,
-    ...centers.flatMap((c) => [
-      Math.max(0, c.pe - 5),
-      c.pe,
-      Math.min(25, c.pe + 5),
-    ]),
-  ]);
+  const finerPeSteps = includePE
+    ? uniqueSorted([
+        0, 5, 10, 15, 20, 25,
+        ...centers.flatMap((c) => [
+          Math.max(0, c.pe - 5),
+          c.pe,
+          Math.min(25, c.pe + 5),
+        ]),
+      ])
+    : [0];
   const refinement = neighborhoodGrid(centers, 5, minCashPct, finerPeSteps);
   for (let i = 0; i < refinement.length; i++) {
     evaluator(refinement[i], pathsPhase12);

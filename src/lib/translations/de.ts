@@ -920,6 +920,8 @@ export const de: Record<string, string> = {
   "opt.title": "Portfolio-Optimierung",
   "opt.subtitle": "Findet bei vorgegebenem Kapital und Entnahme die Allokation mit der höchsten Erfolgswahrscheinlichkeit — inkl. optionalem PE-Anteil.",
   "opt.configTitle": "Optimierungs-Einstellungen",
+  "opt.includePE": "Private Equity einbeziehen",
+  "opt.includePEHint": "Private Equity wird in der Optimierung ohne Kursschwankung gerechnet (vereinfachtes Modell) und dadurch tendenziell bevorzugt. Ergebnisse mit PE-Anteil vorsichtig interpretieren; ausgeschaltet werden nur Liquidität, Anleihen und Aktien optimiert.",
   "opt.objective": "Zielfunktion",
   "opt.obj.success": "Erfolgsquote maximieren",
   "opt.obj.successHint": "Höchste Wahrscheinlichkeit, dass das Kapital bis zum Planungshorizont ausreicht.",
