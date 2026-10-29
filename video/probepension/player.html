@@ -210,7 +210,7 @@ function stopSprecher(){ lauf++; audio.pause(); audio.onended=null; if(timer){cl
 
 function tick(){
   if(playing){
-    const p=(!muted&&audio.duration)?audio.currentTime/audio.duration:Math.min(1,(performance.now()-startTs)/dauerMs);
+    const p=(!muted&&!audio.paused&&audio.duration)?audio.currentTime/audio.duration:Math.min(1,(performance.now()-startTs)/dauerMs);
     fill.style.width=((i+p)/SZENEN.length*100).toFixed(2)+"%";
   }
   requestAnimationFrame(tick);
