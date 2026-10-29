@@ -48,11 +48,11 @@ export const SZENEN: Szene[] = [
   },
   {
     id: "korridor", kap: "Probepension I", titel: "Was das Vermögen wirklich trägt",
-    text: "Der Planungskorridor übersetzt das in Euro. Bei typischer Marktentwicklung trägt das Vermögen {korridorTypisch} Euro im Monat zusätzlich zur Pension, bei schwieriger Entwicklung nur {korridorSchwierig} Euro. Herr Huber wünscht sich zehntausend.",
+    text: "Der Planungskorridor übersetzt das in Euro. Bei typischer Marktentwicklung trägt das Vermögen {korridorTypisch} Euro im Monat zusätzlich zur Pension, bei schwieriger Entwicklung nur {korridorSchwierig} Euro. Herr Huber wünscht sich zehntausend. {korridorSatz}",
   },
   {
     id: "luecke", kap: "Probepension I", titel: "Die Lücke in Zahlen",
-    text: "Die Gap-Analyse nennt die Lücke konkret. Für neunzig Prozent Sicherheit tragen Vermögen und Pension zusammen {tragbar90} Euro im Monat. Herr Huber plant dreizehntausendfünfhundert. Darunter stehen die Hebel, um die Lücke zu schließen. Genau die prüfen wir gleich, einen nach dem anderen.",
+    text: "Die Gap-Analyse nennt die Lücke konkret. Für neunzig Prozent Sicherheit tragen Vermögen und Pension zusammen {tragbar90} Euro im Monat. Aus dem Depot wären das nur {ausDepot90} Euro statt zehntausend. Darunter stehen die Hebel, um die Lücke zu schließen. Genau die prüfen wir gleich, einen nach dem anderen.",
   },
   {
     id: "faecher", kap: "Probepension I", titel: "Die Bandbreite",
@@ -64,7 +64,7 @@ export const SZENEN: Szene[] = [
   },
   {
     id: "hebelPortfolio", kap: "Hebel 1", titel: "Das Portfolio",
-    text: "Erster Hebel: das Portfolio. Die Optimierung prüft rund zweihundert Aufteilungen, Private Equity schalten wir dabei aus. Die beste Aufteilung erreicht {best} Prozent statt {baseline} Prozent. Ein Fortschritt, aber das Portfolio allein schließt die Lücke nicht. Auch das ist eine wichtige Erkenntnis: Mehr Aktien sind hier nicht automatisch die Lösung.",
+    text: "Erster Hebel: das Portfolio. Die Optimierung prüft rund zweihundert Aufteilungen, Private Equity schalten wir dabei aus. In der Optimierung erreicht die beste Aufteilung {best} Prozent, das heutige Portfolio {baseline} Prozent. Ein Fortschritt, aber das Portfolio allein schließt die Lücke nicht. Auch das ist eine wichtige Erkenntnis: Mehr Aktien sind hier nicht automatisch die Lösung.",
   },
   {
     id: "hebelPension", kap: "Hebel 2", titel: "Ein Jahr später in Pension",
@@ -84,11 +84,11 @@ export const SZENEN: Szene[] = [
   },
   {
     id: "historie", kap: "Gegenprobe", titel: "Echte Börsengeschichte",
-    text: "Zur Gegenprobe rechnet der Reiter Historie den Plan mit echten Marktdaten seit neunzehnhundertsiebzig durch. Die Karte zeigt, welche Monatsentnahme im ungünstigsten Startjahr gerade noch gereicht hätte. So verbinden Sie Wahrscheinlichkeiten mit Erfahrungen, die Ihr Kunde selbst erlebt hat.",
+    text: "Zur Gegenprobe rechnet der Reiter Historie den Plan mit echten Marktdaten seit neunzehnhundertsiebzig durch. Die Karte zeigt, welche Monatsentnahme im ungünstigsten Startjahr gerade noch gereicht hätte. {histSatz} So verbinden Sie Wahrscheinlichkeiten mit Erfahrungen, die Ihr Kunde selbst erlebt hat.",
   },
   {
     id: "bericht", kap: "Dokumentation", titel: "Kundenbericht",
-    text: "In der Kundenansicht erstellen Sie den Kundenbericht, als PDF oder als interaktive Webseite. Er hält Wunsch, Lücke und den vereinbarten Plan fest. Für Ihre Unterlagen gibt es zusätzlich Excel und PowerPoint.",
+    text: "In der Kundenansicht erstellen Sie den Kundenbericht, als PDF oder als interaktive Webseite, auf Wunsch mit allen gespeicherten Szenarien. Er hält Wunsch, Lücke und den vereinbarten Plan fest. Für Ihre Unterlagen gibt es zusätzlich Excel und PowerPoint.",
   },
   {
     id: "outro", kap: "Ihr Gespräch", titel: "Der Gesprächseinstieg", slide: "outro",

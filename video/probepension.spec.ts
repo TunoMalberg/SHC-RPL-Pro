@@ -112,8 +112,8 @@ test("Schulungsvideo 2 Probepension", async ({ browser }) => {
   await page.goto("/");
   await expect(page.locator('[data-design-id="tab-trigger-optimizer"]')).toBeVisible({ timeout: 60_000 });
   await installStage(page);
-  // Standbilder: kein Mauszeiger im Bild
-  await page.addStyleTag({ content: "#vid-cursor{display:none!important}" });
+  // Standbilder: kein Mauszeiger und keine Hinweis-Einblendungen im Bild
+  await page.addStyleTag({ content: "#vid-cursor,[data-sonner-toaster]{display:none!important}" });
 
   const values: Record<string, Record<string, string | number>> = {};
   const images: Record<string, string> = {};
@@ -122,8 +122,10 @@ test("Schulungsvideo 2 Probepension", async ({ browser }) => {
     if (target) {
       await scrollToEl(page, target);
       await highlight(page, target);
-      await page.waitForTimeout(400);
     }
+    // Maus aus dem Bild, damit keine Diagramm-Tooltips stehen bleiben
+    await page.mouse.move(SIZE.width - 2, SIZE.height - 2);
+    await page.waitForTimeout(500);
     const file = `${String(SZENEN.findIndex((s) => s.id === id) + 1).padStart(2, "0")}-${id}.jpg`;
     await page.screenshot({ path: join(OUT, file), type: "jpeg", quality: 82 });
     if (target) await unhighlight(target);
@@ -184,13 +186,22 @@ test("Schulungsvideo 2 Probepension", async ({ browser }) => {
     erfolg: pct(erfolgHeute),
     jeder: ORDINAL[Math.min(6, Math.max(2, Math.round(100 / fail)))],
   });
+  const korrTyp = await readNumber(page.locator('[data-design-id="corridor-typical"] .text-2xl'));
+  const korrSchwer = await readNumber(page.locator('[data-design-id="corridor-difficult"] .text-2xl'));
+  const WUNSCH = 10_000;
+  const korridorSatz =
+    korrTyp >= WUNSCH
+      ? `Bei typischer Entwicklung geht sich der Wunsch also gerade aus. Bei schwieriger fehlen ${eur(WUNSCH - korrSchwer)} Euro, Monat für Monat.`
+      : `Schon bei typischer Entwicklung fehlen ${eur(WUNSCH - korrTyp)} Euro im Monat.`;
   await shot("korridor", page.locator('[data-design-id="corridor-card"]'), {
-    korridorTypisch: eur(await readNumber(page.locator('[data-design-id="corridor-typical"] .text-2xl'))),
-    korridorSchwierig: eur(await readNumber(page.locator('[data-design-id="corridor-difficult"] .text-2xl'))),
+    korridorTypisch: eur(korrTyp),
+    korridorSchwierig: eur(korrSchwer),
+    korridorSatz,
   });
   const gap = page.locator('[data-design-id="gap-analysis-card"]');
-  const gapBoxes = gap.locator(".text-xl");
-  await shot("luecke", gap, { tragbar90: eur(await readNumber(gapBoxes.nth(1))) });
+  // Box 1 = Wunsch gesamt, Box 2 = nachhaltig auf 90-%-Niveau (beides inkl. Pension)
+  const tragbar90 = await readNumber(gap.locator(".text-xl").nth(1));
+  await shot("luecke", gap, { tragbar90: eur(tragbar90), ausDepot90: eur(tragbar90 - 3500) });
   await shot("faecher", page.locator('[data-design-id="fan-chart-card"]'));
   await saveScenario(page, `Heute · Pension 65 (${heute.cash}/${heute.bonds}/${heute.equities})`, 0);
 
@@ -242,13 +253,19 @@ test("Schulungsvideo 2 Probepension", async ({ browser }) => {
   await openTab(page, "historical");
   const hist = page.locator('[data-design-id="hist-sustainable-card"]');
   await expect(hist).toBeVisible({ timeout: 120_000 });
-  await shot("historie", hist);
+  // Karten: ungünstigstes Startjahr, Median, im Plan gerechnet (alle inkl. Pension)
+  const histWorst = await readNumber(hist.locator(".text-2xl").nth(0));
+  const histPlan = await readNumber(hist.locator(".text-2xl").nth(2));
+  const histSatz =
+    histWorst >= histPlan
+      ? `Für den neuen Plan von Herrn Huber gilt: Selbst im ungünstigsten Startjahr hätte die Entnahme gereicht.`
+      : `Im ungünstigsten Startjahr hätten ${eur(histWorst)} Euro gereicht, geplant sind ${eur(histPlan)} Euro, beides inklusive Pension.`;
+  await shot("historie", hist, { histSatz });
 
   await openTab(page, "clientview");
   await setField(page, "#adv-name", "Maria Muster");
-  await page.mouse.wheel(0, 500);
-  await page.waitForTimeout(1000);
-  await shot("bericht");
+  const reportCards = page.getByText("Seite 1: Cover").locator("xpath=ancestor::div[contains(@class,'md:grid-cols-2')][1]");
+  await shot("bericht", reportCards);
 
   await context.close();
 
