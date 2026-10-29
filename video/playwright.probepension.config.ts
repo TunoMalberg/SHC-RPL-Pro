@@ -17,6 +17,8 @@ export default defineConfig({
   use: {
     baseURL: externalBaseUrl ?? "http://localhost:3100",
     locale: "de-AT",
+    // Datumsfelder im österreichischen Format (TT.MM.JJJJ)
+    launchOptions: { args: ["--lang=de-AT"] },
   },
   webServer: externalBaseUrl
     ? undefined

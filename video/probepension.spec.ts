@@ -35,13 +35,26 @@ async function openTab(page: Page, id: string): Promise<void> {
   await page.waitForTimeout(500);
 }
 
+/**
+ * Feld befüllen und prüfen. Betragsfelder formatieren sich beim Fokus neu
+ * („€ 3.500" → „3500"); ohne Pause geht dabei der erste Tastendruck verloren.
+ */
 async function setField(page: Page, selector: string, value: string): Promise<void> {
   const f = page.locator(selector);
-  await f.click();
-  await f.press("Control+A");
-  await f.pressSequentially(value, { delay: 20 });
-  await f.blur();
-  await page.waitForTimeout(200);
+  const digits = (s: string) => s.replace(/[^\d]/g, "");
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await f.click();
+    await page.waitForTimeout(350);
+    await f.press("Control+A");
+    await f.press("Backspace");
+    await page.waitForTimeout(150);
+    await f.pressSequentially(value, { delay: 45 });
+    await f.blur();
+    await page.waitForTimeout(300);
+    const shown = await f.inputValue();
+    if (digits(shown) === digits(value) || shown === value) return;
+  }
+  throw new Error(`${selector}: Wert ${value} ließ sich nicht setzen (zeigt ${await f.inputValue()})`);
 }
 
 async function runSimulation(page: Page): Promise<number> {
@@ -99,6 +112,8 @@ test("Schulungsvideo 2 Probepension", async ({ browser }) => {
   await page.goto("/");
   await expect(page.locator('[data-design-id="tab-trigger-optimizer"]')).toBeVisible({ timeout: 60_000 });
   await installStage(page);
+  // Standbilder: kein Mauszeiger im Bild
+  await page.addStyleTag({ content: "#vid-cursor{display:none!important}" });
 
   const values: Record<string, Record<string, string | number>> = {};
   const images: Record<string, string> = {};
@@ -130,9 +145,13 @@ test("Schulungsvideo 2 Probepension", async ({ browser }) => {
   await setField(page, "#withdrawal", "13500");
   await setField(page, "#pension", "3500");
   await setField(page, "#pensionAge", "65");
-  await shot("eingaben", page.locator('[data-design-id="capital-savings-card"]'));
+  // Beide Karten (Kapital & Sparen, Entnahmen & Pension) gemeinsam zeigen
+  await shot("eingaben", page.locator('[data-design-id="capital-savings-card"]').locator(".."));
 
+  // Die Vorschau „Start-Entnahme beim Pensionsantritt" steht in den Experteneinstellungen
+  await page.getByRole("button", { name: /Experteneinstellungen/ }).click();
   const preview = page.locator('[data-design-id="inflate-to-retirement-preview"]');
+  await expect(preview).toBeVisible();
   const previewText = await preview.innerText();
   const startMonat = parseNumber(previewText.split("(")[1] ?? previewText);
   await shot("inflation", preview, { startMonat: eur(startMonat) });

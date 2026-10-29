@@ -28,7 +28,7 @@ export const SZENEN: Szene[] = [
   },
   {
     id: "kunde", kap: "Der Fall", titel: "Dr. Michael Huber, 60",
-    text: "Unser Fall: Dr. Michael Huber, sechzig Jahre alt, Geschäftsführer. Ein Beispielfall, die Daten sind frei erfunden. Er möchte mit fünfundsechzig in Pension gehen. Geplant wird bis zweiundneunzig, also über gut dreißig Jahre Ruhestand.",
+    text: "Unser Fall: Dr. Michael Huber, sechzig Jahre alt, Geschäftsführer. Ein Beispielfall, die Daten sind frei erfunden. Er möchte mit fünfundsechzig in Pension gehen. Geplant wird bis zweiundneunzig, also für siebenundzwanzig Jahre Ruhestand.",
   },
   {
     id: "eingaben", kap: "Der Fall", titel: "Vermögen und Wunsch",
