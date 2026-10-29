@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { fmtEur, fmtPct, fmtNum } from "@/lib/format";
 import { runDetailedSingleSimulation } from "@/lib/engine/montecarlo";
 import { withEffectiveWithdrawal } from "@/lib/engine/planRun";
+import { deflateTrace } from "@/lib/traceValuation";
 import type { DetailedSimTrace } from "@/lib/types";
 import {
   Select,
@@ -45,6 +46,14 @@ export function DetailedExampleSection() {
   const { state, dispatch } = useAppState();
   const { client, inputs, portfolio, settings, result, detailedTrace, liquidityEvents, scenarios } = state;
   const { t } = useI18n();
+  // Bewertungsbasis wie im Rest der App (Schalter in der Kopfzeile):
+  // heutige Kaufkraft = je Jahr durch die aufgelaufene Inflation geteilt.
+  const isReal = state.valuationMode === "real";
+  const shownTrace = useMemo(
+    () => (detailedTrace ? (isReal ? deflateTrace(detailedTrace) : detailedTrace) : null),
+    [detailedTrace, isReal],
+  );
+  const valueSuffix = isReal ? t("valuation.suffixReal") : t("valuation.badgeNominal").toLowerCase();
   const [simIndex, setSimIndex] = useState(0);
   // Auswahl des Quell-Szenarios. "current" = aktueller Plan aus Store,
   // sonst die ID eines gespeicherten Szenarios. So kann der Berater die
@@ -133,8 +142,8 @@ export function DetailedExampleSection() {
   );
 
   const chartData = useMemo(() => {
-    if (!detailedTrace) return [];
-    return detailedTrace.rows.map((r) => ({
+    if (!shownTrace) return [];
+    return shownTrace.rows.map((r) => ({
       age: r.age,
       year: r.year,
       [cashLabel]: Math.round(r.endCash),
@@ -146,14 +155,14 @@ export function DetailedExampleSection() {
       [t("detailed.total")]: Math.round(r.endTotal),
       liquidityEvent: r.liquidityEvent || 0,
     }));
-  }, [detailedTrace, cashLabel, bondsLabel, equitiesLabel, peLabel, wbaLabel, lvLabel, t]);
+  }, [shownTrace, cashLabel, bondsLabel, equitiesLabel, peLabel, wbaLabel, lvLabel, t]);
 
   const liquidityEventYears = useMemo(() => {
-    if (!detailedTrace) return [];
-    return detailedTrace.rows
+    if (!shownTrace) return [];
+    return shownTrace.rows
       .filter((r) => r.liquidityEvent !== 0)
       .map((r) => ({ age: r.age, amount: r.liquidityEvent, label: r.liquidityEventLabel }));
-  }, [detailedTrace]);
+  }, [shownTrace]);
 
   const rebalanceYears = useMemo(() => {
     if (!detailedTrace) return [];
@@ -314,7 +323,7 @@ export function DetailedExampleSection() {
                     {detailedTrace.success ? t("detailed.success") : t("detailed.depleted")}
                   </span>
                   <span className="text-slate-500">
-                    {t("detailed.finalWealth")}: <span className="font-semibold text-slate-800">{fmtEur(detailedTrace.finalWealth)}</span>
+                    {t("detailed.finalWealth")}: <span className="font-semibold text-slate-800">{fmtEur(shownTrace?.finalWealth ?? 0)}</span> <span className="text-xs text-slate-400">{valueSuffix}</span>
                   </span>
                 </div>
               )}
@@ -333,6 +342,7 @@ export function DetailedExampleSection() {
             <CardHeader>
               <CardTitle data-design-id="detailed-chart-title">
                 {t("detailed.chartTitle")}
+                <span className="ml-2 text-sm font-normal text-slate-500">({valueSuffix})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -470,6 +480,7 @@ export function DetailedExampleSection() {
             <CardHeader>
               <CardTitle data-design-id="detailed-table-title">
                 {t("detailed.tableTitle")}
+                <span className="ml-2 text-sm font-normal text-slate-500">({valueSuffix})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -559,7 +570,7 @@ export function DetailedExampleSection() {
                     </tr>
                   </thead>
                   <tbody>
-                    {detailedTrace.rows.map((row, idx) => {
+                    {(shownTrace?.rows ?? []).map((row, idx) => {
                       const isRetirementStart = row.age === client.retirementAge;
                       const bgClass = isRetirementStart
                         ? "bg-red-50 border-t-2 border-[#D31220]"
