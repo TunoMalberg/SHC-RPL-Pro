@@ -702,9 +702,12 @@ export function ResultsDashboard() {
               ))}
               <Area yAxisId="left" type="monotone" dataKey="p90" stackId="1" stroke="none" fill="#F7D8CD" name={t("results.percentile90")} />
               <Area yAxisId="left" type="monotone" dataKey="p75" stackId="2" stroke="none" fill="#EDAC98" name={t("results.percentile75")} />
-              <Area yAxisId="left" type="monotone" dataKey="median" stackId="3" stroke="#D31220" strokeWidth={2} fill="#E37E67" name={t("results.median")} />
-              <Area yAxisId="left" type="monotone" dataKey="p25" stackId="4" stroke="none" fill="#EDAC98" name={t("results.percentile25")} />
-              <Area yAxisId="left" type="monotone" dataKey="p10" stackId="5" stroke="none" fill="#F7D8CD" name={t("results.percentile10")} />
+              {/* Bänder (übereinander gezeichnet): 0–P90 hell, 0–P75 kräftig, 0–P25 hell,
+                  0–P10 weiß → sichtbar: P75–P90 und P10–P25 hell, P25–P75 kräftig,
+                  unter P10 / über P90 nichts. Median nur als Linie. */}
+              <Area yAxisId="left" type="monotone" dataKey="p25" stackId="4" stroke="none" fill="#F7D8CD" fillOpacity={1} name={t("results.percentile25")} />
+              <Area yAxisId="left" type="monotone" dataKey="p10" stackId="5" stroke="none" fill="#FFFFFF" fillOpacity={1} name={t("results.percentile10")} />
+              <Area yAxisId="left" type="monotone" dataKey="median" stackId="3" stroke="#D31220" strokeWidth={2} fill="none" name={t("results.median")} />
               <Area yAxisId="left" type="monotone" dataKey="worst" stroke="#D31220" strokeWidth={1} fill="none" strokeDasharray="4 4" name={t("results.worstCase")} />
               {hasPE && showPENav && hasPEStoch && (
                 <>
@@ -761,10 +764,9 @@ export function ResultsDashboard() {
             <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("results.fanLegendTitle")}</div>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
               {[
-                { color: "#F7D8CD", label: t("results.fanLegendBest10"), border: false },
                 { color: "#EDAC98", label: t("results.fanLegendMid50"), border: false },
+                { color: "#F7D8CD", label: t("results.fanLegendOuter"), border: false },
                 { color: "#D31220", label: t("results.fanLegendMedian"), border: false, thick: true },
-                { color: "#EDAC98", label: t("results.fanLegendWorst10"), border: false },
                 { color: "#D31220", label: t("results.fanLegendWorstLine"), dashed: true },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-1.5">
