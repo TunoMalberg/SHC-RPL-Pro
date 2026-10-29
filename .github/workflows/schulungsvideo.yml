@@ -1,0 +1,75 @@
+# Schulungsvideo „Ruhestandsplaner PRO" erzeugen
+#
+# Baut die App, bedient sie automatisch am Beispielfall (video/schulung.spec.ts),
+# vertont das Drehbuch (video/drehbuch.ts) mit der österreichischen
+# Microsoft-Stimme und schneidet daraus eine MP4-Datei mit Untertiteln.
+# Ergebnis: Artefakt „schulungsvideo" am Lauf (30 Tage verfügbar).
+#
+# Start: GitHub → Actions → „Schulungsvideo" → „Run workflow".
+# Es werden nur Beispieldaten verwendet; an Microsoft geht nur der Sprechtext.
+
+name: Schulungsvideo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/schulungsvideo"]
+    paths:
+      - "video/**"
+      - "scripts/video/**"
+      - ".github/workflows/schulungsvideo.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schulungsvideo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  video:
+    name: Video erzeugen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Abhängigkeiten installieren
+        run: bun install --frozen-lockfile
+
+      - name: Werkzeuge (Browser, Stimme, Schnitt)
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg fonts-dejavu-core
+          pipx install edge-tts
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Aufnahme (App wird bedient und vertont)
+        run: npx playwright test -c video/playwright.config.ts
+
+      - name: Schnitt (Ton, Untertitel, MP4)
+        run: node scripts/video/assemble.mjs
+
+      - name: Bilderübersicht (zur Kontrolle)
+        run: ffmpeg -y -i video-output/Schulungsvideo_Ruhestandsplaner_PRO.mp4 -vf "fps=1/15,scale=480:-1,tile=4x8" -frames:v 1 video-output/bilderuebersicht.png
+
+      - name: Video sichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schulungsvideo
+          path: |
+            video-output/Schulungsvideo_Ruhestandsplaner_PRO.mp4
+            video-output/Schulungsvideo_Ruhestandsplaner_PRO_Intranet.mp4
+            video-output/untertitel.srt
+            video-output/bilderuebersicht.png
+            video-output/Sprechertext.txt
+            video-output/timeline.json
+            video-output/test-results/
+          retention-days: 30
+          if-no-files-found: warn

@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { fmtEur, fmtPct } from "@/lib/format";
 import { logger } from "@/lib/logger";
 import { validatePlanInputs } from "@/lib/validation";
@@ -76,6 +77,7 @@ export function PortfolioOptimizerSection() {
   const { t } = useI18n();
 
   const [objective, setObjective] = useState<OptimizerObjective>("success_wealth");
+  const [includePE, setIncludePE] = useState(true);
   const [running, setRunning] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
@@ -128,6 +130,7 @@ export function PortfolioOptimizerSection() {
           randomSeed: settings.randomSeed ?? 42,
           minCashPct: 5,
           peStepsCoarse: [0, 10, 20],
+          includePE,
           onProgress: (pct, label) => {
             setProgressPct(Math.round(pct * 100));
             setProgressLabel(t(`opt.progress.${label}`) || label);
@@ -176,7 +179,7 @@ export function PortfolioOptimizerSection() {
     } finally {
       setRunning(false);
     }
-  }, [client, inputs, portfolio, settings, liquidityEvents, objective, dispatch, t]);
+  }, [client, inputs, portfolio, settings, liquidityEvents, objective, includePE, dispatch, t]);
 
   const applyAllocation = useCallback(
     (alloc: AllocationResult) => {
@@ -266,6 +269,16 @@ export function PortfolioOptimizerSection() {
               {objective === "success_dd" && t("opt.obj.successDdHint")}
               {objective === "success_wealth" && t("opt.obj.successWealthHint")}
             </p>
+          </div>
+
+          <div className="flex items-start justify-between gap-3 rounded-md border border-slate-200 px-3 py-2" data-design-id="opt-include-pe">
+            <div>
+              <label htmlFor="opt-include-pe" className="block text-sm font-medium text-slate-700">
+                {t("opt.includePE")}
+              </label>
+              <p className="text-xs text-slate-500 mt-0.5">{t("opt.includePEHint")}</p>
+            </div>
+            <Switch id="opt-include-pe" checked={includePE} onCheckedChange={setIncludePE} />
           </div>
 
           {/* Wissenschaftliche Methodik (kompakt) */}

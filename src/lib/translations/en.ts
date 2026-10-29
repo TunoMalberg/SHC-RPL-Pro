@@ -912,6 +912,8 @@ export const en: Record<string, string> = {
   "opt.title": "Portfolio Optimization",
   "opt.subtitle": "For a given starting capital and withdrawal, finds the allocation with the highest probability of success — including optional PE allocation.",
   "opt.configTitle": "Optimization settings",
+  "opt.includePE": "Include private equity",
+  "opt.includePEHint": "Private equity is modelled without price fluctuation in the optimization (simplified model) and therefore tends to be favoured. Interpret results with a PE share with caution; when switched off only cash, bonds and equities are optimized.",
   "opt.objective": "Objective",
   "opt.obj.success": "Maximize success rate",
   "opt.obj.successHint": "Highest probability that capital lasts to the planning horizon.",
