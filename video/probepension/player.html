@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Probepension</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: dunkles Player-Chrome im SHC-CI — Bühne 16:10, Untertitel-Band, Steuerleiste, Kapitelstrip */
+:root{
+  --coal:#141412;        /* Player-Hintergrund (dunkler als Mattschwarz) */
+  --coal-2:#20201E;      /* Mattschwarz — Flächen */
+  --fire:#D31220;        /* Feuerrot — Akzente, CTAs */
+  --fire-soft:#EDAC98;   /* helle Feuerrot-Abstufung für Linien auf Dunkel */
+  --paper:#FFFFFF;
+  --stone:#B9B5B0;       /* heller Sekundärtext auf Dunkel */
+  --mist:#7C7873;
+  --ok:#8FB687;          /* Gras — positiv */
+  --serif:"Source Serif 4", Georgia, serif;     /* Stellvertreter für Demos Next */
+  --sans:"Source Sans 3", "Segoe UI", sans-serif; /* Stellvertreter für Marine */
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--coal);color:var(--paper);font-family:var(--sans);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 24px;}
+.wrap{max-width:1180px;margin:0 auto}
+header.top{display:flex;align-items:center;gap:14px;padding-block:14px 10px;border-bottom:1px solid #2E2D2A}
+header.top img{height:34px;width:auto;display:block}
+header.top .sep{width:1px;height:30px;background:#3A3936}
+header.top .prod{font-family:var(--serif);font-weight:600;font-size:1.15rem;letter-spacing:.01em}
+header.top .tag{margin-left:auto;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--stone)}
+/* Bühne */
+.stage{position:relative;margin-top:16px;border:1px solid #2E2D2A;background:var(--coal-2);overflow:hidden;aspect-ratio:16/10;max-width:100%}
+.stage .scene{position:absolute;inset:0;display:none}
+.stage .scene.active{display:block}
+.scene .imgbox{position:absolute;inset:0;overflow:hidden}
+.scene .imgbox img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.playing .scene.active .imgbox img{animation:kenburns 28s linear forwards}
+@keyframes kenburns{from{transform:scale(1) translateY(0)}to{transform:scale(1.07) translateY(-2.5%)}}
+@media (prefers-reduced-motion:reduce){.playing .scene.active .imgbox img{animation:none}}
+.scene .label{position:absolute;left:0;bottom:0;display:flex;align-items:center;gap:10px;background:rgba(20,20,18,.88);padding:8px 16px 8px 14px;border-top:1px solid #2E2D2A;border-right:1px solid #2E2D2A}
+.scene .label .k{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--fire-soft)}
+.scene .label .t{font-family:var(--serif);font-weight:600;font-size:1.02rem}
+/* Titelfolien */
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:6% 7%;background:var(--coal-2)}
+.slide svg.grid{position:absolute;inset:0;width:100%;height:100%}
+.slide .eyebrow{font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;color:var(--stone);margin-bottom:14px}
+.slide h1{font-family:var(--serif);font-weight:700;font-size:clamp(2.2rem,6vw,4.6rem);margin:0 0 14px;line-height:1.04;text-wrap:balance}
+.slide h1 em{font-style:normal;color:var(--fire-soft)}
+.slide p.sub{max-width:34em;color:var(--stone);font-size:clamp(.95rem,1.6vw,1.15rem);margin:0}
+.slide .fall{margin-top:26px;display:inline-flex;gap:10px;align-items:baseline;border-left:3px solid var(--fire);padding-left:12px}
+.slide .fall b{font-family:var(--serif);font-weight:600;font-size:1.05rem}
+.slide .fall span{color:var(--stone);font-size:.9rem}
+.slide ul{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:10px;max-width:40em}
+.slide ul li{display:flex;gap:10px;align-items:baseline;font-size:clamp(.92rem,1.5vw,1.08rem)}
+.slide ul li::before{content:"";width:9px;height:9px;background:var(--fire);transform:rotate(45deg);flex:none;position:relative;top:1px}
+.slide .frage{margin-top:22px;font-family:var(--serif);font-weight:600;font-size:clamp(1.15rem,2.6vw,1.7rem);color:var(--fire-soft)}
+.slide .legal{margin-top:16px;font-size:.78rem;color:var(--mist);max-width:44em}
+/* Untertitel */
+.captions{margin-top:14px;min-height:4.2em;border-left:3px solid var(--fire);background:var(--coal-2);padding:12px 16px;color:#EDEBE8;font-size:1.02rem;line-height:1.55}
+.captions .who{display:block;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mist);margin-bottom:4px}
+/* Steuerleiste */
+.controls{margin-top:14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+button{font-family:var(--sans);font-size:.92rem;cursor:pointer;border:1px solid #3A3936;background:var(--coal-2);color:var(--paper);padding:9px 14px;border-radius:2px}
+button:hover{border-color:var(--stone)}
+button:focus-visible{outline:2px solid var(--fire-soft);outline-offset:2px}
+button.primary{background:var(--fire);border-color:var(--fire);color:#fff;font-weight:700;padding:9px 20px}
+button.primary:hover{background:#B80F1B}
+button[aria-pressed="true"]{border-color:var(--fire);color:var(--fire-soft)}
+select{background:var(--coal-2);color:var(--paper);border:1px solid #3A3936;padding:8px 10px;border-radius:2px;font-family:var(--sans);font-size:.88rem;max-width:230px}
+.spacer{flex:1}
+.counter{font-variant-numeric:tabular-nums;color:var(--stone);font-size:.88rem}
+/* Fortschritt */
+.progress{margin-top:12px;height:5px;background:#2E2D2A;cursor:pointer;position:relative}
+.progress .fill{position:absolute;inset:0 auto 0 0;width:0%;background:var(--fire)}
+/* Kapitelstrip */
+.chapters{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.chap{border:1px solid #2E2D2A;background:var(--coal-2);color:var(--stone);text-align:left;padding:8px 10px;font-size:.8rem;line-height:1.3;border-radius:2px}
+.chap b{display:block;color:var(--paper);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}
+.chap.current{border-color:var(--fire);color:var(--paper)}
+.chap.current b{color:var(--fire-soft)}
+/* Startoverlay */
+.overlay{position:absolute;inset:0;background:rgba(20,20,18,.55);display:flex;align-items:center;justify-content:center;z-index:5}
+.overlay button{font-size:1.1rem;padding:16px 30px;display:flex;gap:12px;align-items:center}
+.overlay button .tri{width:0;height:0;border-style:solid;border-width:9px 0 9px 15px;border-color:transparent transparent transparent #fff}
+footer{margin-top:22px;padding-top:12px;border-top:1px solid #2E2D2A;color:var(--mist);font-size:.78rem;display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:space-between}
+.hint{margin-top:10px;color:var(--mist);font-size:.8rem}
+@media (max-width:640px){
+  .stage{aspect-ratio:16/11}
+  .scene .label .t{font-size:.85rem}
+  .chapters{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <img src="__LOGO__" alt="Schelhammer Capital">
+    <div class="sep"></div>
+    <div class="prod">Ruhestandsplaner PRO · Schulung</div>
+    <div class="tag">Intern · Private Banking</div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="overlay" id="overlay">
+      <button class="primary" id="startBtn"><span class="tri"></span> Schulung starten (mit Sprecher)</button>
+    </div>
+    <div id="scenes"></div>
+  </div>
+
+  <div class="captions" id="captions"><span class="who">Sprecher</span><span id="captionText">Drücken Sie auf Start. Der Sprecher führt Sie in rund __MINUTEN__ Minuten durch die Probepension am Fall Dr. Michael Huber.</span></div>
+
+  <div class="progress" id="progress" title="Zum Springen klicken"><div class="fill" id="fill"></div></div>
+
+  <div class="controls">
+    <button class="primary" id="playBtn" aria-label="Abspielen/Pause">▶ Abspielen</button>
+    <button id="prevBtn" aria-label="Vorheriges Kapitel">‹ Zurück</button>
+    <button id="nextBtn" aria-label="Nächstes Kapitel">Weiter ›</button>
+    <span class="counter" id="counter">1 / 1</span>
+    <div class="spacer"></div>
+    <button id="muteBtn" aria-pressed="false">Sprecher: an</button>
+  </div>
+
+  <div class="chapters" id="chapters"></div>
+
+  <p class="hint">Ohne Ton läuft die Schulung mit Untertiteln automatisch weiter. Tastatur: Leertaste = Pause, Pfeiltasten = Kapitel.</p>
+
+  <footer>
+    <span>Ruhestandsplaner PRO, internes Schulungsvideo der Schelhammer Capital</span>
+    <span>Beispielfall mit erfundenen Daten. Keine Anlageempfehlung.</span>
+  </footer>
+</div>
+
+<script>
+/* ---------- Szenen: Bild + Sprechertext + Tonspur (beim Bauen eingesetzt) ---------- */
+const SZENEN = /*__SZENEN__*/[];
+
+/* ---------- Titelfolien ---------- */
+const GRID = `<svg class="grid" viewBox="0 0 1000 625" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <g stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1" fill="none">
+    <path d="M 540 625 L 790 425 L 1040 625"/>
+    <path d="M 790 425 L 1040 225"/>
+    <path d="M 640 625 L 1040 305"/>
+    <path d="M 740 625 L 1040 385"/>
+  </g>
+  <path d="M 790 425 L 915 325 L 915 425 Z" fill="#D31220"/>
+</svg>`;
+
+function slideHTML(art){
+  if(art==="intro") return `<div class="slide">${GRID}
+    <div class="eyebrow">Internes Schulungsvideo · Ruhestandsplaner PRO</div>
+    <h1><em>Probepension.</em><br>Den Ruhestand vorab erleben.</h1>
+    <p class="sub">Wie Sie mit der App fünf Jahre vor der Pension zeigen, ob der Wunsch Ihres Kunden trägt, und welcher Hebel die Lücke wirklich schließt.</p>
+    <div class="fall"><b>Der Fall:</b> <span>Dr. Michael Huber · 60 · Pension mit 65 · € 3,5 Mio · Wunsch: € 10.000 im Monat zusätzlich aus dem Depot</span></div>
+  </div>`;
+  return `<div class="slide">${GRID}
+    <div class="eyebrow">Ihr Gesprächseinstieg</div>
+    <h1>„Wollen wir Ihre Pension einmal <em>probeweise antreten</em>?“</h1>
+    <ul>
+      <li>Klarheit: Trägt der Wunsch, und mit welcher Wahrscheinlichkeit?</li>
+      <li>Kaufkraft: Was die Inflation aus dem Wunsch macht</li>
+      <li>Hebel: Portfolio, Pensionsantritt und Sparrate in Sekunden durchgerechnet</li>
+      <li>Dokumentation: vorher und nachher im Kundenbericht</li>
+    </ul>
+    <p class="legal">Simulation mit Annahmen und Wahrscheinlichkeiten. Keine individuelle Beratung und keine Anlageempfehlung. Echte Kundendaten nur lokal verarbeiten.</p>
+  </div>`;
+}
+
+/* ---------- Aufbau ---------- */
+const scenesEl=document.getElementById("scenes");
+SZENEN.forEach((s,idx)=>{
+  const d=document.createElement("div");
+  d.className="scene"; d.dataset.i=idx;
+  if(s.slide){ d.innerHTML=slideHTML(s.slide); }
+  else { d.innerHTML=`<div class="imgbox"><img src="${s.img}" alt="${s.titel}"></div>
+    <div class="label"><span class="k">${s.kap}</span><span class="t">${s.titel}</span></div>`; }
+  scenesEl.appendChild(d);
+});
+const chapsEl=document.getElementById("chapters");
+SZENEN.forEach((s,idx)=>{
+  const b=document.createElement("button");
+  b.className="chap"; b.innerHTML=`<b>${String(idx+1).padStart(2,"0")} · ${s.kap}</b>${s.titel}`;
+  b.addEventListener("click",()=>{ go(idx); });
+  chapsEl.appendChild(b);
+});
+
+/* ---------- Sprecher: eingebettete Tonspur je Szene ---------- */
+const audio=new Audio();
+audio.preload="auto";
+let i=0, playing=false, muted=false, timer=null, startTs=0, dauerMs=0, lauf=0;
+const stage=document.getElementById("stage"), fill=document.getElementById("fill"),
+  captionText=document.getElementById("captionText"), counter=document.getElementById("counter"),
+  playBtn=document.getElementById("playBtn");
+
+function weiter(l){ if(l===lauf&&playing) setTimeout(()=>{ if(l===lauf&&playing) go(i+1); },700); }
+function sprich(s){
+  stopSprecher();
+  const l=++lauf;
+  dauerMs=(s.dauer||Math.max(6500,s.text.length*62)); startTs=performance.now();
+  if(!muted && s.audio){
+    audio.src=s.audio;
+    audio.onended=()=>weiter(l);
+    audio.play().catch(()=>{ timer=setTimeout(()=>weiter(l),dauerMs); });
+  } else {
+    timer=setTimeout(()=>weiter(l),dauerMs);
+  }
+}
+function stopSprecher(){ lauf++; audio.pause(); audio.onended=null; if(timer){clearTimeout(timer);timer=null;} }
+
+function tick(){
+  if(playing){
+    const p=(!muted&&!audio.paused&&audio.duration)?audio.currentTime/audio.duration:Math.min(1,(performance.now()-startTs)/dauerMs);
+    fill.style.width=((i+p)/SZENEN.length*100).toFixed(2)+"%";
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function go(n){
+  if(n>=SZENEN.length){ setPlaying(false); fill.style.width="100%"; return; }
+  if(n<0) n=0;
+  i=n;
+  document.querySelectorAll(".scene").forEach(el=>el.classList.toggle("active",Number(el.dataset.i)===i));
+  document.querySelectorAll(".chap").forEach((el,idx)=>el.classList.toggle("current",idx===i));
+  const s=SZENEN[i];
+  captionText.textContent=s.text;
+  counter.textContent=`${i+1} / ${SZENEN.length}`;
+  fill.style.width=(i/SZENEN.length*100).toFixed(2)+"%";
+  const img=document.querySelector(".scene.active .imgbox img");
+  if(img){ img.style.animation="none"; void img.offsetWidth; img.style.animation=""; }
+  if(playing) sprich(s); else stopSprecher();
+}
+function setPlaying(p){
+  playing=p;
+  stage.classList.toggle("playing",p);
+  playBtn.textContent=p?"❚❚ Pause":"▶ Abspielen";
+  if(p){ sprich(SZENEN[i]); } else { stopSprecher(); }
+}
+function overlayWeg(){ const ov=document.getElementById("overlay"); if(ov) ov.remove(); }
+
+document.getElementById("startBtn").addEventListener("click",()=>{ overlayWeg(); go(0); setPlaying(true); });
+playBtn.addEventListener("click",()=>{ overlayWeg(); setPlaying(!playing); });
+document.getElementById("prevBtn").addEventListener("click",()=>go(i-1));
+document.getElementById("nextBtn").addEventListener("click",()=>go(i+1));
+document.getElementById("muteBtn").addEventListener("click",(e)=>{
+  muted=!muted;
+  e.currentTarget.textContent=muted?"Sprecher: aus":"Sprecher: an";
+  e.currentTarget.setAttribute("aria-pressed",String(muted));
+  if(playing) sprich(SZENEN[i]);
+});
+document.getElementById("progress").addEventListener("click",(e)=>{
+  const r=e.currentTarget.getBoundingClientRect();
+  go(Math.floor((e.clientX-r.left)/r.width*SZENEN.length));
+});
+document.addEventListener("keydown",(e)=>{
+  if(e.code==="Space"){ e.preventDefault(); overlayWeg(); setPlaying(!playing); }
+  if(e.code==="ArrowRight") go(i+1);
+  if(e.code==="ArrowLeft") go(i-1);
+});
+go(0);
+</script>
+
+</body>
+</html>

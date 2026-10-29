@@ -1,0 +1,70 @@
+# Schulungsvideo 2 „Probepension" erzeugen
+#
+# Baut die App, bedient sie automatisch am Beispielfall Dr. Michael Huber
+# (video/probepension.spec.ts), macht je Szene ein Bild, vertont das
+# Drehbuch (video/probepension/drehbuch.ts) mit der österreichischen
+# Microsoft-Stimme und baut daraus eine HTML-Datei mit Player.
+# Ergebnis: Artefakt „schulungsvideo-2" am Lauf (30 Tage verfügbar).
+#
+# Start: GitHub → Actions → „Schulungsvideo 2" → „Run workflow".
+# Es werden nur Beispieldaten verwendet; an Microsoft geht nur der Sprechtext.
+
+name: Schulungsvideo 2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/schulungsvideo-2"]
+    paths:
+      - "video/**"
+      - "scripts/video/**"
+      - ".github/workflows/schulungsvideo-2.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schulungsvideo-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  video:
+    name: Video erzeugen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Abhängigkeiten installieren
+        run: bun install --frozen-lockfile
+
+      - name: Werkzeuge (Browser, Stimme)
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg
+          pipx install edge-tts
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Aufnahme (App wird bedient, Bilder je Szene)
+        run: npx playwright test -c video/playwright.probepension.config.ts
+
+      - name: Vertonung und Player
+        run: node scripts/video/probepension-player.mjs
+
+      - name: Video sichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schulungsvideo-2
+          path: |
+            video-output/Schulungsvideo_2_Probepension.html
+            video-output/Sprechertext_Probepension.txt
+            video-output/probepension/
+            video-output/test-results-probepension/
+          retention-days: 30
+          if-no-files-found: warn

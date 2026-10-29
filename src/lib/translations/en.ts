@@ -519,7 +519,7 @@ export const en: Record<string, string> = {
   "results.tooltipMedianWealth": "Final wealth in the median scenario – 50% of paths end above, 50% below.",
   "results.customerSuccess90": "Excellent! Your plan has a high probability of covering the planned withdrawals until age {age}.",
   "results.customerSuccess70": "Solid, but with room for improvement. About {pct}% of scenarios show capital lasting to age {age}. An adjustment is recommended.",
-  "results.customerSuccess50": "At risk. Less than half of all scenarios show capital lasting to age {age}. We strongly recommend adjusting your plan.",
+  "results.customerSuccess50": "At risk. Only about {pct}% of scenarios show capital lasting to age {age}. We strongly recommend adjusting your plan.",
   "results.customerLanguageTitle": "What does this mean for you?",
   "results.gapTitle": "Gap Analysis: Path to 90% Success",
   "results.gapOnTrack": "✅ Your plan is on track!",

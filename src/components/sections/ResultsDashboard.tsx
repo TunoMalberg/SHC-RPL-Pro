@@ -491,8 +491,8 @@ export function ResultsDashboard() {
               {result.successRate >= 90
                 ? t("results.customerSuccess90").replace("{age}", String(client.lifeExpectancy))
                 : result.successRate >= 70
-                  ? t("results.customerSuccess70").replace("{pct}", fmtPct(result.successRate)).replace("{age}", String(client.lifeExpectancy))
-                  : t("results.customerSuccess50").replace("{age}", String(client.lifeExpectancy))
+                  ? t("results.customerSuccess70").replace("{pct}", String(Math.round(result.successRate))).replace("{age}", String(client.lifeExpectancy))
+                  : t("results.customerSuccess50").replace("{pct}", String(Math.round(result.successRate))).replace("{age}", String(client.lifeExpectancy))
               }
             </p>
           </CardContent>

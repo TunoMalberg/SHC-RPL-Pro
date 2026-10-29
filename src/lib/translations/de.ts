@@ -522,7 +522,7 @@ export const de: Record<string, string> = {
   // CR 8: neutrale Formulierung — keine wertende Lebensstandard-Aussage.
   "results.customerSuccess90": "Sehr gut! Ihr Plan hat eine hohe Wahrscheinlichkeit, die geplanten Entnahmen bis Alter {age} zu decken.",
   "results.customerSuccess70": "Solide, aber mit Optimierungspotenzial. In rund {pct}% der Szenarien reicht Ihr Kapital bis Alter {age}. Eine Anpassung ist empfehlenswert.",
-  "results.customerSuccess50": "Risikobehaftet. In weniger als der Hälfte aller Szenarien reicht das Kapital bis Alter {age}. Wir empfehlen dringend eine Plankorrektur.",
+  "results.customerSuccess50": "Risikobehaftet. Nur in rund {pct}% der Szenarien reicht das Kapital bis Alter {age}. Wir empfehlen dringend eine Plankorrektur.",
   "results.customerLanguageTitle": "Was bedeutet das für Sie?",
   "results.gapTitle": "Gap-Analyse: Weg zur 90%-Erfolgsquote",
   "results.gapOnTrack": "✅ Ihr Plan ist auf Kurs!",
