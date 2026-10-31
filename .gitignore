@@ -49,3 +49,4 @@ next-env.d.ts
 
 # Schulungsvideo (Ausgabe des Workflows)
 /video-output/
+/offline-output/

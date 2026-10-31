@@ -21,6 +21,7 @@ import { ModeToggle } from "@/components/ModeToggle";
 import { ModeChooserModal } from "@/components/ModeChooserModal";
 import { ValuationBadge } from "@/components/ValuationBadge";
 import Image from "next/image";
+import { IS_OFFLINE, OFFLINE_BUILD_DATE } from "@/lib/offline";
 
 const ALL_TABS = [
   { id: "profile", labelKey: "tab.profile", icon: "/icons/rot/schild.png" },
@@ -182,6 +183,13 @@ export default function RetirementPlannerApp() {
             <p data-design-id="footer-copyright">
               © {new Date().getFullYear()} {t("app.footer.copyright")}
             </p>
+            {IS_OFFLINE && (
+              <p data-testid="offline-version">
+                {t("app.footer.offline")
+                  .replace("{version}", process.env.NEXT_PUBLIC_APP_VERSION ?? "")
+                  .replace("{date}", OFFLINE_BUILD_DATE)}
+              </p>
+            )}
           </div>
         </div>
       </footer>
