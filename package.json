@@ -8,6 +8,7 @@
     "build": "BUILD_DIR=.next-build next build",
     "build:local": "BUILD_DIR=.next-build next build",
     "build:vercel": "next build",
+    "build:offline": "bun scripts/offline/build.ts",
     "lint": "bunx biome lint --write && bunx tsc --noEmit",
     "typecheck": "bunx tsc --noEmit",
     "format": "bunx biome format --write",

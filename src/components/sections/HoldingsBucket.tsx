@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppState } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
+import { IS_OFFLINE } from "@/lib/offline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -215,8 +216,17 @@ export function HoldingsBucket() {
   }, [scenarioMessage]);
 
   // ---- Excel template download
-  const downloadTemplate = useCallback(() => {
-    window.location.href = "/api/holdings/template";
+  // Als Datei-Download statt Seitenwechsel — funktioniert so auch in der
+  // Offline-Datei, wo die Vorlage direkt im Browser entsteht.
+  const downloadTemplate = useCallback(async () => {
+    const resp = await fetch("/api/holdings/template");
+    if (!resp.ok) return;
+    const url = URL.createObjectURL(await resp.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "SHC_Bestandsportfolio_Vorlage.xlsx";
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, []);
 
   // ---- Excel/CSV import
@@ -318,6 +328,14 @@ export function HoldingsBucket() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {IS_OFFLINE && (
+            <p
+              className="text-sm rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2"
+              data-testid="offline-holdings-note"
+            >
+              {t("offline.holdingsNote")}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button onClick={downloadTemplate} variant="outline" size="sm">
               📥 {t("holdings.downloadTemplate")}

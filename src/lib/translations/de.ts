@@ -9,6 +9,9 @@ export const de: Record<string, string> = {
   "app.threeBucket": "3-Topf-Modell",
   "app.footer.disclaimer": "Nur zu Informationszwecken. Keine Anlageberatung. Konsultieren Sie einen qualifizierten Finanzberater.",
   "app.footer.copyright": "Ruhestandsplaner Pro — Drei-Topf Monte-Carlo-Engine",
+  "app.footer.offline": "Offline-Version {version} · Stand {date}",
+  "offline.unavailable": "Offline nicht verfügbar: Diese Funktion braucht Kursdaten aus dem Internet und steht nur in der Online-Version zur Verfügung.",
+  "offline.holdingsNote": "Offline-Version: Wertpapiersuche, automatische Kurse und Backtest brauchen Internet und stehen nur online zur Verfügung. Positionen von Hand erfassen und der Excel-Import funktionieren.",
 
   // Tabs
   "tab.profile": "Kunde",

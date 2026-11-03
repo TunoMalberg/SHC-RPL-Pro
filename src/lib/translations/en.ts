@@ -9,6 +9,9 @@ export const en: Record<string, string> = {
   "app.threeBucket": "3-Bucket Model",
   "app.footer.disclaimer": "For informational purposes only. Not financial advice. Consult a qualified financial advisor.",
   "app.footer.copyright": "Retirement Planner Pro — Three-Bucket Monte Carlo Engine",
+  "app.footer.offline": "Offline version {version} · as of {date}",
+  "offline.unavailable": "Not available offline: this feature needs market data from the internet and is only available in the online version.",
+  "offline.holdingsNote": "Offline version: security search, automatic prices and backtest need internet and are only available online. Manual entry and Excel import work.",
 
   // Tabs
   "tab.profile": "Client",

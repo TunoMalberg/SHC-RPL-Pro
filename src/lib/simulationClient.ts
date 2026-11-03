@@ -13,6 +13,7 @@ import {
   type SimulationProgress,
 } from "./engine/simulationJob";
 import { logger } from "./logger";
+import { offlineWorkerUrl } from "./offline";
 
 type WorkerMessage =
   | { type: "progress"; progress: SimulationProgress }
@@ -39,9 +40,12 @@ export function runSimulationInBackground(
 
   let worker: Worker;
   try {
-    worker = new Worker(new URL("./engine/simulation.worker.ts", import.meta.url), {
-      type: "module",
-    });
+    const offlineUrl = offlineWorkerUrl();
+    worker = offlineUrl
+      ? new Worker(offlineUrl)
+      : new Worker(new URL("./engine/simulation.worker.ts", import.meta.url), {
+          type: "module",
+        });
   } catch (err) {
     logger.warn("Web Worker nicht verfügbar — Rechnung im Vordergrund", { scope: "simulationClient" }, err);
     return runInline(request, onProgress);
