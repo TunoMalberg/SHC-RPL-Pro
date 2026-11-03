@@ -58,7 +58,7 @@ jobs:
 
       - name: Video sichern
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: schulungsvideo-2
           path: |
