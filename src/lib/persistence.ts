@@ -46,7 +46,14 @@ interface Envelope {
 }
 
 function isBrowser(): boolean {
-  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+  if (typeof window === "undefined") return false;
+  try {
+    // Der Zugriff selbst wirft, wenn der Browser den Speicher sperrt
+    // (Richtlinie, abgeschottete Vorschau, Datei von der Festplatte).
+    return typeof window.sessionStorage !== "undefined";
+  } catch {
+    return false;
+  }
 }
 
 export function loadPersistedState(): Partial<AppState> | null {
