@@ -111,6 +111,37 @@ async function collectAssets(): Promise<Record<string, string>> {
  */
 const scriptSafe = (code: string) => code.replace(/<\/(script)/gi, "<\\/$1");
 
+/**
+ * Startanzeige: Bis die App läuft, steht sie in #root. Scheitert der Start,
+ * sieht man statt einer weißen Seite den Grund. Läuft ohne Bibliotheken,
+ * damit sie auch dann funktioniert, wenn der App-Code nicht startet.
+ */
+const START_BOX =
+  "max-width:640px;margin:15vh auto;padding:24px;font:16px/1.5 system-ui,sans-serif;color:#20201E";
+const startScript = `(function(){
+var shown=false;
+function fail(reason){
+  var root=document.getElementById("root");
+  if(shown||!root||root.querySelector("[data-design-id]"))return;
+  shown=true;
+  var box=document.createElement("div");
+  box.setAttribute("style",${JSON.stringify(START_BOX)});
+  box.id="rpl-start-error";
+  var h=document.createElement("strong");
+  h.textContent="Der Ruhestandsplaner konnte nicht starten.";
+  var p=document.createElement("p");
+  p.textContent="Bitte die Datei auf dem Rechner speichern und per Doppelklick im Browser öffnen, nicht in einer Vorschau oder direkt aus einer E-Mail.";
+  var c=document.createElement("p");
+  c.setAttribute("style","color:#4D4A47;font-size:13px");
+  c.textContent="Technischer Hinweis: "+reason;
+  box.appendChild(h);box.appendChild(p);box.appendChild(c);
+  root.innerHTML="";root.appendChild(box);
+}
+window.addEventListener("error",function(e){fail(e.message||"Fehler beim Laden");});
+window.addEventListener("unhandledrejection",function(e){fail(String(e.reason&&e.reason.message||e.reason));});
+setTimeout(function(){fail("Keine Rückmeldung nach 15 Sekunden");},15000);
+})();`;
+
 await rm(OUT_DIR, { recursive: true, force: true });
 await mkdir(TMP, { recursive: true });
 
@@ -130,7 +161,8 @@ const html = `<!doctype html>
 <style>${css.replace(/<\/(style)/gi, "<\\/$1")}</style>
 </head>
 <body class="antialiased font-sans">
-<div id="root"></div>
+<div id="root"><div id="rpl-start" style="${START_BOX}">Ruhestandsplaner wird gestartet …<noscript><p>JavaScript ist in diesem Browser gesperrt. Die Offline-Datei braucht JavaScript.</p></noscript></div></div>
+<script>${startScript}</script>
 <script id="rpl-worker" type="text/plain">${scriptSafe(workerJs)}</script>
 <script>
 globalThis.__RPL_ASSETS__=${scriptSafe(JSON.stringify(assets))};

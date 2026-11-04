@@ -79,6 +79,26 @@ test("Offline: Simulation und alle Exporte ohne Netz", async ({ page }) => {
   expect(network).toEqual([]);
 });
 
+test("Offline: läuft auch, wenn der Browser den Speicher sperrt", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    for (const name of ["localStorage", "sessionStorage"]) {
+      Object.defineProperty(window, name, {
+        get() {
+          throw new DOMException("Zugriff verweigert", "SecurityError");
+        },
+      });
+    }
+  });
+  await page.goto(FILE_URL);
+  await page.getByText("Klassik wählen").click();
+  await expect(page.locator('[data-testid="offline-version"]')).toContainText("Offline-Version");
+  await enterDemoClient(page);
+  await runSimulation(page);
+  await expect(page.locator('[data-design-id="kpi-success-rate"]')).toContainText("%");
+  expect(errors).toEqual([]);
+});
+
 test("Offline: Bestand mit Hinweis, Excel-Vorlage und Import im Browser", async ({ page }) => {
   const errors = trackErrors(page);
   const network = await openOffline(page, "pro");
